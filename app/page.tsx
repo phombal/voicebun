@@ -2,9 +2,13 @@
 
 import { CloseIcon } from "@/components/CloseIcon";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
-import TranscriptionView from "@/components/TranscriptionView";
+import DatabaseTranscriptionView from "@/components/DatabaseTranscriptionView";
 import { VoiceAgentConfig, type VoiceAgentConfig as VoiceAgentConfigType } from "@/components/VoiceAgentConfig";
 import { GeneratedCodeDisplay } from "@/components/GeneratedCodeDisplay";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import UserProfile from "@/components/auth/UserProfile";
+import PublicLanding from "@/components/LandingPage";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   BarVisualizer,
   DisconnectButton,
@@ -18,14 +22,67 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Room, RoomEvent } from "livekit-client";
 import { useCallback, useEffect, useState } from "react";
 import type { ConnectionDetails } from "./api/connection-details/route";
+import { useDatabase } from "@/hooks/useDatabase";
+import { DatabaseService } from "@/lib/database/service";
 
 type AppState = "landing" | "code-display" | "conversation";
 
 export default function Page() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <PublicLanding />;
+  }
+
+  return <PageContent />;
+}
+
+function PageContent() {
   const [room] = useState(new Room());
   const [appState, setAppState] = useState<AppState>("landing");
   const [agentConfig, setAgentConfig] = useState<VoiceAgentConfigType | null>(null);
   const [generatedCode, setGeneratedCode] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentProject, setCurrentProject] = useState<any>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [dbService] = useState(() => new DatabaseService());
+  const { 
+    createProject, 
+    startChatSession, 
+    addChatMessage, 
+    currentProject: dbCurrentProject, 
+    currentSession,
+    getUserProjects
+  } = useDatabase();
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  // Load user projects on component mount
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const userProjects = await getUserProjects();
+        setProjects(userProjects.data || []);
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+
+    loadProjects();
+  }, [getUserProjects]);
 
   const onConnectButtonClicked = useCallback(async () => {
     // Generate room connection details, including:
@@ -51,6 +108,24 @@ export default function Page() {
     
     console.log('✅ Connected to room successfully');
     console.log('👥 Current participants:', room.remoteParticipants.size);
+    
+    // Start a chat session when connecting to the room
+    if (currentProject && !currentSession) {
+      try {
+        const session = await startChatSession(currentProject.id);
+        console.log('📝 Started chat session:', session.id);
+        
+        // Add initial system message
+        await addChatMessage(
+          session.id,
+          'assistant',
+          'Voice conversation started. I\'m ready to help you with your voice agent!',
+          true
+        );
+      } catch (error) {
+        console.error('❌ Failed to start chat session:', error);
+      }
+    }
     
     // Wait for the room to be fully established and for any agents to join
     console.log('⏳ Waiting for room to stabilize...');
@@ -97,30 +172,91 @@ export default function Page() {
     }
     
     setAppState("conversation");
-  }, [room, agentConfig, generatedCode]);
+  }, [room, agentConfig, generatedCode, currentProject, currentSession, startChatSession, addChatMessage]);
 
   const handleAgentGenerated = async (config: VoiceAgentConfigType, code: string) => {
     setAgentConfig(config);
     setGeneratedCode(code);
     
+    // Create project in database
+    try {
+      const projectName = `Voice Agent - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+      const projectDescription = `AI voice agent: ${config.prompt.substring(0, 100)}${config.prompt.length > 100 ? '...' : ''}`;
+      
+      const project = await createProject(
+        projectName,
+        projectDescription,
+        config.prompt,
+        config,
+        code
+      );
+      
+      console.log('✅ Created project in database:', project.id);
+      
+      // Refresh projects list
+      try {
+        const userProjects = await getUserProjects();
+        setProjects(userProjects.data || []);
+      } catch (error) {
+        console.error('Failed to refresh projects list:', error);
+      }
+    } catch (error) {
+      console.error('❌ Failed to create project in database:', error);
+      // Continue anyway - the code will still be displayed
+    }
+    
+    // Helper function to create or update files
+    const createOrUpdateFile = async (path: string, content: string, type: 'file' | 'folder' = 'file') => {
+      try {
+        // Try to create the file first
+        const response = await fetch('/api/files', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            path,
+            content,
+            type
+          }),
+        });
+
+        if (response.status === 409) {
+          // File exists, update it instead
+          if (type === 'file') {
+            const updateResponse = await fetch('/api/files', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                path,
+                content
+              }),
+            });
+            
+            if (!updateResponse.ok) {
+              throw new Error(`Failed to update ${path}: ${updateResponse.statusText}`);
+            }
+            console.log(`✅ Updated existing file: ${path}`);
+          } else {
+            console.log(`✅ Folder already exists: ${path}`);
+          }
+        } else if (!response.ok) {
+          throw new Error(`Failed to create ${path}: ${response.statusText}`);
+        } else {
+          console.log(`✅ Created new ${type}: ${path}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error with ${path}:`, error);
+        throw error;
+      }
+    };
+
     // Save the generated code to the file system
     try {
       // Create the main voice_agent.py file
-      const response = await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'voice_agent.py',
-          content: code,
-          type: 'file'
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save voice_agent.py');
-      }
+      await createOrUpdateFile('voice_agent.py', code);
 
       // Create requirements.txt
       const requirementsContent = `livekit-agents
@@ -130,17 +266,7 @@ livekit-plugins-cartesia
 livekit-plugins-silero
 python-dotenv`;
 
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'requirements.txt',
-          content: requirementsContent,
-          type: 'file'
-        }),
-      });
+      await createOrUpdateFile('requirements.txt', requirementsContent);
 
       // Create .env.example
       const envExampleContent = `# LiveKit Configuration
@@ -153,17 +279,7 @@ OPENAI_API_KEY=your-openai-api-key
 DEEPGRAM_API_KEY=your-deepgram-api-key
 CARTESIA_API_KEY=your-cartesia-api-key`;
 
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: '.env.example',
-          content: envExampleContent,
-          type: 'file'
-        }),
-      });
+      await createOrUpdateFile('.env.example', envExampleContent);
 
       // Create README.md
       const readmeContent = `# Voice Agent
@@ -200,29 +316,10 @@ This is an AI-powered voice agent built with LiveKit.
 ${config.prompt}
 `;
 
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'README.md',
-          content: readmeContent,
-          type: 'file'
-        }),
-      });
+      await createOrUpdateFile('README.md', readmeContent);
 
       // Create config directory and settings.py
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'config',
-          type: 'folder'
-        }),
-      });
+      await createOrUpdateFile('config', '', 'folder');
 
       const settingsContent = `"""
 Configuration settings for the voice agent.
@@ -244,29 +341,10 @@ TTS_MODEL = "cartesia"
 VAD_MODEL = "silero"
 `;
 
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'config/settings.py',
-          content: settingsContent,
-          type: 'file'
-        }),
-      });
+      await createOrUpdateFile('config/settings.py', settingsContent);
 
       // Create utils directory and files
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'utils',
-          type: 'folder'
-        }),
-      });
+      await createOrUpdateFile('utils', '', 'folder');
 
       const loggerContent = `"""
 Logging utilities for the voice agent.
@@ -281,16 +359,16 @@ def setup_logger(name: str = "voice_agent", level: int = logging.INFO) -> loggin
     logger = logging.getLogger(name)
     logger.setLevel(level)
     
-    # Avoid adding multiple handlers if logger already exists
-    if logger.handlers:
-        return logger
+    # Clear existing handlers
+    logger.handlers.clear()
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
     
     # File handler
-    file_handler = logging.FileHandler(f"logs/{name}_{datetime.now().strftime('%Y%m%d')}.log")
+    log_filename = f"logs/{name}_{datetime.now().strftime('%Y%m%d')}.log"
+    file_handler = logging.FileHandler(log_filename)
     file_handler.setLevel(level)
     
     # Formatter
@@ -306,24 +384,14 @@ def setup_logger(name: str = "voice_agent", level: int = logging.INFO) -> loggin
     return logger
 `;
 
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'utils/logger.py',
-          content: loggerContent,
-          type: 'file'
-        }),
-      });
+      await createOrUpdateFile('utils/logger.py', loggerContent);
 
       const helpersContent = `"""
 Helper utilities for the voice agent.
 """
 
-import os
 import json
+import os
 from typing import Dict, Any, Optional
 
 def load_config(config_path: str = "config/settings.py") -> Dict[str, Any]:
@@ -338,57 +406,40 @@ def load_config(config_path: str = "config/settings.py") -> Dict[str, Any]:
         print(f"Error loading config: {e}")
         return {}
 
-def validate_env_vars() -> bool:
-    """Validate that required environment variables are set."""
-    required_vars = [
-        "LIVEKIT_URL",
-        "LIVEKIT_API_KEY", 
-        "LIVEKIT_API_SECRET",
-        "OPENAI_API_KEY"
-    ]
-    
-    missing_vars = []
-    for var in required_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
-    if missing_vars:
-        print(f"Missing required environment variables: {', '.join(missing_vars)}")
-        return False
-    
-    return True
+def get_env_var(key: str, default: Optional[str] = None) -> str:
+    """Get environment variable with optional default."""
+    value = os.getenv(key, default)
+    if value is None:
+        raise ValueError(f"Environment variable {key} is required")
+    return value
 
 def format_response(text: str, max_length: int = 500) -> str:
-    """Format and truncate response text if needed."""
+    """Format response text to fit within length limits."""
     if len(text) <= max_length:
         return text
     
-    # Truncate at the last complete sentence within the limit
-    truncated = text[:max_length]
-    last_period = truncated.rfind('.')
+    # Try to cut at sentence boundary
+    sentences = text.split('. ')
+    result = ""
+    for sentence in sentences:
+        if len(result + sentence + '. ') <= max_length:
+            result += sentence + '. '
+        else:
+            break
     
-    if last_period > max_length * 0.7:  # If we can keep at least 70% of the text
-        return truncated[:last_period + 1]
-    else:
-        return truncated + "..."
+    return result.strip() or text[:max_length].strip() + "..."
 `;
 
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: 'utils/helpers.py',
-          content: helpersContent,
-          type: 'file'
-        }),
-      });
+      await createOrUpdateFile('utils/helpers.py', helpersContent);
 
-      console.log('✅ Successfully saved generated code and project files to file system');
+      // Create logs directory
+      await createOrUpdateFile('logs', '', 'folder');
+
+      console.log('✅ All project files created/updated successfully');
+      
     } catch (error) {
       console.error('❌ Failed to save generated code to file system:', error);
-      // Continue anyway - the code will still be displayed
+      // Don't throw here - we want to continue to show the code even if file saving fails
     }
     
     setAppState("code-display");
@@ -418,13 +469,120 @@ def format_response(text: str, max_length: int = 500) -> str:
     };
   }, [room]);
 
+  // Function to load an existing project
+  const loadExistingProject = async (project: any) => {
+    try {
+      setIsLoading(true);
+      
+      // Update project access time
+      await dbService.updateProjectAccess(project.id);
+      
+      // Load project files
+      const files = await dbService.getProjectFiles(project.id);
+      
+      // Set up the project state
+      setCurrentProject(project);
+      setCurrentProjectId(project.id);
+      
+      // Set up the agent configuration from the project
+      const config: VoiceAgentConfigType = {
+        prompt: project.initial_prompt || "A helpful AI assistant",
+        personality: project.config?.personality || "friendly",
+        language: project.config?.language || "english",
+        responseStyle: project.config?.responseStyle || "conversational",
+        capabilities: project.config?.capabilities || []
+      };
+      setAgentConfig(config);
+      
+      // Find the main voice_agent.py file or create a basic template
+      let mainCode = "";
+      if (files.length > 0) {
+        // Look for voice_agent.py file
+        const mainFile = files.find((file: any) => file.file_path === 'voice_agent.py' || file.file_path === '/voice_agent.py');
+        if (mainFile) {
+          mainCode = mainFile.content || "";
+        } else {
+          // If no voice_agent.py, use the first Python file
+          const pythonFile = files.find((file: any) => file.file_path.endsWith('.py'));
+          if (pythonFile) {
+            mainCode = pythonFile.content || "";
+          }
+        }
+      }
+      
+      // If still no code, create a basic template
+      if (!mainCode) {
+        mainCode = `from dotenv import load_dotenv
+
+from livekit import agents
+from livekit.agents import AgentSession, Agent, RoomInputOptions
+from livekit.plugins import (
+    openai,
+    cartesia,
+    deepgram,
+    noise_cancellation,
+    silero,
+)
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
+load_dotenv()
+
+class Assistant(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="${project.initial_prompt || 'You are a helpful AI assistant.'}")
+
+async def entrypoint(ctx: agents.JobContext):
+    session = AgentSession(
+        stt=deepgram.STT(model="nova-3", language="multi"),
+        llm=openai.LLM(model="gpt-4o-mini"),
+        tts=cartesia.TTS(),
+        vad=silero.VAD.load(),
+        turn_detection=MultilingualModel(),
+    )
+
+    await session.start(
+        room=ctx.room,
+        agent=Assistant(),
+        room_input_options=RoomInputOptions(
+            noise_cancellation=noise_cancellation.BVC(), 
+        ),
+    )
+
+    await ctx.connect()
+
+    await session.generate_reply(
+        instructions="Hello! I'm your AI assistant. How can I help you today?"
+    )
+
+if __name__ == "__main__":
+    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))`;
+      }
+      
+      // Set the generated code with the main file content
+      setGeneratedCode(mainCode);
+      
+      // Switch to code display view
+      setAppState('code-display');
+      
+    } catch (error) {
+      console.error('Error loading project:', error);
+      // Show error to user
+      alert('Failed to load project. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main data-lk-theme="default" className="h-full bg-[var(--lk-bg)]">
       <RoomContext.Provider value={room}>
         <div className="h-screen">
           <AnimatePresence mode="wait">
             {appState === "landing" && (
-              <LandingPage onAgentGenerated={handleAgentGenerated} />
+              <AuthenticatedLandingPage 
+                onAgentGenerated={handleAgentGenerated} 
+                onProjectSelected={loadExistingProject}
+              />
             )}
             
             {appState === "code-display" && agentConfig && generatedCode && (
@@ -467,10 +625,29 @@ def format_response(text: str, max_length: int = 500) -> str:
   );
 }
 
-function LandingPage({ onAgentGenerated }: { onAgentGenerated: (config: VoiceAgentConfigType, code: string) => void }) {
+function AuthenticatedLandingPage({ onAgentGenerated, onProjectSelected }: { onAgentGenerated: (config: VoiceAgentConfigType, code: string) => void; onProjectSelected: (project: any) => void }) {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { getUserProjects } = useDatabase();
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+
+  // Load user projects on component mount
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const userProjects = await getUserProjects();
+        setProjects(userProjects.data || []);
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+
+    loadProjects();
+  }, [getUserProjects]);
 
   const generateAgent = async () => {
     if (!prompt.trim()) return;
@@ -642,11 +819,14 @@ Generate the complete agent code with proper structure and NO explanatory text:`
             </div>
             <h1 className="text-xl font-bold text-white">VoiceAgentAI</h1>
           </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-gray-300 hover:text-white transition-colors">Features</a>
-            <a href="#how-it-works" className="text-gray-300 hover:text-white transition-colors">How it Works</a>
-            <a href="#examples" className="text-gray-300 hover:text-white transition-colors">Examples</a>
-          </nav>
+          <div className="flex items-center space-x-6">
+            <nav className="hidden md:flex items-center space-x-8">
+              <a href="#features" className="text-gray-300 hover:text-white transition-colors">Features</a>
+              <a href="#how-it-works" className="text-gray-300 hover:text-white transition-colors">How it Works</a>
+              <a href="#examples" className="text-gray-300 hover:text-white transition-colors">Examples</a>
+            </nav>
+            <UserProfile />
+          </div>
         </div>
       </header>
 
@@ -756,6 +936,123 @@ Generate the complete agent code with proper structure and NO explanatory text:`
         </div>
       </section>
 
+      {/* Existing Projects Section */}
+      {loadingProjects && (
+        <section className="max-w-7xl mx-auto px-6 py-16">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading your projects...</p>
+          </div>
+        </section>
+      )}
+
+      {!loadingProjects && projects.length > 0 && (
+        <section className="max-w-7xl mx-auto px-6 py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl font-bold text-white mb-4">Your Voice Agents</h2>
+            <p className="text-gray-300 text-lg">Continue working on your existing projects</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((project, index) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 + index * 0.1 }}
+                className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 hover:border-gray-600 transition-all duration-200 cursor-pointer group"
+                whileHover={{ y: -5 }}
+                onClick={() => {
+                  onProjectSelected(project);
+                }}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-blue-400 transition-colors">
+                      {project.name}
+                    </h3>
+                    {project.description && (
+                      <p className="text-gray-400 text-sm mb-3 line-clamp-2">
+                        {project.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="ml-4">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center text-xs text-gray-500">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Created {new Date(project.created_at).toLocaleDateString()}
+                  </div>
+                  {project.last_accessed_at && (
+                    <div className="flex items-center text-xs text-gray-500">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Last used {new Date(project.last_accessed_at).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    {project.config?.personality && (
+                      <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full">
+                        {project.config.personality}
+                      </span>
+                    )}
+                    {project.config?.language && (
+                      <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full">
+                        {project.config.language}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onProjectSelected(project);
+                      }}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loadingProjects && projects.length === 0 && (
+        <section className="max-w-7xl mx-auto px-6 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-center"
+          >
+            <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </div>
+            <p className="text-gray-400 text-sm">No voice agents yet. Create your first one above!</p>
+          </motion.div>
+        </section>
+      )}
+
       {/* Features Section */}
       <section id="features" className="bg-gray-800/30 py-20">
         <div className="max-w-7xl mx-auto px-6">
@@ -831,7 +1128,7 @@ function SimpleVoiceAssistant(props: { onReconfigure: () => void; onBackToHome: 
     <div className="flex flex-col items-center gap-4 h-full">
       <AgentVisualizer />
       <div className="flex-1 w-full">
-        <TranscriptionView />
+        <DatabaseTranscriptionView />
       </div>
       <div className="w-full">
         <ControlBar onReconfigure={props.onReconfigure} onBackToHome={props.onBackToHome} />

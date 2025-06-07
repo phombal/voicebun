@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { type VoiceAgentConfig } from './VoiceAgentConfig';
 import {
   BarVisualizer,
@@ -15,6 +15,8 @@ import { NoAgentNotification } from "./NoAgentNotification";
 import { AnimatePresence, motion } from "framer-motion";
 import { Room, RoomEvent } from "livekit-client";
 import Editor from '@monaco-editor/react';
+import { useDatabase } from '@/hooks/useDatabase';
+import { ChatSession } from '@/lib/database/types';
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -492,51 +494,132 @@ def validate_config(config: dict) -> bool:
 }
 
 export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome }: GeneratedCodeDisplayProps) {
-  const [activeTab, setActiveTab] = useState<'test' | 'code'>('test');
   const [currentCode, setCurrentCode] = useState(code);
   const [selectedFile, setSelectedFile] = useState('voice_agent.py');
-  const [isFileMenuOpen, setIsFileMenuOpen] = useState(true);
-  const [showTelephonyModal, setShowTelephonyModal] = useState(false);
-  const [isAssigningNumber, setIsAssigningNumber] = useState(false);
-  const [assignedPhoneNumber, setAssignedPhoneNumber] = useState<string | null>(null);
-  const [isInConversation, setIsInConversation] = useState(false);
-  const [room] = useState(new Room());
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [availableNumbers, setAvailableNumbers] = useState<any[]>([]);
-  const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
-  const [selectedNumber, setSelectedNumber] = useState<any | null>(null);
-  
-  // Virtual Filesystem
-  const [vfs] = useState(() => new VirtualFileSystem());
   const [fileSystemVersion, setFileSystemVersion] = useState(0);
-  
-  // Monaco Editor state
-  const [editorValue, setEditorValue] = useState('');
-  
-  // Chat state with enhanced context tracking
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [conversationContext, setConversationContext] = useState<string>(''); // Track conversation context
-  
-  // New file modal
-  const [showNewFileModal, setShowNewFileModal] = useState(false);
-  const [newFileName, setNewFileName] = useState('');
-  const [newFileType, setNewFileType] = useState<'file' | 'folder'>('file');
-  const [newFileParentPath, setNewFileParentPath] = useState('/');
-  
+  const [conversationContext, setConversationContext] = useState(`Voice Agent Project: "${config.prompt}"`);
+  const [availableCheckpoints, setAvailableCheckpoints] = useState<ChatMessage[]>([]);
+  const [showCheckpointModal, setShowCheckpointModal] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [showTelephonyModal, setShowTelephonyModal] = useState(false);
+  const [availableNumbers, setAvailableNumbers] = useState<any[]>([]);
+  const [selectedNumber, setSelectedNumber] = useState<any>(null);
+  const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
+  const [isAssigningNumber, setIsAssigningNumber] = useState(false);
+  const [assignedPhoneNumber, setAssignedPhoneNumber] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createType, setCreateType] = useState<'file' | 'folder'>('file');
+  const [createName, setCreateName] = useState('');
+  const [createParentPath, setCreateParentPath] = useState('/');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string>('');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyFile, setHistoryFile] = useState<VirtualFile | null>(null);
+  const [showRevertModal, setShowRevertModal] = useState(false);
+  const [revertSnapshot, setRevertSnapshot] = useState<FileSnapshot | null>(null);
+  const [room] = useState(new Room());
+  const [isInConversation, setIsInConversation] = useState(false);
+  const [activeTab, setActiveTab] = useState<'test' | 'code'>('test');
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(true);
+  const [editorValue, setEditorValue] = useState('');
+
   // Context menu state
   const [contextMenuPath, setContextMenuPath] = useState<string | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
 
-  // File history state
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [historyFilePath, setHistoryFilePath] = useState<string | null>(null);
+  // New file modal state
+  const [showNewFileModal, setShowNewFileModal] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileType, setNewFileType] = useState<'file' | 'folder'>('file');
+  const [newFileParentPath, setNewFileParentPath] = useState('/');
+
+  // Database integration state
+  const [codeEditSession, setCodeEditSession] = useState<ChatSession | null>(null);
+  const { 
+    currentProject, 
+    currentSession, 
+    addChatMessage, 
+    updateProjectFiles, 
+    startChatSession,
+    setCurrentProject,
+    setCurrentSession
+  } = useDatabase();
   
-  // Checkpoint management
-  const [showCheckpointModal, setShowCheckpointModal] = useState(false);
-  const [availableCheckpoints, setAvailableCheckpoints] = useState<ChatMessage[]>([]);
-  
+  // Ref for debouncing file saves
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize VFS
+  const [vfs] = useState(() => {
+    const virtualFileSystem = new VirtualFileSystem();
+    virtualFileSystem.initializeProject(code, config);
+    return virtualFileSystem;
+  });
+
+  // Initialize database session for code editing
+  useEffect(() => {
+    const initCodeEditSession = async () => {
+      if (currentProject && !codeEditSession) {
+        try {
+          const session = await startChatSession(currentProject.id);
+          setCodeEditSession(session);
+          console.log('📝 Started code editing session:', session.id);
+        } catch (error) {
+          console.error('❌ Failed to start code editing session:', error);
+        }
+      }
+    };
+
+    initCodeEditSession();
+  }, [currentProject, codeEditSession, startChatSession]);
+
+  // Save chat messages to database
+  const saveChatMessageToDatabase = async (message: ChatMessage) => {
+    if (codeEditSession && addChatMessage) {
+      try {
+        await addChatMessage(
+          codeEditSession.id,
+          message.role,
+          message.content,
+          message.checkpoint || false
+        );
+        console.log('💾 Saved chat message to database:', message.role);
+      } catch (error) {
+        console.error('❌ Failed to save chat message to database:', error);
+      }
+    }
+  };
+
+  // Save file changes to database
+  const saveFileChangesToDatabase = async (changeDescription?: string) => {
+    if (currentProject && codeEditSession && updateProjectFiles) {
+      try {
+        const allFiles = vfs.getAllFiles();
+        const filesData = allFiles.map((file: VirtualFile) => ({
+          path: file.path,
+          name: file.name,
+          content: file.content,
+          type: 'file' as const
+        }));
+
+        await updateProjectFiles(
+          currentProject.id,
+          codeEditSession.id,
+          `msg_${Date.now()}`,
+          filesData,
+          changeDescription
+        );
+        
+        console.log('💾 Saved file changes to database:', filesData.length, 'files');
+      } catch (error) {
+        console.error('❌ Failed to save file changes to database:', error);
+      }
+    }
+  };
+
   // Debug logging for conversation state
   useEffect(() => {
     console.log('🔄 Conversation state changed:', isInConversation);
@@ -581,7 +664,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   // Create a snapshot of all current files
   const createFilesSnapshot = (): Map<string, string> => {
     const snapshot = new Map<string, string>();
-    vfs.getAllFiles().forEach(file => {
+    vfs.getAllFiles().forEach((file: VirtualFile) => {
       snapshot.set(file.path, file.content);
     });
     return snapshot;
@@ -591,7 +674,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   const restoreFromCheckpoint = (snapshot: Map<string, string>) => {
     // Clear current VFS and rebuild from snapshot
     vfs.getRoot().children = [];
-    vfs.getAllFiles().forEach(file => {
+    vfs.getAllFiles().forEach((file: VirtualFile) => {
       vfs.deleteItem(file.path);
     });
     
@@ -656,6 +739,14 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
       }
       
       setFileSystemVersion(prev => prev + 1);
+      
+      // Save file changes to database (debounced)
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        saveFileChangesToDatabase('Manual file edit');
+      }, 2000); // Save after 2 seconds of inactivity
     }
   };
 
@@ -670,10 +761,22 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
       notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
-        document.body.removeChild(notification);
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
       }, 2000);
     } catch (err) {
-      console.error('Failed to copy text: ', err);
+      console.error('Failed to copy to clipboard:', err);
+      // Fallback notification
+      const notification = document.createElement('div');
+      notification.textContent = 'Failed to copy to clipboard';
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 2000);
     }
   };
 
@@ -1462,9 +1565,11 @@ If the user asks to create new functionality, create appropriate new files rathe
                 <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
               </svg>
               {item.name}
-              <span className="ml-auto text-xs text-gray-500">
-                {Math.round(item.content.length / 1024 * 10) / 10}KB
-              </span>
+              {item.type === 'file' && (
+                <span className="text-xs text-gray-500 ml-2">
+                  {getDisplayLanguage(item.name)}
+                </span>
+              )}
             </button>
           </div>
         )}
@@ -2138,20 +2243,6 @@ If the user asks to create new functionality, create appropriate new files rathe
               </svg>
               New Folder
             </button>
-            <button
-              onClick={() => {
-                setHistoryFilePath(contextMenuPath);
-                setShowHistoryModal(true);
-                setContextMenuPosition(null);
-                setContextMenuPath(null);
-              }}
-              className="w-full px-4 py-2 text-left text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              View History
-            </button>
             {contextMenuPath !== '/' && (
               <button
                 onClick={() => {
@@ -2184,135 +2275,112 @@ If the user asks to create new functionality, create appropriate new files rathe
         )}
 
         {/* File History Modal */}
-        {showHistoryModal && historyFilePath && (
+        {showHistoryModal && historyFile && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 border border-gray-700 max-h-[80vh] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white flex items-center">
-                  <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  File History: {historyFilePath.split('/').pop()}
+            <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">
+                  File History: {historyFile.path.split('/').pop()}
                 </h3>
                 <button
                   onClick={() => {
+                    setHistoryFile(null);
                     setShowHistoryModal(false);
-                    setHistoryFilePath(null);
                   }}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-gray-500 hover:text-gray-700"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  ✕
                 </button>
               </div>
-
-              <div className="flex-1 overflow-y-auto">
+              
+              <div className="space-y-4">
                 {(() => {
-                  const history = vfs.getFileHistory(historyFilePath);
-                  const currentFile = vfs.getFile(historyFilePath);
+                  const history = vfs.getFileHistory(historyFile.path);
+                  const currentFile = vfs.getFile(historyFile.path);
                   
-                  if (!currentFile) return <p className="text-gray-400">File not found</p>;
+                  if (!currentFile) return <p>File not found</p>;
                   
-                  // Combine current version with history
-                  const allVersions: (FileSnapshot & { isCurrent?: boolean })[] = [
-                    {
-                      id: 'current',
-                      content: currentFile.content,
-                      timestamp: currentFile.modified,
-                      version: currentFile.version,
-                      changeDescription: 'Current version',
-                      isCurrent: true
-                    },
-                    ...history.reverse()
-                  ];
-
                   return (
-                    <div className="space-y-4">
-                      {allVersions.map((snapshot, index) => (
-                        <div key={snapshot.id} className={`border rounded-lg p-4 ${
-                          snapshot.isCurrent ? 'border-blue-500 bg-blue-900/20' : 'border-gray-600 bg-gray-700/50'
-                        }`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-3">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                snapshot.isCurrent ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300'
-                              }`}>
-                                v{snapshot.version}
-                              </span>
-                              <span className="text-gray-300 text-sm">
-                                {snapshot.changeDescription || 'No description'}
-                              </span>
-                              {snapshot.isCurrent && (
-                                <span className="text-green-400 text-xs font-medium">CURRENT</span>
+                    <div className="space-y-3">
+                      {/* Current version */}
+                      <div className="border rounded-lg p-4 bg-green-50">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium text-green-700">
+                            Current (v{currentFile.version})
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {currentFile.modified.toLocaleString()}
+                          </span>
+                        </div>
+                        <pre className="text-sm bg-gray-100 p-2 rounded overflow-x-auto max-h-40">
+                          {currentFile.content}
+                        </pre>
+                      </div>
+                      
+                      {/* Historical versions */}
+                      {history.map((snapshot) => (
+                        <div key={snapshot.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium">
+                              v{snapshot.version}
+                              {snapshot.changeDescription && (
+                                <span className="text-sm text-gray-600 ml-2">
+                                  - {snapshot.changeDescription}
+                                </span>
                               )}
-                            </div>
+                            </span>
                             <div className="flex items-center space-x-2">
-                              <span className="text-gray-400 text-xs">
+                              <span className="text-sm text-gray-500">
                                 {snapshot.timestamp.toLocaleString()}
                               </span>
-                              {!snapshot.isCurrent && (
-                                <button
-                                  onClick={() => {
-                                    if (confirm(`Revert to version ${snapshot.version}?`)) {
-                                      vfs.revertToSnapshot(historyFilePath, snapshot.id);
-                                      setFileSystemVersion(prev => prev + 1);
-                                      setShowHistoryModal(false);
-                                      setHistoryFilePath(null);
-                                    }
-                                  }}
-                                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                                >
-                                  Revert
-                                </button>
-                              )}
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Revert to version ${snapshot.version}?`)) {
+                                    vfs.revertToSnapshot(historyFile.path, snapshot.id);
+                                    setFileSystemVersion(prev => prev + 1);
+                                    setHistoryFile(null);
+                                    setShowHistoryModal(false);
+                                  }
+                                }}
+                                className="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                              >
+                                Revert
+                              </button>
                             </div>
                           </div>
-                          
+                          <pre className="text-sm bg-gray-100 p-2 rounded overflow-x-auto max-h-40">
+                            {snapshot.content}
+                          </pre>
                           {snapshot.diff && (
-                            <div className="mt-2">
-                              <details className="group">
-                                <summary className="cursor-pointer text-gray-400 text-sm hover:text-white transition-colors">
-                                  View diff ({snapshot.diff.split('\n').length} lines changed)
-                                </summary>
-                                <pre className="mt-2 p-3 bg-gray-900 rounded text-xs overflow-x-auto">
-                                  <code className="text-gray-300">{snapshot.diff}</code>
-                                </pre>
-                              </details>
-                            </div>
-                          )}
-                          
-                          <div className="mt-2">
-                            <details className="group">
-                              <summary className="cursor-pointer text-gray-400 text-sm hover:text-white transition-colors">
-                                View full content ({snapshot.content.split('\n').length} lines)
+                            <details className="mt-2">
+                              <summary className="text-sm text-blue-600 cursor-pointer">
+                                View Changes
                               </summary>
-                              <pre className="mt-2 p-3 bg-gray-900 rounded text-xs overflow-x-auto max-h-64">
-                                <code className="text-gray-300">{snapshot.content}</code>
+                              <pre className="text-xs bg-blue-50 p-2 rounded mt-1 overflow-x-auto">
+                                {snapshot.diff}
                               </pre>
                             </details>
-                          </div>
+                          )}
                         </div>
                       ))}
                       
-                      {allVersions.length === 1 && (
-                        <div className="text-center py-8">
-                          <p className="text-gray-400">No version history available yet.</p>
-                          <p className="text-gray-500 text-sm mt-1">History will be created as you make changes.</p>
-                        </div>
+                      {history.length === 0 && (
+                        <p className="text-gray-500 text-center py-4">
+                          No version history available
+                        </p>
                       )}
                     </div>
                   );
                 })()}
               </div>
-
-              <div className="flex justify-end mt-4">
+              
+              <div className="flex justify-end mt-6">
                 <button
                   onClick={() => {
+                    setHistoryFile(null);
                     setShowHistoryModal(false);
-                    setHistoryFilePath(null);
                   }}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                 >
                   Close
                 </button>

@@ -1,15 +1,18 @@
-# Agent configuration settings
-AGENT_PERSONALITY = "friendly"
-AGENT_LANGUAGE = "english"
-RESPONSE_STYLE = "conversational"
-CAPABILITIES = []
+"""
+Configuration settings for the voice agent.
+"""
 
-# Model configurations
+# Agent Configuration
+AGENT_CONFIG = {
+    "prompt": "A meeting assistant that takes notes and schedules follow-ups",
+    "personality": "friendly",
+    "language": "english",
+    "response_style": "conversational",
+    "capabilities": []
+}
+
+# Model Configuration
 STT_MODEL = "nova-3"
 LLM_MODEL = "gpt-4o-mini"
 TTS_MODEL = "cartesia"
-
-# Voice settings
-VOICE_ACTIVITY_DETECTION = True
-NOISE_CANCELLATION = True
-TURN_DETECTION = "multilingual"
+VAD_MODEL = "silero"

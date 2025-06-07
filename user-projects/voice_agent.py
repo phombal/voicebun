@@ -1,47 +1,26 @@
+from dotenv import load_dotenv
+
 from livekit import agents
-from livekit.agents import Agent
-import requests
+from livekit.agents import AgentSession, Agent, RoomInputOptions
+from livekit.plugins import (
+    openai,
+    cartesia,
+    deepgram,
+    noise_cancellation,
+    silero,
+)
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-class FunctionTools:
-    @staticmethod
-    def get_access_token():
-        # Implement OAuth2 authentication flow to get access token
-        return "YOUR_ACCESS_TOKEN"
-
-    @staticmethod
-    def create_event(subject: str, start_time: str, end_time: str, attendees: list):
-        url = "https://graph.microsoft.com/v1.0/me/events"
-        headers = {
-            "Authorization": f"Bearer {FunctionTools.get_access_token()}",
-            "Content-Type": "application/json"
-        }
-        event_data = {
-            "subjecte": subject,
-            "start": {
-                "dateTime": start_time,
-                "timeZone": "UTC"
-            },
-            "end": {
-                "dateTime": end_time,
-                "timeZone": "UTC"
-            },
-            "attendees": [{"emailAddress": {"address": email}, "type": "required"} for email in attendees]
-        }
-
-        response = requests.post(url, headers=headers, json=event_data)
-        return response.status_code, response.json()
+load_dotenv()
 
 class Assistant(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions="I am a meeting assistant that takes notes and schedules follow-ups.")
-
-    async def add_appointment(self, subject: str, start_time: str, end_time: str, attendees: list):
-        return FunctionTools.create_event(subject, start_time, end_time, attendees)
+        super().__init__(instructions="You are a meeting assistant that takes detailed notes during meetings and helps schedule follow-ups. Your goal is to ensure that all important points are captured and that any action items are clearly defined and scheduled.")
 
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         stt=deepgram.STT(model="nova-3", language="multi"),
-        llm=openai.LLM(model="gpt-4o"),
+        llm=openai.LLM(model="gpt-4o-mini"),
         tts=cartesia.TTS(),
         vad=silero.VAD.load(),
         turn_detection=MultilingualModel(),
@@ -58,7 +37,7 @@ async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
     await session.generate_reply(
-        instructions="Greet the user and offer your assistance with taking notes and scheduling follow-ups."
+        instructions="Hello! I'm your meeting assistant. I'm here to take notes and help schedule any follow-ups you may need."
     )
 
 if __name__ == "__main__":
