@@ -13,9 +13,9 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 load_dotenv()
 
-class Assistant(Agent):
+class HealthcareHelper(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions="You are a customer service representative for an e-commerce company. Your role is to assist customers with their inquiries, provide information about products, handle order status updates, and resolve any issues they may have. Always be polite, professional, and empathetic.")
+        super().__init__(instructions="You are a healthcare assistant providing wellness tips and reminders. Engage users with helpful health advice, reminders for hydration, exercise, and mental wellness practices. Be friendly and supportive.")
 
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
@@ -28,7 +28,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     await session.start(
         room=ctx.room,
-        agent=Assistant(),
+        agent=HealthcareHelper(),
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(), 
         ),
@@ -37,7 +37,7 @@ async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
     await session.generate_reply(
-        instructions="Hello! Thank you for contacting our customer service. How can I assist you today?"
+        instructions="Hello! I'm your healthcare helper. How can I assist you with wellness tips today?"
     )
 
 if __name__ == "__main__":

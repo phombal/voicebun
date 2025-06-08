@@ -21,7 +21,7 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Configuration
 
-- **Prompt**: A customer service representative for an e-commerce company
+- **Prompt**: A healthcare helper that provides wellness tips and reminders
 - **Personality**: friendly
 - **Language**: english
 - **Response Style**: conversational
@@ -29,4 +29,4 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Agent Description
 
-A customer service representative for an e-commerce company
+A healthcare helper that provides wellness tips and reminders
