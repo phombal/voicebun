@@ -1099,136 +1099,309 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
     };
 
     // Parse tool calls from user message
-    const { hasToolCalls, toolCalls, cleanMessage } = parseToolCalls(inputMessage);
+    const { hasToolCalls, toolCalls } = parseToolCalls(inputMessage);
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsGenerating(true);
 
     try {
+      // Prepare messages for API
+      const messagesToSend = [...messages, userMessage].map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Prepare file context from virtual file system
+      const allFiles = vfs.getAllFiles();
+      const fileContext = allFiles.map(file => ({
+        filename: file.name,
+        content: file.content,
+        path: file.path
+      }));
+
+      console.log('Sending file context for', fileContext.length, 'files');
+
+      // Show notification about file context being sent
+      if (fileContext.length > 0) {
+        showNotification(`Sending context for ${fileContext.length} files to AI assistant`, 'success');
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt: inputMessage,
-          apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY
+        body: JSON.stringify({ 
+          messages: messagesToSend,
+          fileContext: fileContext
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      let responseContent = data.code || '';
-
-      // If tool calls were detected, validate and potentially correct the generated code
-      if (hasToolCalls && toolCalls.length > 0) {
-        const validation = validateLiveKitToolStructure(responseContent, toolCalls);
-        
-        if (!validation.isValid) {
-          console.log('Generated code validation failed, attempting correction...');
-          
-          // Generate correction prompt
-          const correctionPrompt = generateCorrectionPrompt(inputMessage, validation.issues, validation.suggestions, toolCalls);
-          
-          // Try to get corrected code
-          const correctionResponse = await fetch('/api/chat', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              prompt: correctionPrompt,
-              apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY
-            }),
-          });
-
-          if (correctionResponse.ok) {
-            const correctionData = await correctionResponse.json();
-            responseContent = correctionData.code || responseContent;
-          }
-        }
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No reader available');
       }
 
-      // Parse file operations from the response
-      const fileOperations = parseFileOperations(responseContent);
-      let filesChanged = false;
+      let buffer = '';
+      let assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        checkpoint: false
+      };
 
-      // Apply file operations to VFS
-      if (fileOperations.length > 0) {
-        fileOperations.forEach(operation => {
-          if (operation.type === 'CREATE') {
-            // Create new file
-            const newFile = vfs.createNewFile('/', operation.filename, operation.content);
-            if (newFile) {
-              filesChanged = true;
-              console.log(`Created file: ${operation.filename}`);
-            }
-          } else if (operation.type === 'UPDATE') {
-            // Update existing file
-            const updated = vfs.updateFile(`/${operation.filename}`, operation.content, `Updated via chat: ${cleanMessage || inputMessage}`);
-            if (updated) {
-              filesChanged = true;
-              console.log(`Updated file: ${operation.filename}`);
+      // Add the assistant message to state immediately
+      setMessages(prev => [...prev, assistantMessage]);
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          // Decode the chunk
+          const chunk = new TextDecoder().decode(value);
+          buffer += chunk;
+
+          // Process complete lines
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
               
-              // If the main voice_agent.py file was updated, update the editor
-              if (operation.filename === 'voice_agent.py') {
-                setEditorValue(operation.content);
+              if (data === '[DONE]') {
+                console.log('Received [DONE] signal');
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                console.log('Parsed streaming data:', parsed);
+
+                if (parsed.type === 'content_delta') {
+                  // Update the assistant message content
+                  assistantMessage.content = parsed.fullContent || '';
+                  setMessages(prev => 
+                    prev.map(msg => 
+                      msg.id === assistantMessage.id 
+                        ? { ...msg, content: assistantMessage.content }
+                        : msg
+                    )
+                  );
+                } else if (parsed.type === 'complete') {
+                  console.log('Received complete signal, content length:', parsed.content?.length);
+                  
+                  // Final update with complete content
+                  assistantMessage.content = parsed.content || '';
+                  
+                  // Parse file operations from the complete content
+                  const fileOperations = parseFileOperations(parsed.content);
+                  console.log('Found file operations:', fileOperations);
+                  
+                  let filesChanged = false;
+                  let newlyCreatedFile: string | null = null;
+
+                  // Process file operations
+                  for (const operation of fileOperations) {
+                    // Normalize the filename to ensure it starts with /
+                    const normalizedPath = operation.filename.startsWith('/') ? operation.filename : `/${operation.filename}`;
+                    
+                    if (operation.type === 'CREATE') {
+                      console.log(`Creating file: ${operation.filename} -> ${normalizedPath}`);
+                      
+                      // Ensure folder structure exists
+                      const pathParts = normalizedPath.split('/').filter(part => part.length > 0);
+                      let currentPath = '';
+                      
+                      for (let i = 0; i < pathParts.length - 1; i++) {
+                        currentPath += '/' + pathParts[i];
+                        if (!vfs.findFolder(currentPath)) {
+                          const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
+                          vfs.createNewFolder(parentPath, pathParts[i]);
+                        }
+                      }
+                      
+                      const parentPath = pathParts.length > 1 ? '/' + pathParts.slice(0, -1).join('/') : '/';
+                      const fileName = pathParts[pathParts.length - 1];
+                      
+                      const newFile = vfs.createNewFile(
+                        parentPath,
+                        fileName,
+                        operation.content
+                      );
+                      
+                      if (newFile) {
+                        filesChanged = true;
+                        if (!newlyCreatedFile) {
+                          newlyCreatedFile = newFile.path;
+                        }
+                        console.log(`✅ Successfully created file: ${newFile.path}`);
+                      } else {
+                        console.error(`❌ Failed to create file: ${normalizedPath}`);
+                      }
+                    } else if (operation.type === 'UPDATE') {
+                      console.log(`Updating file: ${operation.filename} -> ${normalizedPath}`);
+                      const updated = vfs.updateFile(normalizedPath, operation.content, 'AI generated update');
+                      if (updated) {
+                        filesChanged = true;
+                        // Refresh editor if this file is currently selected
+                        if (selectedFile === normalizedPath) {
+                          setEditorValue(operation.content);
+                        }
+                        console.log(`✅ Successfully updated file: ${normalizedPath}`);
+                      } else {
+                        console.error(`❌ Failed to update file: ${normalizedPath}`);
+                        // If update failed, try to create the file instead
+                        console.log(`Attempting to create file instead: ${normalizedPath}`);
+                        const pathParts = normalizedPath.split('/').filter(part => part.length > 0);
+                        const parentPath = pathParts.length > 1 ? '/' + pathParts.slice(0, -1).join('/') : '/';
+                        const fileName = pathParts[pathParts.length - 1];
+                        
+                        const newFile = vfs.createNewFile(parentPath, fileName, operation.content);
+                        if (newFile) {
+                          filesChanged = true;
+                          if (!newlyCreatedFile) {
+                            newlyCreatedFile = newFile.path;
+                          }
+                          console.log(`✅ Successfully created file as fallback: ${newFile.path}`);
+                        }
+                      }
+                    }
+                  }
+
+                  // Clean up the content for display (remove file operation markers)
+                  let cleanContent = parsed.content;
+                  cleanContent = cleanContent.replace(/CREATE_FILE:\s*[\w\/\.-]+\s*\n/g, '');
+                  cleanContent = cleanContent.replace(/UPDATE_FILE:\s*[\w\/\.-]+\s*\n/g, '');
+                  cleanContent = cleanContent.replace(/```[\w]*\n[\s\S]*?\n```/g, (match: string) => {
+                    // Keep code blocks but remove file operation markers within them
+                    return match.replace(/CREATE_FILE:\s*[\w\/\.-]+\s*\n/g, '').replace(/UPDATE_FILE:\s*[\w\/\.-]+\s*\n/g, '');
+                  });
+                  cleanContent = cleanContent.trim();
+
+                  // Update final message
+                  assistantMessage.content = cleanContent;
+                  assistantMessage.checkpoint = filesChanged;
+
+                  // Add file operation summary if files were changed
+                  if (filesChanged) {
+                    const createdFiles = fileOperations.filter(op => op.type === 'CREATE').map(op => op.filename);
+                    const updatedFiles = fileOperations.filter(op => op.type === 'UPDATE').map(op => op.filename);
+                    
+                    let operationSummary = '\n\n**Files modified:**\n';
+                    if (createdFiles.length > 0) {
+                      operationSummary += `- Created: ${createdFiles.join(', ')}\n`;
+                    }
+                    if (updatedFiles.length > 0) {
+                      operationSummary += `- Updated: ${updatedFiles.join(', ')}\n`;
+                    }
+                    
+                    assistantMessage.content += operationSummary;
+                  }
+
+                  setMessages(prev => 
+                    prev.map(msg => 
+                      msg.id === assistantMessage.id 
+                        ? assistantMessage
+                        : msg
+                    )
+                  );
+
+                  // Select newly created file if any
+                  if (newlyCreatedFile) {
+                    setSelectedFile(newlyCreatedFile);
+                    const file = vfs.getFile(newlyCreatedFile);
+                    if (file) {
+                      setEditorValue(file.content);
+                    }
+                  }
+
+                  // Save changes to database if files were modified
+                  if (filesChanged) {
+                    console.log('=== FILES WERE CHANGED ===');
+                    console.log('All files in VFS:', vfs.getAllFiles().map(f => f.path));
+                    console.log('Selected file:', selectedFile);
+                    console.log('Newly created file:', newlyCreatedFile);
+                    
+                    // Force refresh of the file tree by triggering a re-render
+                    setMessages(prev => [...prev]); // This will trigger a re-render
+                    
+                    // If we have a newly created file, select it and update the editor
+                    if (newlyCreatedFile) {
+                      console.log(`Selecting newly created file: ${newlyCreatedFile}`);
+                      setSelectedFile(newlyCreatedFile);
+                      const file = vfs.getFile(newlyCreatedFile);
+                      if (file) {
+                        setEditorValue(file.content);
+                        console.log(`Updated editor with content from: ${newlyCreatedFile}`);
+                      }
+                    } else {
+                      // If no new file was created but files were updated, refresh the current file
+                      const currentFile = vfs.getFile(selectedFile);
+                      if (currentFile) {
+                        setEditorValue(currentFile.content);
+                        console.log(`Refreshed editor with updated content from: ${selectedFile}`);
+                      }
+                    }
+                    
+                    await saveFileChangesToDatabase(`Generated files: ${fileOperations.map(op => op.filename).join(', ')}`);
+                    
+                    // Force a complete re-render to ensure UI updates
+                    setTimeout(() => {
+                      setMessages(prev => [...prev]);
+                    }, 100);
+                  }
+
+                  // Handle tool validation if tool calls were detected
+                  if (hasToolCalls && toolCalls.length > 0) {
+                    console.log('Validating tool integration for:', toolCalls);
+                    const allFiles = vfs.getAllFiles();
+                    const combinedCode = allFiles.map(f => f.content).join('\n\n');
+                    const validation = validateLiveKitToolStructure(combinedCode, toolCalls);
+                    
+                    if (!validation.isValid) {
+                      console.log('Tool validation failed, generating correction...');
+                      // Could implement auto-correction here if needed
+                    }
+                    
+                    await saveFileChangesToDatabase(`Tool integration: ${toolCalls.join(', ')}`);
+                  }
+                } else if (parsed.type === 'error') {
+                  console.error('Received error from stream:', parsed.error);
+                  throw new Error(parsed.error);
+                }
+              } catch (parseError) {
+                console.error('Error parsing streaming data:', parseError);
+                console.error('Raw data that failed to parse:', data);
               }
             }
           }
-        });
-
-        // Update file system version to trigger re-render
-        if (filesChanged) {
-          setFileSystemVersion(prev => prev + 1);
         }
-      }
-
-      // Clean up the response content for display (remove file operation markers)
-      let cleanResponseContent = responseContent;
-      
-      // Remove CREATE FILE and UPDATE FILE blocks from display
-      cleanResponseContent = cleanResponseContent.replace(/\*\*CREATE FILE:\s*[^\*]+\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*[\s\S]*?```/gi, '');
-      cleanResponseContent = cleanResponseContent.replace(/\*\*UPDATE FILE:\s*[^\*]+\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*[\s\S]*?```/gi, '');
-      
-      // Clean up extra whitespace
-      cleanResponseContent = cleanResponseContent.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
-
-      // If we applied file operations, add a summary message
-      if (fileOperations.length > 0) {
-        const operationSummary = fileOperations.map(op => `${op.type.toLowerCase()}d ${op.filename}`).join(', ');
-        cleanResponseContent = cleanResponseContent ? 
-          `${cleanResponseContent}\n\n**Files updated:** ${operationSummary}` : 
-          `**Files updated:** ${operationSummary}`;
-      }
-
-      // Add assistant response to chat
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: cleanResponseContent || 'Code has been generated and applied to your project.',
-        timestamp: new Date(),
-        checkpoint: filesChanged,
-        filesSnapshot: filesChanged ? createFilesSnapshot() : undefined
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // Save to database if files were changed
-      if (filesChanged) {
-        await saveFileChangesToDatabase(`Tool integration: ${toolCalls.join(', ')}`);
+      } finally {
+        reader.releaseLock();
       }
 
     } catch (error) {
       console.error('Error sending message:', error);
+      
+      // Log more details about the error
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Sorry, there was an error processing your request. Please try again.',
+        content: `Sorry, there was an error processing your request: ${error instanceof Error ? error.message : 'Unknown error'}. Please check the console for more details.`,
         timestamp: new Date(),
         isError: true
       };
@@ -1269,36 +1442,113 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
     setShowCheckpointModal(false);
   };
 
-  // Parse file operations from AI response
+  // Parse file operations from AI response - SIMPLIFIED AND RELIABLE
   const parseFileOperations = (content: string): Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> => {
     const operations: Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> = [];
     
-    // Parse CREATE FILE operations
-    const createFileRegex = /\*\*CREATE FILE:\s*([^\*]+)\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*([\s\S]*?)```/gi;
-    let match;
+    console.log('=== PARSING FILE OPERATIONS ===');
+    console.log('Content length:', content.length);
+    console.log('Content preview:', content.substring(0, 500));
     
-    while ((match = createFileRegex.exec(content)) !== null) {
-      const filename = match[1].trim();
-      const fileContent = match[2].trim();
-      operations.push({
-        type: 'CREATE',
-        filename,
-        content: fileContent
-      });
+    // ONLY look for the exact format: CREATE_FILE:filename.ext or UPDATE_FILE:filename.ext
+    // followed by ```language and code block
+    
+    // Split content into lines for easier processing
+    const lines = content.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Check for CREATE_FILE: or UPDATE_FILE:
+      if (line.startsWith('CREATE_FILE:') || line.startsWith('UPDATE_FILE:')) {
+        const isCreate = line.startsWith('CREATE_FILE:');
+        const type = isCreate ? 'CREATE' : 'UPDATE';
+        
+        // Extract filename
+        const prefix = isCreate ? 'CREATE_FILE:' : 'UPDATE_FILE:';
+        const filename = line.substring(prefix.length).trim();
+        
+        console.log(`Found ${type} operation for: "${filename}"`);
+        
+        // Validate filename
+        if (!filename || filename.length === 0 || filename.includes('undefined')) {
+          console.warn(`Invalid filename: "${filename}"`);
+          continue;
+        }
+        
+        // Look for the code block on the next lines
+        let codeBlockStart = -1;
+        let codeBlockEnd = -1;
+        let language = '';
+        
+        // Find the opening ```
+        for (let j = i + 1; j < lines.length && j < i + 5; j++) {
+          const nextLine = lines[j].trim();
+          if (nextLine.startsWith('```')) {
+            codeBlockStart = j;
+            language = nextLine.substring(3).trim();
+            console.log(`Found code block start at line ${j}, language: "${language}"`);
+            break;
+          }
+        }
+        
+        if (codeBlockStart === -1) {
+          console.warn(`No code block found after ${type}:${filename}`);
+          continue;
+        }
+        
+        // Find the closing ```
+        for (let j = codeBlockStart + 1; j < lines.length; j++) {
+          if (lines[j].trim() === '```') {
+            codeBlockEnd = j;
+            console.log(`Found code block end at line ${j}`);
+            break;
+          }
+        }
+        
+        if (codeBlockEnd === -1) {
+          console.warn(`No closing code block found for ${type}:${filename}`);
+          continue;
+        }
+        
+        // Extract the code content
+        const codeLines = lines.slice(codeBlockStart + 1, codeBlockEnd);
+        const codeContent = codeLines.join('\n').trim();
+        
+        console.log(`Extracted code content: ${codeContent.length} characters`);
+        
+        // Validate content
+        if (codeContent.length < 5) {
+          console.warn(`Code content too short for ${filename}: ${codeContent.length} chars`);
+          continue;
+        }
+        
+        // Check for duplicates
+        const duplicate = operations.find(op => op.filename === filename);
+        if (duplicate) {
+          console.warn(`Duplicate filename found: ${filename}, skipping`);
+          continue;
+        }
+        
+        // Add the operation
+        operations.push({
+          type: type as 'CREATE' | 'UPDATE',
+          filename,
+          content: codeContent
+        });
+        
+        console.log(`✅ Successfully parsed ${type} operation for ${filename}`);
+        
+        // Skip ahead past the code block
+        i = codeBlockEnd;
+      }
     }
     
-    // Parse UPDATE FILE operations
-    const updateFileRegex = /\*\*UPDATE FILE:\s*([^\*]+)\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*([\s\S]*?)```/gi;
-    
-    while ((match = updateFileRegex.exec(content)) !== null) {
-      const filename = match[1].trim();
-      const fileContent = match[2].trim();
-      operations.push({
-        type: 'UPDATE',
-        filename,
-        content: fileContent
-      });
-    }
+    console.log('=== PARSING COMPLETE ===');
+    console.log(`Found ${operations.length} file operations:`);
+    operations.forEach(op => {
+      console.log(`  - ${op.type}: ${op.filename} (${op.content.length} chars)`);
+    });
     
     return operations;
   };

@@ -15,7 +15,7 @@ load_dotenv()
 
 class Assistant(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions="You are a customer service representative for an e-commerce company. Your role is to assist customers with inquiries about products, order status, returns, and any other support they may need. Be polite, helpful, and ensure customer satisfaction.")
+        super().__init__(instructions="You are a customer service representative for an e-commerce company. Your role is to assist customers with their inquiries, provide information about products, handle order status updates, and resolve any issues they may have. Always be polite, professional, and empathetic.")
 
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(

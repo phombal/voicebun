@@ -11,6 +11,7 @@
     "format:write": "prettier --write ."
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.53.0",
     "@livekit/components-react": "^2.9.3",
     "@livekit/components-styles": "^1.1.4",
     "@monaco-editor/react": "^4.7.0",

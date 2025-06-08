@@ -1,0 +1,4 @@
+livekit
+livekit-agents[google,silero]
+livekit-plugins-google
+livekit-plugins-silero 

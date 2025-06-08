@@ -76,62 +76,13 @@ export function VoiceAgentConfig({ onConfigurationComplete }: VoiceAgentConfigPr
     try {
       const prompt = `Generate ONLY Python code for a complete LiveKit voice agent following the exact structure from LiveKit documentation. Do not include any explanatory text, comments, or markdown formatting - just raw executable Python code.
 
-Generate the COMPLETE agent structure with all necessary components:
+Please search the LiveKit documentation for the most current patterns and generate the COMPLETE agent structure with all necessary components:
 
 1. Import statements (dotenv, agents, plugins)
 2. load_dotenv() call
 3. Custom Agent class extending Agent
 4. entrypoint function with AgentSession setup
 5. Main execution block
-
-Follow this EXACT structure from LiveKit documentation:
-
-\`\`\`python
-from dotenv import load_dotenv
-
-from livekit import agents
-from livekit.agents import AgentSession, Agent, RoomInputOptions
-from livekit.plugins import (
-    openai,
-    cartesia,
-    deepgram,
-    noise_cancellation,
-    silero,
-)
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
-
-load_dotenv()
-
-class Assistant(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions="Your custom instructions here")
-
-async def entrypoint(ctx: agents.JobContext):
-    session = AgentSession(
-        stt=deepgram.STT(model="nova-3", language="multi"),
-        llm=openai.LLM(model="gpt-4o-mini"),
-        tts=cartesia.TTS(),
-        vad=silero.VAD.load(),
-        turn_detection=MultilingualModel(),
-    )
-
-    await session.start(
-        room=ctx.room,
-        agent=Assistant(),
-        room_input_options=RoomInputOptions(
-            noise_cancellation=noise_cancellation.BVC(), 
-        ),
-    )
-
-    await ctx.connect()
-
-    await session.generate_reply(
-        instructions="Greet the user and offer your assistance."
-    )
-
-if __name__ == "__main__":
-    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
-\`\`\`
 
 Configuration to implement in the Agent instructions:
 - Main prompt/role: "${config.prompt}"
@@ -142,15 +93,20 @@ Configuration to implement in the Agent instructions:
 
 Build comprehensive instructions that incorporate all these elements into the Agent constructor's instructions parameter.
 
-Generate the complete agent code with proper structure:`;
+Generate the complete agent code with proper structure following the latest LiveKit patterns.`;
 
-      const response = await fetch('/api/generate-agent-code', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
         }),
       });
 
@@ -161,7 +117,7 @@ Generate the complete agent code with proper structure:`;
       const data = await response.json();
       
       // Clean the generated code by removing any markdown formatting or extra text
-      let cleanCode = data.code;
+      let cleanCode = data.content;
       
       // Remove markdown code blocks if present
       cleanCode = cleanCode.replace(/```python\n?/g, '');
