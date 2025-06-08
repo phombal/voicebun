@@ -33,6 +33,7 @@ interface ChatMessage {
   timestamp: Date;
   checkpoint?: boolean; // Mark messages that created file changes
   filesSnapshot?: Map<string, string>; // Snapshot of all files at this point
+  isError?: boolean; // Mark error messages
 }
 
 // Virtual Filesystem Types
@@ -499,6 +500,10 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   const [fileSystemVersion, setFileSystemVersion] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
+  const [showToolDropdown, setShowToolDropdown] = useState(false);
+  const [toolMentionPosition, setToolMentionPosition] = useState(0);
+  const [filteredTools, setFilteredTools] = useState<ToolDefinition[]>([]);
+  const [selectedToolIndex, setSelectedToolIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [conversationContext, setConversationContext] = useState(`Voice Agent Project: "${config.prompt}"`);
   const [availableCheckpoints, setAvailableCheckpoints] = useState<ChatMessage[]>([]);
@@ -526,6 +531,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   const [activeTab, setActiveTab] = useState<'test' | 'code'>('test');
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(true);
   const [editorValue, setEditorValue] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Context menu state
   const [contextMenuPath, setContextMenuPath] = useState<string | null>(null);
@@ -863,106 +869,251 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     }
   };
 
+  // Tool handling functions
+  const detectToolMentions = (text: string, cursorPosition: number) => {
+    const beforeCursor = text.substring(0, cursorPosition);
+    const atIndex = beforeCursor.lastIndexOf('@');
+    
+    if (atIndex === -1) {
+      setShowToolDropdown(false);
+      return;
+    }
+    
+    const afterAt = beforeCursor.substring(atIndex + 1);
+    const hasSpaceAfterAt = afterAt.includes(' ');
+    
+    if (hasSpaceAfterAt) {
+      setShowToolDropdown(false);
+      return;
+    }
+    
+    // Filter tools based on what's typed after @
+    const searchTerm = afterAt.toLowerCase();
+    const filtered = AVAILABLE_TOOLS.filter(tool => 
+      tool.display.toLowerCase().includes(searchTerm) ||
+      tool.name.toLowerCase().includes(searchTerm) ||
+      tool.category.toLowerCase().includes(searchTerm)
+    );
+    
+    setFilteredTools(filtered);
+    setSelectedToolIndex(0);
+    setToolMentionPosition(atIndex);
+    setShowToolDropdown(filtered.length > 0);
+  };
+
+  const handleToolSelect = (tool: ToolDefinition) => {
+    const beforeMention = inputMessage.substring(0, toolMentionPosition);
+    const afterMention = inputMessage.substring(inputMessage.indexOf(' ', toolMentionPosition) !== -1 
+      ? inputMessage.indexOf(' ', toolMentionPosition) 
+      : inputMessage.length
+    );
+    
+    const newMessage = beforeMention + `@${tool.display}` + afterMention;
+    setInputMessage(newMessage);
+    setShowToolDropdown(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPosition = e.target.selectionStart;
+    
+    setInputMessage(value);
+    detectToolMentions(value, cursorPosition);
+  };
+
+  const handleKeyDownInInput = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showToolDropdown) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedToolIndex(prev => 
+          prev < filteredTools.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedToolIndex(prev => 
+          prev > 0 ? prev - 1 : filteredTools.length - 1
+        );
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (filteredTools[selectedToolIndex]) {
+          handleToolSelect(filteredTools[selectedToolIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        setShowToolDropdown(false);
+      }
+    } else {
+      // Handle normal Enter key behavior for sending messages
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+  };
+
+  const parseToolCalls = (message: string): { hasToolCalls: boolean; toolCalls: string[]; cleanMessage: string } => {
+    const toolMentions = message.match(/@([^@\s]+)/g);
+    
+    if (!toolMentions) {
+      return { hasToolCalls: false, toolCalls: [], cleanMessage: message };
+    }
+    
+    const toolCalls: string[] = [];
+    let cleanMessage = message;
+    
+    toolMentions.forEach(mention => {
+      const toolName = mention.substring(1); // Remove @
+      const tool = AVAILABLE_TOOLS.find(t => 
+        t.display.toLowerCase() === toolName.toLowerCase() ||
+        t.name.toLowerCase() === toolName.toLowerCase()
+      );
+      
+      if (tool) {
+        toolCalls.push(tool.name);
+        // Replace the mention with a cleaner reference
+        cleanMessage = cleanMessage.replace(mention, `[${tool.display} Tool]`);
+      }
+    });
+    
+    return { 
+      hasToolCalls: toolCalls.length > 0, 
+      toolCalls, 
+      cleanMessage 
+    };
+  };
+
+  // LiveKit tool structure validation
+  const validateLiveKitToolStructure = (code: string, requestedTools: string[]): { isValid: boolean; issues: string[]; suggestions: string[] } => {
+    const issues: string[] = [];
+    const suggestions: string[] = [];
+    
+    // Check for required imports
+    const hasToolDecorator = code.includes('@function_tool()') || code.includes('@function_tool');
+    const hasRunContext = code.includes('RunContext');
+    const hasToolError = code.includes('ToolError');
+    const hasFunctionToolImport = code.includes('from livekit.agents import') && 
+                                 (code.includes('function_tool') || code.includes('Function'));
+    
+    if (!hasFunctionToolImport) {
+      issues.push('Missing LiveKit function_tool import');
+      suggestions.push('Add: from livekit.agents import function_tool, ToolError');
+    }
+    
+    if (!hasToolDecorator) {
+      issues.push('Functions should use @function_tool() decorator');
+      suggestions.push('Add @function_tool() decorator above each tool function');
+    }
+    
+    if (!hasRunContext) {
+      issues.push('Tool functions should accept RunContext as first parameter after self');
+      suggestions.push('Update function signature: async def tool_name(self, context: RunContext, ...)');
+    }
+    
+    if (!hasToolError) {
+      issues.push('Missing ToolError for proper error handling');
+      suggestions.push('Use ToolError for exceptions: raise ToolError("Error message")');
+    }
+    
+    // Check for proper function structure for each requested tool
+    requestedTools.forEach(toolName => {
+      const toolPattern = new RegExp(`@function_tool\\(\\)\\s*async\\s+def\\s+\\w+\\(\\s*self\\s*,\\s*context:\\s*RunContext`, 'g');
+      const matches = code.match(toolPattern);
+      
+      if (!matches || matches.length === 0) {
+        issues.push(`No properly structured LiveKit tool functions found for ${toolName}`);
+        suggestions.push(`Ensure ${toolName} follows pattern: @function_tool()\\nasync def tool_name(self, context: RunContext, ...)`);
+      }
+    });
+    
+    // Check for docstrings
+    const hasDocstrings = code.includes('"""') && code.includes('Args:') && code.includes('Returns:');
+    if (!hasDocstrings) {
+      issues.push('Tool functions should have proper docstrings with Args and Returns sections');
+      suggestions.push('Add comprehensive docstrings describing the tool purpose, arguments, and return values');
+    }
+    
+    // Check for return dictionary structure
+    const hasReturnDict = code.includes('return {') || code.includes('return dict(');
+    if (!hasReturnDict) {
+      issues.push('Tool functions should return dictionaries with status and data');
+      suggestions.push('Return structured data: return {"status": "success", "data": result}');
+    }
+    
+    // Check for async/await pattern
+    const hasAsyncDef = code.includes('async def');
+    const hasAwait = code.includes('await');
+    if (hasAsyncDef && !hasAwait && requestedTools.length > 0) {
+      suggestions.push('Consider using await for asynchronous operations within tool functions');
+    }
+    
+    return {
+      isValid: issues.length === 0,
+      issues,
+      suggestions
+    };
+  };
+
+  // Generate corrective prompt for tool structure issues
+  const generateCorrectionPrompt = (originalPrompt: string, issues: string[], suggestions: string[], requestedTools: string[]): string => {
+    const toolTemplates = requestedTools.map(toolName => {
+      const tool = AVAILABLE_TOOLS.find(t => t.name === toolName);
+      return tool ? `
+CORRECT TEMPLATE FOR ${tool.display.toUpperCase()}:
+\`\`\`python
+${tool.template}
+\`\`\`
+` : '';
+    }).join('\n');
+
+    return `${originalPrompt}
+
+CRITICAL: The previous response had LiveKit tool structure issues. Please fix them immediately:
+
+ISSUES FOUND:
+${issues.map(issue => `- ${issue}`).join('\n')}
+
+REQUIRED FIXES:
+${suggestions.map(suggestion => `- ${suggestion}`).join('\n')}
+
+LIVEKIT TOOL REQUIREMENTS:
+1. Import: from livekit.agents import function_tool, ToolError
+2. Decorator: @function_tool() above each tool function
+3. Function signature: async def tool_name(self, context: RunContext, ...)
+4. Proper docstring with Args: and Returns: sections
+5. Error handling with ToolError exceptions
+6. Return dictionary with status and data
+7. Type hints for all parameters
+
+${toolTemplates}
+
+Please regenerate the complete, corrected code that follows LiveKit patterns exactly.`;
+  };
+
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isGenerating) return;
+    if (!inputMessage.trim()) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: inputMessage.trim(),
+      content: inputMessage,
       timestamp: new Date()
     };
+
+    // Parse tool calls from user message
+    const { hasToolCalls, toolCalls, cleanMessage } = parseToolCalls(inputMessage);
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsGenerating(true);
 
-    // Update conversation context with user message
-    const updatedContext = `${conversationContext}\n\nUser: ${userMessage.content}`;
-
     try {
-      // Get current file content for context
-      const currentFileContent = vfs.getFile(getSelectedFilePath())?.content || '';
-      
-      // Get all files for context
-      const allFiles = vfs.getAllFiles();
-      const fileContext = allFiles.map(file => `${file.path}:\n${file.content}`).join('\n\n---\n\n');
-      
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: `You are a helpful coding assistant. 
-
-CONVERSATION CONTEXT:
-${updatedContext}
-
-CURRENT PROJECT STATE:
-Voice Agent Description: "${config.prompt}"
-
-Current project structure:
-${allFiles.map(file => `- ${file.path} (${file.name})`).join('\n')}
-
-Current file being viewed: ${selectedFile} (${getSelectedFilePath()})
-
-Current file content:
-\`\`\`python
-${currentFileContent}
-\`\`\`
-
-All project files for context:
-${fileContext}
-
-User request: ${inputMessage}
-
-IMPORTANT INSTRUCTIONS:
-1. ALWAYS consider the conversation context when responding
-2. Reference previous messages and changes when relevant
-3. Only perform file operations when the user explicitly asks you to:
-   - Create new files
-   - Modify existing code
-   - Add features
-   - Fix bugs
-   - Update configurations
-
-4. DO NOT perform file operations when the user is:
-   - Asking questions about the current code
-   - Requesting information or explanations
-   - Asking "what" or "how" questions
-   - Just seeking clarification
-   - Asking general questions
-
-5. When the user asks to change configuration values (like STT model), UPDATE the appropriate files
-
-When creating or modifying files, use these formats:
-
-1. For NEW files: Use this format:
-   **CREATE FILE: filename.py**
-   \`\`\`python
-   [file content here]
-   \`\`\`
-
-2. For UPDATING existing files: Use this format:
-   **UPDATE FILE: filename.py**
-   \`\`\`python
-   [complete updated file content here]
-   \`\`\`
-
-3. For explanations, informational responses, or general questions, just provide normal text without any file operation markers.
-
-Make sure to:
-- Only update files when explicitly requested
-- Answer general questions directly and helpfully
-- Include complete file contents when updating
-- Use proper Python imports and structure
-- Follow the LiveKit agent pattern for voice agent files
-- Create helper files, utilities, or configuration files as needed
-- Explain what each file does
-- Reference conversation history when relevant
-
-If the user asks to create new functionality, create appropriate new files rather than cramming everything into voice_agent.py.`,
+          prompt: inputMessage,
+          apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY
         }),
       });
 
@@ -971,183 +1122,115 @@ If the user asks to create new functionality, create appropriate new files rathe
       }
 
       const data = await response.json();
-      let responseContent = data.code;
-      
-      // Parse the response for file operations
-      const fileOperations = parseFileOperations(responseContent);
-      
-      // Apply file operations
-      let operationSummary = '';
-      let hasFileChanges = false;
-      
-      for (const operation of fileOperations) {
-        hasFileChanges = true;
-        // Handle nested file paths (e.g., utils/service_titan.py)
-        const filePath = operation.filename;
-        const pathParts = filePath.split('/');
-        const filename = pathParts[pathParts.length - 1];
-        const folderPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
+      let responseContent = data.code || '';
+
+      // If tool calls were detected, validate and potentially correct the generated code
+      if (hasToolCalls && toolCalls.length > 0) {
+        const validation = validateLiveKitToolStructure(responseContent, toolCalls);
         
-        // Normalize filename (remove leading slash if present)
-        const normalizedFilename = filename.startsWith('/') ? filename.substring(1) : filename;
-        const normalizedPath = folderPath ? `/${folderPath}/${normalizedFilename}` : `/${normalizedFilename}`;
-        
-        if (operation.type === 'CREATE') {
-          // Check if file already exists (with any path format)
-          const existingFile = vfs.getAllFiles().find(f => 
-            f.path === normalizedPath ||
-            f.path === `/${filePath}` ||
-            (f.name === normalizedFilename && !folderPath) // Only match by name if no folder specified
-          );
+        if (!validation.isValid) {
+          console.log('Generated code validation failed, attempting correction...');
           
-          if (existingFile) {
-            // File already exists, update it instead
-            vfs.updateFile(existingFile.path, operation.content, `AI: Updated ${filePath} via chat`);
-            operationSummary += `✅ Updated existing ${filePath}\n`;
-            
-            // Update currentCode if it's the main voice agent file
-            if (normalizedFilename === 'voice_agent.py') {
-              setCurrentCode(operation.content);
-            }
-          } else {
-            // Create new file with proper folder structure
-            let newFile;
-            if (folderPath) {
-              // Ensure parent folder exists
-              const parentPath = `/${folderPath}`;
-              let parentFolder = vfs.findFolder(parentPath);
-              
-              if (!parentFolder) {
-                // Create parent folder if it doesn't exist
-                const folderParts = folderPath.split('/');
-                let currentPath = '';
-                for (const part of folderParts) {
-                  currentPath += `/${part}`;
-                  if (!vfs.findFolder(currentPath)) {
-                    vfs.createNewFolder(currentPath.substring(0, currentPath.lastIndexOf('/')) || '/', part);
-                  }
-                }
-                parentFolder = vfs.findFolder(parentPath);
-              }
-              
-              if (parentFolder) {
-                newFile = vfs.createNewFile(parentPath, normalizedFilename, operation.content);
-              }
-            } else {
-              newFile = vfs.createNewFile('/', normalizedFilename, operation.content);
-            }
-            
-            if (newFile) {
-              // Create initial snapshot for new file
-              vfs.updateFile(newFile.path, operation.content, `AI: Created ${filePath} via chat`);
-              operationSummary += `✅ Created ${filePath}\n`;
-              // Switch to the new file if it's the first one created
-              if (fileOperations.indexOf(operation) === 0) {
-                setSelectedFile(normalizedFilename);
-              }
-            }
-          }
-        } else if (operation.type === 'UPDATE') {
-          // Find existing file with normalized name and path
-          const existingFile = vfs.getAllFiles().find(f => 
-            f.path === normalizedPath ||
-            f.path === `/${filePath}` ||
-            (f.name === normalizedFilename && !folderPath) // Only match by name if no folder specified
-          );
+          // Generate correction prompt
+          const correctionPrompt = generateCorrectionPrompt(inputMessage, validation.issues, validation.suggestions, toolCalls);
           
-          if (existingFile) {
-            vfs.updateFile(existingFile.path, operation.content, `AI: Updated ${filePath} via chat`);
-            operationSummary += `✅ Updated ${filePath}\n`;
-            
-            // Update currentCode if it's the main voice agent file
-            if (normalizedFilename === 'voice_agent.py') {
-              setCurrentCode(operation.content);
-            }
-          } else {
-            // File doesn't exist, create it with proper folder structure
-            let newFile;
-            if (folderPath) {
-              // Ensure parent folder exists
-              const parentPath = `/${folderPath}`;
-              let parentFolder = vfs.findFolder(parentPath);
-              
-              if (!parentFolder) {
-                // Create parent folder if it doesn't exist
-                const folderParts = folderPath.split('/');
-                let currentPath = '';
-                for (const part of folderParts) {
-                  currentPath += `/${part}`;
-                  if (!vfs.findFolder(currentPath)) {
-                    vfs.createNewFolder(currentPath.substring(0, currentPath.lastIndexOf('/')) || '/', part);
-                  }
-                }
-                parentFolder = vfs.findFolder(parentPath);
-              }
-              
-              if (parentFolder) {
-                newFile = vfs.createNewFile(parentPath, normalizedFilename, operation.content);
-              }
-            } else {
-              newFile = vfs.createNewFile('/', normalizedFilename, operation.content);
-            }
-            
-            if (newFile) {
-              // Create initial snapshot for new file
-              vfs.updateFile(newFile.path, operation.content, `AI: Created ${filePath} via chat (file didn't exist)`);
-              operationSummary += `✅ Created ${filePath} (file didn't exist)\n`;
-            }
+          // Try to get corrected code
+          const correctionResponse = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              prompt: correctionPrompt,
+              apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY
+            }),
+          });
+
+          if (correctionResponse.ok) {
+            const correctionData = await correctionResponse.json();
+            responseContent = correctionData.code || responseContent;
           }
         }
       }
-      
-      // Update file system version to trigger re-render
+
+      // Parse file operations from the response
+      const fileOperations = parseFileOperations(responseContent);
+      let filesChanged = false;
+
+      // Apply file operations to VFS
       if (fileOperations.length > 0) {
-        setFileSystemVersion(prev => prev + 1);
-      }
-      
-      // Clean up the response content to remove file operation markers
-      let cleanedResponse = responseContent;
-      
-      // Remove file operation blocks
-      cleanedResponse = cleanedResponse.replace(/\*\*(?:CREATE|UPDATE) FILE: [^*]+\*\*\n```[a-zA-Z]*\n[\s\S]*?```\n?/g, '');
-      
-      // If we performed operations, add a summary
-      if (operationSummary) {
-        cleanedResponse = `${cleanedResponse}\n\n**File Operations:**\n${operationSummary}`;
-      }
-      
-      // If the response is mostly empty after cleaning, provide a default message
-      if (cleanedResponse.trim().length < 50 && operationSummary) {
-        cleanedResponse = `I've updated your project files based on your request.\n\n**File Operations:**\n${operationSummary}`;
+        fileOperations.forEach(operation => {
+          if (operation.type === 'CREATE') {
+            // Create new file
+            const newFile = vfs.createNewFile('/', operation.filename, operation.content);
+            if (newFile) {
+              filesChanged = true;
+              console.log(`Created file: ${operation.filename}`);
+            }
+          } else if (operation.type === 'UPDATE') {
+            // Update existing file
+            const updated = vfs.updateFile(`/${operation.filename}`, operation.content, `Updated via chat: ${cleanMessage || inputMessage}`);
+            if (updated) {
+              filesChanged = true;
+              console.log(`Updated file: ${operation.filename}`);
+              
+              // If the main voice_agent.py file was updated, update the editor
+              if (operation.filename === 'voice_agent.py') {
+                setEditorValue(operation.content);
+              }
+            }
+          }
+        });
+
+        // Update file system version to trigger re-render
+        if (filesChanged) {
+          setFileSystemVersion(prev => prev + 1);
+        }
       }
 
+      // Clean up the response content for display (remove file operation markers)
+      let cleanResponseContent = responseContent;
+      
+      // Remove CREATE FILE and UPDATE FILE blocks from display
+      cleanResponseContent = cleanResponseContent.replace(/\*\*CREATE FILE:\s*[^\*]+\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*[\s\S]*?```/gi, '');
+      cleanResponseContent = cleanResponseContent.replace(/\*\*UPDATE FILE:\s*[^\*]+\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*[\s\S]*?```/gi, '');
+      
+      // Clean up extra whitespace
+      cleanResponseContent = cleanResponseContent.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+
+      // If we applied file operations, add a summary message
+      if (fileOperations.length > 0) {
+        const operationSummary = fileOperations.map(op => `${op.type.toLowerCase()}d ${op.filename}`).join(', ');
+        cleanResponseContent = cleanResponseContent ? 
+          `${cleanResponseContent}\n\n**Files updated:** ${operationSummary}` : 
+          `**Files updated:** ${operationSummary}`;
+      }
+
+      // Add assistant response to chat
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: cleanedResponse.trim(),
+        content: cleanResponseContent || 'Code has been generated and applied to your project.',
         timestamp: new Date(),
-        checkpoint: hasFileChanges,
-        filesSnapshot: hasFileChanges ? createFilesSnapshot() : undefined
+        checkpoint: filesChanged,
+        filesSnapshot: filesChanged ? createFilesSnapshot() : undefined
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-      
-      // Update conversation context with assistant response
-      const newContext = `${updatedContext}\n\nAssistant: ${cleanedResponse.trim()}`;
-      setConversationContext(newContext);
-      
-      // If this message created file changes, add it to checkpoints
-      if (hasFileChanges) {
-        setAvailableCheckpoints(prev => [...prev, assistantMessage]);
+
+      // Save to database if files were changed
+      if (filesChanged) {
+        await saveFileChangesToDatabase(`Tool integration: ${toolCalls.join(', ')}`);
       }
-      
+
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date()
+        content: 'Sorry, there was an error processing your request. Please try again.',
+        timestamp: new Date(),
+        isError: true
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -1190,46 +1273,31 @@ If the user asks to create new functionality, create appropriate new files rathe
   const parseFileOperations = (content: string): Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> => {
     const operations: Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> = [];
     
-    // Match CREATE FILE operations
-    const createRegex = /\*\*CREATE FILE: ([^*]+)\*\*\n```(?:[a-zA-Z]*\n)?([\s\S]*?)```/g;
-    let createMatch;
-    while ((createMatch = createRegex.exec(content)) !== null) {
+    // Parse CREATE FILE operations
+    const createFileRegex = /\*\*CREATE FILE:\s*([^\*]+)\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*([\s\S]*?)```/gi;
+    let match;
+    
+    while ((match = createFileRegex.exec(content)) !== null) {
+      const filename = match[1].trim();
+      const fileContent = match[2].trim();
       operations.push({
         type: 'CREATE',
-        filename: createMatch[1].trim(),
-        content: createMatch[2].trim()
+        filename,
+        content: fileContent
       });
     }
     
-    // Match UPDATE FILE operations
-    const updateRegex = /\*\*UPDATE FILE: ([^*]+)\*\*\n```(?:[a-zA-Z]*\n)?([\s\S]*?)```/g;
-    let updateMatch;
-    while ((updateMatch = updateRegex.exec(content)) !== null) {
+    // Parse UPDATE FILE operations
+    const updateFileRegex = /\*\*UPDATE FILE:\s*([^\*]+)\*\*\s*```(?:python|typescript|javascript|tsx|ts|js)?\s*([\s\S]*?)```/gi;
+    
+    while ((match = updateFileRegex.exec(content)) !== null) {
+      const filename = match[1].trim();
+      const fileContent = match[2].trim();
       operations.push({
         type: 'UPDATE',
-        filename: updateMatch[1].trim(),
-        content: updateMatch[2].trim()
+        filename,
+        content: fileContent
       });
-    }
-    
-    // Fallback: if no explicit file operations found, check for generic code blocks
-    if (operations.length === 0) {
-      // Look for code blocks that might be file updates
-      const codeBlockRegex = /```(?:python|py)?\n([\s\S]*?)```/g;
-      let codeMatch;
-      while ((codeMatch = codeBlockRegex.exec(content)) !== null) {
-        const code = codeMatch[1].trim();
-        
-        // If it looks like Python code with imports, assume it's for the current file
-        if (code.includes('import') || code.includes('def ') || code.includes('class ')) {
-          operations.push({
-            type: 'UPDATE',
-            filename: selectedFile,
-            content: code
-          });
-          break; // Only take the first code block to avoid duplicates
-        }
-      }
     }
     
     return operations;
@@ -1615,6 +1683,503 @@ If the user asks to create new functionality, create appropriate new files rathe
     }
   };
 
+  // Tool definitions for the dropdown
+  interface ToolDefinition {
+    name: string;
+    display: string;
+    description: string;
+    category: string;
+    template: string;
+  }
+
+  const AVAILABLE_TOOLS: ToolDefinition[] = [
+    {
+      name: 'stripe',
+      display: 'Stripe',
+      description: 'Payment processing and subscription management',
+      category: 'Payment',
+      template: `from livekit.agents import function_tool, ToolError, RunContext
+import stripe
+from typing import Any
+
+@function_tool()
+async def process_payment(
+    self,
+    context: RunContext,
+    amount: int,
+    currency: str = "usd",
+    payment_method: str = "",
+    customer_email: str = ""
+) -> dict[str, Any]:
+    """Process a payment using Stripe.
+    
+    Args:
+        amount: Payment amount in cents
+        currency: Three-letter currency code
+        payment_method: Stripe payment method ID
+        customer_email: Customer email address
+    
+    Returns:
+        Dictionary containing payment status and details
+    """
+    try:
+        stripe.api_key = "your_stripe_secret_key"
+        
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency=currency,
+            payment_method=payment_method,
+            customer_email=customer_email,
+            confirmation_method="manual",
+            confirm=True
+        )
+        
+        return {
+            "status": "success",
+            "data": {
+                "payment_intent_id": payment_intent.id,
+                "amount": payment_intent.amount,
+                "currency": payment_intent.currency,
+                "status": payment_intent.status
+            }
+        }
+    except Exception as e:
+        raise ToolError(f"Payment processing failed: {str(e)}")`
+    },
+    {
+      name: 'resend',
+      display: 'Resend',
+      description: 'Send emails and manage email campaigns',
+      category: 'Email',
+      template: `from livekit.agents import function_tool, ToolError, RunContext
+import resend
+from typing import Any
+
+@function_tool()
+async def send_email(
+    self,
+    context: RunContext,
+    to_email: str,
+    subject: str,
+    html_content: str,
+    from_email: str = "noreply@yourapp.com"
+) -> dict[str, Any]:
+    """Send an email using Resend.
+    
+    Args:
+        to_email: Recipient email address
+        subject: Email subject line
+        html_content: HTML content of the email
+        from_email: Sender email address
+    
+    Returns:
+        Dictionary containing email sending status
+    """
+    try:
+        resend.api_key = "your_resend_api_key"
+        
+        email = resend.Emails.send({
+            "from": from_email,
+            "to": to_email,
+            "subject": subject,
+            "html": html_content
+        })
+        
+        return {
+            "status": "success",
+            "data": {
+                "email_id": email.get("id"),
+                "to": to_email,
+                "subject": subject
+            }
+        }
+    except Exception as e:
+        raise ToolError(f"Email sending failed: {str(e)}")`
+    },
+    {
+      name: 'google_calendar',
+      display: 'Google Calendar',
+      description: 'Schedule meetings and manage calendar events',
+      category: 'Calendar',
+      template: `from livekit.agents import function_tool, ToolError, RunContext
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from datetime import datetime, timedelta
+import json
+from typing import Any
+
+@function_tool()
+async def schedule_meeting(
+    self,
+    context: RunContext,
+    title: str,
+    start_time: str,
+    duration_minutes: int = 60,
+    attendees: str = "",
+    description: str = ""
+) -> dict[str, Any]:
+    """Schedule a meeting on Google Calendar.
+    
+    Args:
+        title: Meeting title/summary
+        start_time: Start time in ISO format (e.g., "2024-01-15T14:00:00")
+        duration_minutes: Meeting duration in minutes
+        attendees: Comma-separated list of attendee emails
+        description: Meeting description
+    
+    Returns:
+        Dictionary containing meeting details and calendar link
+    """
+    try:
+        # Initialize Google Calendar API
+        # Note: You'll need to set up OAuth 2.0 credentials
+        creds = Credentials.from_authorized_user_file('token.json', ['https://www.googleapis.com/auth/calendar'])
+        service = build('calendar', 'v3', credentials=creds)
+        
+        # Parse start time and calculate end time
+        start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        end_dt = start_dt + timedelta(minutes=duration_minutes)
+        
+        # Prepare attendees list
+        attendee_list = []
+        if attendees:
+            for email in attendees.split(','):
+                attendee_list.append({'email': email.strip()})
+        
+        # Create event
+        event = {
+            'summary': title,
+            'description': description,
+            'start': {
+                'dateTime': start_dt.isoformat(),
+                'timeZone': 'UTC',
+            },
+            'end': {
+                'dateTime': end_dt.isoformat(),
+                'timeZone': 'UTC',
+            },
+            'attendees': attendee_list,
+            'reminders': {
+                'useDefault': False,
+                'overrides': [
+                    {'method': 'email', 'minutes': 24 * 60},
+                    {'method': 'popup', 'minutes': 10},
+                ],
+            },
+        }
+        
+        # Insert event into calendar
+        event_result = service.events().insert(calendarId='primary', body=event).execute()
+        
+        return {
+            "status": "success",
+            "data": {
+                "event_id": event_result.get('id'),
+                "title": title,
+                "start_time": start_time,
+                "duration_minutes": duration_minutes,
+                "calendar_link": event_result.get('htmlLink'),
+                "attendees_count": len(attendee_list)
+            },
+            "message": f"Meeting '{title}' scheduled successfully"
+        }
+        
+    except Exception as e:
+        raise ToolError(f"Failed to schedule meeting: {str(e)}")
+
+@function_tool()
+async def get_calendar_events(
+    self,
+    context: RunContext,
+    date: str = "",
+    max_results: int = 10
+) -> dict[str, Any]:
+    """Get calendar events for a specific date or upcoming events.
+    
+    Args:
+        date: Date in YYYY-MM-DD format (empty for upcoming events)
+        max_results: Maximum number of events to return
+    
+    Returns:
+        Dictionary containing list of calendar events
+    """
+    try:
+        creds = Credentials.from_authorized_user_file('token.json', ['https://www.googleapis.com/auth/calendar'])
+        service = build('calendar', 'v3', credentials=creds)
+        
+        # Set time bounds
+        if date:
+            start_time = datetime.fromisoformat(f"{date}T00:00:00").isoformat() + 'Z'
+            end_time = datetime.fromisoformat(f"{date}T23:59:59").isoformat() + 'Z'
+        else:
+            start_time = datetime.utcnow().isoformat() + 'Z'
+            end_time = None
+        
+        # Get events
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=start_time,
+            timeMax=end_time,
+            maxResults=max_results,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        event_list = []
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            event_list.append({
+                'id': event['id'],
+                'title': event.get('summary', 'No Title'),
+                'start': start,
+                'description': event.get('description', ''),
+                'attendees': len(event.get('attendees', []))
+            })
+        
+        return {
+            "status": "success",
+            "data": {
+                "events": event_list,
+                "count": len(event_list),
+                "date": date or "upcoming"
+            }
+        }
+        
+    except Exception as e:
+        raise ToolError(f"Failed to get calendar events: {str(e)}")`
+    },
+    {
+      name: 'airtable',
+      display: 'Airtable',
+      description: 'Manage database records and take notes',
+      category: 'Database',
+      template: `from livekit.agents import function_tool, ToolError, RunContext
+import requests
+import json
+from typing import Any, Optional
+
+@function_tool()
+async def create_record(
+    self,
+    context: RunContext,
+    table_name: str,
+    fields: str,
+    base_id: str = "your_base_id"
+) -> dict[str, Any]:
+    """Create a new record in Airtable.
+    
+    Args:
+        table_name: Name of the Airtable table
+        fields: JSON string of field data (e.g., '{"Name": "John", "Email": "john@example.com"}')
+        base_id: Airtable base ID
+    
+    Returns:
+        Dictionary containing the created record details
+    """
+    try:
+        api_key = "your_airtable_api_key"
+        url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Parse fields JSON
+        try:
+            field_data = json.loads(fields)
+        except json.JSONDecodeError:
+            raise ToolError("Invalid JSON format in fields parameter")
+        
+        data = {
+            "fields": field_data
+        }
+        
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        return {
+            "status": "success",
+            "data": {
+                "record_id": result.get("id"),
+                "fields": result.get("fields"),
+                "created_time": result.get("createdTime")
+            },
+            "message": f"Record created successfully in {table_name}"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise ToolError(f"Airtable API request failed: {str(e)}")
+    except Exception as e:
+        raise ToolError(f"Failed to create record: {str(e)}")
+
+@function_tool()
+async def note_interesting_fact(
+    self,
+    context: RunContext,
+    fact: str,
+    category: str = "General",
+    source: str = "",
+    table_name: str = "Interesting Facts"
+) -> dict[str, Any]:
+    """Note an interesting fact during a call to Airtable.
+    
+    Args:
+        fact: The interesting fact to record
+        category: Category of the fact (e.g., "Business", "Personal", "Technical")
+        source: Source of the fact (e.g., "Phone Call", "Meeting")
+        table_name: Airtable table name for storing facts
+    
+    Returns:
+        Dictionary containing the recorded fact details
+    """
+    try:
+        from datetime import datetime
+        
+        # Prepare the fact data
+        fact_data = {
+            "Fact": fact,
+            "Category": category,
+            "Source": source or "Voice Call",
+            "Date Recorded": datetime.now().isoformat(),
+            "Status": "New"
+        }
+        
+        # Use the create_record function to store the fact
+        result = await self.create_record(
+            context,
+            table_name=table_name,
+            fields=json.dumps(fact_data)
+        )
+        
+        return {
+            "status": "success",
+            "data": result.get("data"),
+            "message": f"Interesting fact recorded: {fact[:50]}..."
+        }
+        
+    except Exception as e:
+        raise ToolError(f"Failed to record fact: {str(e)}")
+
+@function_tool()
+async def get_records(
+    self,
+    context: RunContext,
+    table_name: str,
+    max_records: int = 10,
+    filter_formula: str = "",
+    base_id: str = "your_base_id"
+) -> dict[str, Any]:
+    """Get records from an Airtable table.
+    
+    Args:
+        table_name: Name of the Airtable table
+        max_records: Maximum number of records to return
+        filter_formula: Airtable filter formula (optional)
+        base_id: Airtable base ID
+    
+    Returns:
+        Dictionary containing the retrieved records
+    """
+    try:
+        api_key = "your_airtable_api_key"
+        url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}"
+        }
+        
+        params = {
+            "maxRecords": max_records
+        }
+        
+        if filter_formula:
+            params["filterByFormula"] = filter_formula
+        
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        
+        result = response.json()
+        records = result.get("records", [])
+        
+        return {
+            "status": "success",
+            "data": {
+                "records": records,
+                "count": len(records)
+            },
+            "message": f"Retrieved {len(records)} records from {table_name}"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise ToolError(f"Airtable API request failed: {str(e)}")
+    except Exception as e:
+        raise ToolError(f"Failed to get records: {str(e)}")
+
+@function_tool()
+async def update_record(
+    self,
+    context: RunContext,
+    table_name: str,
+    record_id: str,
+    fields: str,
+    base_id: str = "your_base_id"
+) -> dict[str, Any]:
+    """Update an existing record in Airtable.
+    
+    Args:
+        table_name: Name of the Airtable table
+        record_id: ID of the record to update
+        fields: JSON string of field data to update
+        base_id: Airtable base ID
+    
+    Returns:
+        Dictionary containing the updated record details
+    """
+    try:
+        api_key = "your_airtable_api_key"
+        url = f"https://api.airtable.com/v0/{base_id}/{table_name}/{record_id}"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Parse fields JSON
+        try:
+            field_data = json.loads(fields)
+        except json.JSONDecodeError:
+            raise ToolError("Invalid JSON format in fields parameter")
+        
+        data = {
+            "fields": field_data
+        }
+        
+        response = requests.patch(url, headers=headers, json=data)
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        return {
+            "status": "success",
+            "data": {
+                "record_id": result.get("id"),
+                "fields": result.get("fields")
+            },
+            "message": f"Record {record_id} updated successfully"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise ToolError(f"Airtable API request failed: {str(e)}")
+    except Exception as e:
+        raise ToolError(f"Failed to update record: {str(e)}")`
+    }
+  ];
+
   return (
     <RoomContext.Provider value={room}>
       <div className="w-full h-screen bg-gray-900 flex">
@@ -1697,17 +2262,76 @@ If the user asks to create new functionality, create appropriate new files rathe
           </div>
 
           {/* Message input */}
-          <div className="p-4 border-t border-gray-700">
+          <div className="p-4 border-t border-gray-700 relative">
+            {/* Tool dropdown */}
+            {showToolDropdown && filteredTools.length > 0 && (
+              <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
+                <div className="p-2 border-b border-gray-600">
+                  <div className="text-xs text-gray-400 font-medium">Available Tools</div>
+                </div>
+                {filteredTools.map((tool, index) => (
+                  <div
+                    key={tool.name}
+                    onClick={() => handleToolSelect(tool)}
+                    className={`p-3 cursor-pointer transition-colors ${
+                      index === selectedToolIndex
+                        ? 'bg-blue-600 text-white'
+                        : 'hover:bg-gray-700 text-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-medium ${
+                          tool.category === 'Payment' ? 'bg-green-500 text-white' :
+                          tool.category === 'Communication' ? 'bg-blue-500 text-white' :
+                          tool.category === 'Productivity' ? 'bg-purple-500 text-white' :
+                          tool.category === 'Data' ? 'bg-orange-500 text-white' :
+                          'bg-gray-500 text-white'
+                        }`}>
+                          {tool.display.charAt(0)}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">{tool.display}</div>
+                        <div className="text-xs text-gray-400 truncate">{tool.description}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          <span className="px-1.5 py-0.5 bg-gray-600 rounded text-xs">{tool.category}</span>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="p-2 border-t border-gray-600 bg-gray-750">
+                  <div className="text-xs text-gray-500">
+                    Use <kbd className="px-1 py-0.5 bg-gray-600 rounded text-xs">↑</kbd> <kbd className="px-1 py-0.5 bg-gray-600 rounded text-xs">↓</kbd> to navigate, <kbd className="px-1 py-0.5 bg-gray-600 rounded text-xs">Enter</kbd> to select
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex space-x-2">
-              <textarea
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask me to modify the code, add features, or explain something..."
-                className="flex-1 p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none resize-none"
-                rows={2}
-                disabled={isGenerating}
-              />
+              <div className="flex-1 relative">
+                <textarea
+                  value={inputMessage}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDownInInput}
+                  placeholder="Ask me to modify the code, add features, or explain something... (Type @ to add tools)"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none resize-none"
+                  rows={2}
+                  disabled={isGenerating}
+                />
+                {/* @ symbol hint */}
+                {!inputMessage && (
+                  <div className="absolute right-3 top-3 text-gray-500 text-xs pointer-events-none">
+                    Try typing @ for tools
+                  </div>
+                )}
+              </div>
               <button
                 onClick={sendMessage}
                 disabled={!inputMessage.trim() || isGenerating}

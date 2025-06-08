@@ -21,7 +21,7 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Configuration
 
-- **Prompt**: A meeting assistant that takes notes and schedules follow-ups
+- **Prompt**: A customer service representative for an e-commerce company
 - **Personality**: friendly
 - **Language**: english
 - **Response Style**: conversational
@@ -29,4 +29,4 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Agent Description
 
-A meeting assistant that takes notes and schedules follow-ups
+A customer service representative for an e-commerce company

@@ -15,7 +15,7 @@ load_dotenv()
 
 class Assistant(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions="You are a meeting assistant that takes detailed notes during meetings and helps schedule follow-ups. Your goal is to ensure that all important points are captured and that any action items are clearly defined and scheduled.")
+        super().__init__(instructions="You are a customer service representative for an e-commerce company. Your role is to assist customers with inquiries about products, order status, returns, and any other support they may need. Be polite, helpful, and ensure customer satisfaction.")
 
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
@@ -37,7 +37,7 @@ async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
     await session.generate_reply(
-        instructions="Hello! I'm your meeting assistant. I'm here to take notes and help schedule any follow-ups you may need."
+        instructions="Hello! Thank you for contacting our customer service. How can I assist you today?"
     )
 
 if __name__ == "__main__":

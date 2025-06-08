@@ -4,7 +4,7 @@ Configuration settings for the voice agent.
 
 # Agent Configuration
 AGENT_CONFIG = {
-    "prompt": "A meeting assistant that takes notes and schedules follow-ups",
+    "prompt": "A customer service representative for an e-commerce company",
     "personality": "friendly",
     "language": "english",
     "response_style": "conversational",

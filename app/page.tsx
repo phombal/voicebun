@@ -1126,15 +1126,15 @@ function SimpleVoiceAssistant(props: { onReconfigure: () => void; onBackToHome: 
 
   return (
     <div className="flex flex-col items-center gap-4 h-full">
-      <AgentVisualizer />
-      <div className="flex-1 w-full">
+            <AgentVisualizer />
+            <div className="flex-1 w-full">
         <DatabaseTranscriptionView />
-      </div>
-      <div className="w-full">
+            </div>
+            <div className="w-full">
         <ControlBar onReconfigure={props.onReconfigure} onBackToHome={props.onBackToHome} />
-      </div>
-      <RoomAudioRenderer />
-      <NoAgentNotification state={agentState} />
+            </div>
+            <RoomAudioRenderer />
+            <NoAgentNotification state={agentState} />
     </div>
   );
 }
