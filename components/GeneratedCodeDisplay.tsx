@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { type VoiceAgentConfig } from './VoiceAgentConfig';
 import {
   BarVisualizer,
@@ -17,7 +17,7 @@ import { Room, RoomEvent } from "livekit-client";
 import Editor from '@monaco-editor/react';
 import { useDatabase } from '@/hooks/useDatabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChatSession } from '@/lib/database/types';
+import { ChatSession, Project } from '@/lib/database/types';
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -25,6 +25,10 @@ interface GeneratedCodeDisplayProps {
   onStartConversation?: () => void;
   onReconfigure: () => void;
   onBackToHome: () => void;
+}
+
+interface PhoneNumberFeature {
+  name: string;
 }
 
 interface ChatMessage {
@@ -495,7 +499,7 @@ def validate_config(config: dict) -> bool:
   }
 }
 
-export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome }: GeneratedCodeDisplayProps) {
+export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<GeneratedCodeDisplayProps, 'onReconfigure'>) {
   // State variables
   const [currentCode, setCurrentCode] = useState(code);
   const [selectedFile, setSelectedFile] = useState('voice_agent.py');
@@ -507,35 +511,40 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   const [filteredTools, setFilteredTools] = useState<ToolDefinition[]>([]);
   const [selectedToolIndex, setSelectedToolIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [conversationContext, setConversationContext] = useState(`Voice Agent Project: "${config.prompt}"`);
   const [availableCheckpoints, setAvailableCheckpoints] = useState<ChatMessage[]>([]);
   const [showCheckpointModal, setShowCheckpointModal] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showTelephonyModal, setShowTelephonyModal] = useState(false);
-  const [availableNumbers, setAvailableNumbers] = useState<any[]>([]);
-  const [selectedNumber, setSelectedNumber] = useState<any>(null);
+  const [availableNumbers, setAvailableNumbers] = useState<Array<{
+    id: string; 
+    number: string;
+    features?: PhoneNumberFeature[];
+    region_information?: Array<{ region_name?: string }>;
+    cost_information?: {
+      monthly_cost?: string;
+      upfront_cost?: string;
+    };
+  }>>([]);
+  const [selectedNumber, setSelectedNumber] = useState<{
+    id: string; 
+    number: string;
+    features?: PhoneNumberFeature[];
+    region_information?: Array<{ region_name?: string }>;
+    cost_information?: {
+      monthly_cost?: string;
+      upfront_cost?: string;
+    };
+  } | null>(null);
   const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
   const [isAssigningNumber, setIsAssigningNumber] = useState(false);
   const [assignedPhoneNumber, setAssignedPhoneNumber] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createType, setCreateType] = useState<'file' | 'folder'>('file');
-  const [createName, setCreateName] = useState('');
-  const [createParentPath, setCreateParentPath] = useState('/');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<string>('');
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyFile, setHistoryFile] = useState<VirtualFile | null>(null);
-  const [showRevertModal, setShowRevertModal] = useState(false);
-  const [revertSnapshot, setRevertSnapshot] = useState<FileSnapshot | null>(null);
   const [room] = useState(new Room());
   const [isInConversation, setIsInConversation] = useState(false);
   const [activeTab, setActiveTab] = useState<'test' | 'code'>('test');
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(true);
   const [editorValue, setEditorValue] = useState('');
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [savedConfigurations, setSavedConfigurations] = useState<any[]>([]);
-  const [showConfigModal, setShowConfigModal] = useState(false);
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
 
   // Context menu state
@@ -553,12 +562,8 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   const { user } = useAuth();
   const { 
     currentProject, 
-    currentSession, 
-    addChatMessage, 
     updateProjectFiles, 
     startChatSession,
-    setCurrentProject,
-    setCurrentSession,
     createProject
   } = useDatabase();
   
@@ -571,6 +576,63 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     virtualFileSystem.initializeProject(code, config);
     return virtualFileSystem;
   });
+
+  // Load agent configurations function
+  const loadAgentConfigurations = useCallback(async () => {
+    try {
+      if (!currentProject) {
+        console.log('❌ No current project for loading configurations');
+        return;
+      }
+
+      console.log('📥 Loading agent configurations for project:', currentProject.name);
+      const response = await fetch(`/api/agent-config?projectId=${currentProject.id}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Loaded agent configurations:');
+        console.log('   • Total configurations:', result.configs?.length || 0);
+        if (result.configs?.length > 0) {
+          const latestConfig = result.configs[0];
+          console.log('   • Latest configuration:', {
+            id: latestConfig.id,
+            name: latestConfig.config_name,
+            created: latestConfig.created_at
+          });
+          
+          // Set the current configuration ID to the latest one
+          setCurrentConfigurationId(latestConfig.id);
+          console.log('   • Set current configuration ID to:', latestConfig.id);
+        }
+      } else {
+        console.error('❌ Failed to load agent configurations:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error loading agent configurations:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        error: error
+      });
+    }
+  }, [currentProject]);
+
+  // Create a snapshot of all current files
+  const createFilesSnapshot = useCallback((): Map<string, string> => {
+    const snapshot = new Map<string, string>();
+    vfs.getAllFiles().forEach((file: VirtualFile) => {
+      snapshot.set(file.path, file.content);
+    });
+    return snapshot;
+  }, [vfs]);
+
+  const getSelectedFilePath = useCallback((): string => {
+    // Find the file path by name
+    const allFiles = vfs.getAllFiles();
+    const file = allFiles.find(f => f.name === selectedFile);
+    return file?.path || '/voice_agent.py';
+  }, [vfs, selectedFile]);
 
   // Initialize database session for code editing
   useEffect(() => {
@@ -603,7 +665,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
             code
           );
           console.log('✅ Project auto-created:', project.id);
-        } catch (error) {
+      } catch (error) {
           console.error('❌ Failed to auto-create project:', error);
         }
       }
@@ -617,24 +679,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     if (currentProject) {
       loadAgentConfigurations();
     }
-  }, [currentProject]);
-
-  // Save chat messages to database
-  const saveChatMessageToDatabase = async (message: ChatMessage) => {
-    if (codeEditSession && addChatMessage) {
-      try {
-        await addChatMessage(
-          codeEditSession.id,
-          message.role,
-          message.content,
-          message.checkpoint || false
-        );
-        console.log('💾 Saved chat message to database:', message.role);
-      } catch (error) {
-        console.error('❌ Failed to save chat message to database:', error);
-      }
-    }
-  };
+  }, [currentProject, loadAgentConfigurations]);
 
   // Save file changes to database
   const saveFileChangesToDatabase = async (changeDescription?: string) => {
@@ -697,7 +742,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     if (activeTab === 'code' && !isFileMenuOpen) {
       setIsFileMenuOpen(true);
     }
-  }, [activeTab]);
+  }, [activeTab, isFileMenuOpen]);
 
   // Initialize virtual filesystem and chat
   useEffect(() => {
@@ -723,19 +768,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     
     setMessages([welcomeMessage]);
     setAvailableCheckpoints([welcomeMessage]);
-    
-    // Initialize conversation context
-    setConversationContext(`Voice Agent Project: "${config.prompt}"\nInitial setup completed with basic voice agent structure.`);
-  }, []);
-
-  // Create a snapshot of all current files
-  const createFilesSnapshot = (): Map<string, string> => {
-    const snapshot = new Map<string, string>();
-    vfs.getAllFiles().forEach((file: VirtualFile) => {
-      snapshot.set(file.path, file.content);
-    });
-    return snapshot;
-  };
+  }, [code, config, vfs, createFilesSnapshot]);
 
   // Restore files from a checkpoint snapshot
   const restoreFromCheckpoint = (snapshot: Map<string, string>) => {
@@ -783,14 +816,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
         setCurrentCode(file.content);
       }
     }
-  }, [selectedFile, fileSystemVersion]);
-
-  const getSelectedFilePath = (): string => {
-    // Find the file path by name
-    const allFiles = vfs.getAllFiles();
-    const file = allFiles.find(f => f.name === selectedFile);
-    return file?.path || '/voice_agent.py';
-  };
+  }, [selectedFile, fileSystemVersion, getSelectedFilePath, vfs]);
 
   // Save editor changes to virtual filesystem
   const handleEditorChange = (value: string | undefined) => {
@@ -834,7 +860,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     }
   };
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async () => {
     try {
       // Get the current file content from the real file system
       const content = vfs.getFile(getSelectedFilePath())?.content || '';
@@ -864,18 +890,6 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     }
   };
 
-  const downloadCode = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const fetchAvailableNumbers = async () => {
     setIsLoadingNumbers(true);
     try {
@@ -884,9 +898,8 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
         throw new Error('Failed to fetch phone numbers');
       }
       const data = await response.json();
-      console.log('Raw Telnyx API response:', data);
-      console.log('Phone numbers received:', data.data?.map((num: any) => num.phone_number));
-      setAvailableNumbers(data.data || []);
+      setAvailableNumbers(data.phone_numbers || []);
+      console.log('📱 Available phone numbers:', data.phone_numbers?.length || 0);
     } catch (error) {
       console.error('Error fetching phone numbers:', error);
       // Show error notification
@@ -914,13 +927,13 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
       // For now, we'll simulate the assignment
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      setAssignedPhoneNumber(selectedNumber.phone_number);
+      setAssignedPhoneNumber(selectedNumber.number);
       setShowTelephonyModal(false);
       setSelectedNumber(null);
       
       // Show success notification
       const notification = document.createElement('div');
-      notification.textContent = `Phone number ${selectedNumber.phone_number} assigned successfully!`;
+      notification.textContent = `Phone number ${selectedNumber.number} assigned successfully!`;
       notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
@@ -1130,42 +1143,6 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     };
   };
 
-  // Generate corrective prompt for tool structure issues
-  const generateCorrectionPrompt = (originalPrompt: string, issues: string[], suggestions: string[], requestedTools: string[]): string => {
-    const toolTemplates = requestedTools.map(toolName => {
-      const tool = AVAILABLE_TOOLS.find(t => t.name === toolName);
-      return tool ? `
-CORRECT TEMPLATE FOR ${tool.display.toUpperCase()}:
-\`\`\`python
-${tool.template}
-\`\`\`
-` : '';
-    }).join('\n');
-
-    return `${originalPrompt}
-
-CRITICAL: The previous response had LiveKit tool structure issues. Please fix them immediately:
-
-ISSUES FOUND:
-${issues.map(issue => `- ${issue}`).join('\n')}
-
-REQUIRED FIXES:
-${suggestions.map(suggestion => `- ${suggestion}`).join('\n')}
-
-LIVEKIT TOOL REQUIREMENTS:
-1. Import: from livekit.agents import function_tool, ToolError
-2. Decorator: @function_tool() above each tool function
-3. Function signature: async def tool_name(self, context: RunContext, ...)
-4. Proper docstring with Args: and Returns: sections
-5. Error handling with ToolError exceptions
-6. Return dictionary with status and data
-7. Type hints for all parameters
-
-${toolTemplates}
-
-Please regenerate the complete, corrected code that follows LiveKit patterns exactly.`;
-  };
-
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
 
@@ -1226,12 +1203,13 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
       }
 
       let buffer = '';
-      let assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
         role: 'assistant',
         content: '',
         timestamp: new Date(),
-        checkpoint: false
+        checkpoint: true,
+        filesSnapshot: createFilesSnapshot()
       };
 
       // Add the assistant message to state immediately
@@ -1550,12 +1528,6 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
         newMessages.some(msg => msg.id === cp.id)
       );
       setAvailableCheckpoints(newCheckpoints);
-      
-      // Update conversation context to match the rollback point
-      const contextMessages = newMessages.map(msg => 
-        `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
-      ).join('\n\n');
-      setConversationContext(`Voice Agent Project: "${config.prompt}"\n\n${contextMessages}`);
     }
     
     showNotification(`Rolled back to checkpoint: ${checkpointMessage.timestamp.toLocaleString()}`, 'success');
@@ -1751,9 +1723,9 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
           
           if (bestMatch !== -1 && bestScore > 0) {
             const block = codeBlocks[bestMatch];
-            operations.push({
+        operations.push({
               type: 'UPDATE', // Default to UPDATE for fallback parsing
-              filename,
+          filename,
               content: block.content
             });
             console.log(`✅ Matched ${filename} with code block (score: ${bestScore})`);
@@ -1776,15 +1748,8 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
     return operations;
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
   // Function to save agent configuration to database
-  const saveAgentConfiguration = async (projectToUse?: any, userToUse?: any): Promise<string | null> => {
+  const saveAgentConfiguration = async (projectToUse?: Project, userToUse?: { id: string }): Promise<string | null> => {
     console.log('[DEBUG] ========= Starting saveAgentConfiguration =========');
     console.log('[DEBUG] Config:', config);
     console.log('[DEBUG] CurrentCode length:', currentCode?.length || 0);
@@ -1924,47 +1889,6 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
     }
   };
 
-  const loadAgentConfigurations = async () => {
-    try {
-      if (!currentProject) {
-        console.log('❌ No current project for loading configurations');
-        return;
-      }
-
-      console.log('📥 Loading agent configurations for project:', currentProject.name);
-      const response = await fetch(`/api/agent-config?projectId=${currentProject.id}`);
-      
-      if (response.ok) {
-        const result = await response.json();
-        setSavedConfigurations(result.configs || []);
-        console.log('✅ Loaded agent configurations:');
-        console.log('   • Total configurations:', result.configs?.length || 0);
-        if (result.configs?.length > 0) {
-          const latestConfig = result.configs[0];
-          console.log('   • Latest configuration:', {
-            id: latestConfig.id,
-            name: latestConfig.config_name,
-            created: latestConfig.created_at
-          });
-          
-          // Set the current configuration ID to the latest one
-          setCurrentConfigurationId(latestConfig.id);
-          console.log('   • Set current configuration ID to:', latestConfig.id);
-        }
-      } else {
-        console.error('❌ Failed to load agent configurations:', {
-          status: response.status,
-          statusText: response.statusText
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error loading agent configurations:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        error: error
-      });
-    }
-  };
-
   const startConversation = async () => {
     setIsConnecting(true);
     
@@ -2031,7 +1955,7 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
       // SAVE agent configuration BEFORE connecting to room
       console.log('💾 About to call saveAgentConfiguration...');
       console.log('💾 Saving agent configuration with confirmed project and session...');
-      const savedConfigId = await saveAgentConfiguration(projectToUse, user);
+      const savedConfigId = await saveAgentConfiguration(projectToUse, user || undefined);
       console.log('🔍 DEBUG: saveAgentConfiguration returned:', savedConfigId);
       
       // Use the saved configuration ID or fall back to current state
@@ -2114,7 +2038,7 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
         } else {
           console.warn('⚠️ No metadata found after setting it');
         }
-      } catch (error) {
+        } catch (error) {
         console.error('❌ Failed to set participant metadata:', error);
       }
       
@@ -2281,22 +2205,7 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
     }
   };
 
-  // Delete file or folder
-  const deleteFileOrFolder = (path: string) => {
-    if (vfs.deleteItem(path)) {
-      setFileSystemVersion(prev => prev + 1);
-      showNotification('Deleted successfully!', 'success');
-      
-      // If we deleted the currently selected file, switch to voice_agent.py
-      if (path === getSelectedFilePath()) {
-        setSelectedFile('voice_agent.py');
-      }
-    } else {
-      showNotification('Failed to delete!', 'error');
-    }
-  };
-
-  // Render file tree
+  // Render file tree component
   const renderFileTree = (items: VirtualFileSystemItem[], level: number = 0): JSX.Element[] => {
     return items.map((item) => (
       <div key={item.id} style={{ marginLeft: `${level * 16}px` }}>
@@ -3136,7 +3045,7 @@ async def update_record(
               {activeTab === 'code' && (
                 <>
                   <button
-                    onClick={() => copyToClipboard(vfs.getFile(getSelectedFilePath())?.content || '')}
+                    onClick={() => copyToClipboard()}
                     className="px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded-md transition-colors flex items-center space-x-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3324,9 +3233,9 @@ async def update_record(
                           <h4 className="text-md font-medium text-white mb-3">Testing Tips</h4>
                           <ul className="text-gray-400 text-sm space-y-2 text-left">
                             <li>• Speak clearly and wait for the agent to respond</li>
-                            <li>• Try asking questions related to your agent's purpose</li>
+                            <li>• Try asking questions related to your agent&apos;s purpose</li>
                             <li>• Test different conversation scenarios</li>
-                            <li>• Use the chat on the left to modify the agent's behavior</li>
+                            <li>• Use the chat on the left to modify the agent&apos;s behavior</li>
                           </ul>
                         </div>
                       </div>
@@ -3377,7 +3286,7 @@ async def update_record(
                   <div className="bg-gray-700 rounded-lg p-4">
                     <h4 className="text-white font-medium mb-2">Next Steps:</h4>
                     <ul className="text-gray-300 text-sm space-y-1">
-                      <li>• Configure your agent's telephony settings</li>
+                      <li>• Configure your agent&apos;s telephony settings</li>
                       <li>• Test the phone number integration</li>
                       <li>• Monitor call analytics and performance</li>
                     </ul>
@@ -3424,16 +3333,16 @@ async def update_record(
                             key={index}
                             onClick={() => setSelectedNumber(number)}
                             className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                              selectedNumber?.phone_number === number.phone_number
+                              selectedNumber?.number === number.number
                                 ? 'border-blue-500 bg-blue-900/30'
                                 : 'border-gray-600 hover:border-gray-500 bg-gray-700/50'
                             }`}
                           >
                             <div className="flex justify-between items-start gap-4">
                               <div className="flex-1 min-w-0">
-                                <p className="text-white font-mono text-lg break-all">{number.phone_number}</p>
+                                <p className="text-white font-mono text-lg break-all">{number.number}</p>
                                 <div className="flex flex-wrap gap-1 mt-2">
-                                  {number.features?.map((feature: any, idx: number) => (
+                                  {number.features?.map((feature: PhoneNumberFeature, idx: number) => (
                                     <span
                                       key={idx}
                                       className="px-2 py-1 bg-gray-600 text-gray-300 text-xs rounded whitespace-nowrap"
@@ -3841,4 +3750,4 @@ async def update_record(
       </div>
     </RoomContext.Provider>
   );
-}
+} 

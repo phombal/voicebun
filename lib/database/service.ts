@@ -9,7 +9,6 @@ import {
   ProjectSnapshot,
   CodeChange,
   UserProfile,
-  UserPreferences,
   CreateProjectRequest,
   CreateSessionRequest,
   CreateMessageRequest,

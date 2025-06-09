@@ -3,9 +3,8 @@
 import { CloseIcon } from "@/components/CloseIcon";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
 import DatabaseTranscriptionView from "@/components/DatabaseTranscriptionView";
-import { VoiceAgentConfig, type VoiceAgentConfig as VoiceAgentConfigType } from "@/components/VoiceAgentConfig";
+import { type VoiceAgentConfig as VoiceAgentConfigType } from "@/components/VoiceAgentConfig";
 import { GeneratedCodeDisplay } from "@/components/GeneratedCodeDisplay";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import UserProfile from "@/components/auth/UserProfile";
 import PublicLanding from "@/components/LandingPage";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +25,21 @@ import { useDatabase } from "@/hooks/useDatabase";
 import { DatabaseService } from "@/lib/database/service";
 
 type AppState = "landing" | "code-display" | "conversation";
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  last_accessed_at?: string;
+  initial_prompt?: string;
+  config?: {
+    personality?: string;
+    language?: string;
+    responseStyle?: string;
+    capabilities?: string[];
+  };
+}
 
 export default function Page() {
   const { user, loading } = useAuth();
@@ -53,36 +67,14 @@ function PageContent() {
   const [appState, setAppState] = useState<AppState>("landing");
   const [agentConfig, setAgentConfig] = useState<VoiceAgentConfigType | null>(null);
   const [generatedCode, setGeneratedCode] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentProject, setCurrentProject] = useState<any>(null);
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [dbService] = useState(() => new DatabaseService());
   const { 
-    createProject, 
-    startChatSession, 
-    addChatMessage, 
-    currentProject: dbCurrentProject, 
-    currentSession,
-    getUserProjects
+    createProject,
+    startChatSession,
+    currentProject: dbCurrentProject,
+    addChatMessage
   } = useDatabase();
-  const [projects, setProjects] = useState<any[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
-
-  // Load user projects on component mount
-  useEffect(() => {
-    const loadProjects = async () => {
-      try {
-        const userProjects = await getUserProjects();
-        setProjects(userProjects.data || []);
-      } catch (error) {
-        console.error('Failed to load projects:', error);
-      } finally {
-        setLoadingProjects(false);
-      }
-    };
-
-    loadProjects();
-  }, [getUserProjects]);
 
   const onConnectButtonClicked = useCallback(async () => {
     // Generate room connection details, including:
@@ -110,7 +102,7 @@ function PageContent() {
     console.log('👥 Current participants:', room.remoteParticipants.size);
     
     // Start a chat session when connecting to the room
-    if (currentProject && !currentSession) {
+    if (currentProject && !dbCurrentProject) {
       try {
         const session = await startChatSession(currentProject.id);
         console.log('📝 Started chat session:', session.id);
@@ -172,7 +164,7 @@ function PageContent() {
     }
     
     setAppState("conversation");
-  }, [room, agentConfig, generatedCode, currentProject, currentSession, startChatSession, addChatMessage]);
+  }, [room, agentConfig, generatedCode, currentProject, dbCurrentProject, startChatSession, addChatMessage]);
 
   const handleAgentGenerated = async (config: VoiceAgentConfigType, code: string) => {
     setAgentConfig(config);
@@ -193,13 +185,7 @@ function PageContent() {
       
       console.log('✅ Created project in database:', project.id);
       
-      // Refresh projects list
-      try {
-        const userProjects = await getUserProjects();
-        setProjects(userProjects.data || []);
-      } catch (error) {
-        console.error('Failed to refresh projects list:', error);
-      }
+      // The project list refresh is handled by AuthenticatedLandingPage
     } catch (error) {
       console.error('❌ Failed to create project in database:', error);
       // Continue anyway - the code will still be displayed
@@ -470,10 +456,8 @@ def format_response(text: str, max_length: int = 500) -> str:
   }, [room]);
 
   // Function to load an existing project
-  const loadExistingProject = async (project: any) => {
+  const loadExistingProject = async (project: Project) => {
     try {
-      setIsLoading(true);
-      
       // Update project access time
       await dbService.updateProjectAccess(project.id);
       
@@ -482,7 +466,6 @@ def format_response(text: str, max_length: int = 500) -> str:
       
       // Set up the project state
       setCurrentProject(project);
-      setCurrentProjectId(project.id);
       
       // Set up the agent configuration from the project
       const config: VoiceAgentConfigType = {
@@ -498,12 +481,12 @@ def format_response(text: str, max_length: int = 500) -> str:
       let mainCode = "";
       if (files.length > 0) {
         // Look for voice_agent.py file
-        const mainFile = files.find((file: any) => file.file_path === 'voice_agent.py' || file.file_path === '/voice_agent.py');
+        const mainFile = files.find((file: { file_path: string }) => file.file_path === 'voice_agent.py' || file.file_path === '/voice_agent.py');
         if (mainFile) {
           mainCode = mainFile.content || "";
         } else {
           // If no voice_agent.py, use the first Python file
-          const pythonFile = files.find((file: any) => file.file_path.endsWith('.py'));
+          const pythonFile = files.find((file: { file_path: string }) => file.file_path.endsWith('.py'));
           if (pythonFile) {
             mainCode = pythonFile.content || "";
           }
@@ -568,8 +551,6 @@ if __name__ == "__main__":
       console.error('Error loading project:', error);
       // Show error to user
       alert('Failed to load project. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -598,7 +579,6 @@ if __name__ == "__main__":
                   code={generatedCode}
                   config={agentConfig}
                   onStartConversation={handleStartConversation}
-                  onReconfigure={handleReconfigure}
                   onBackToHome={handleBackToLanding}
                 />
               </motion.div>
@@ -625,12 +605,15 @@ if __name__ == "__main__":
   );
 }
 
-function AuthenticatedLandingPage({ onAgentGenerated, onProjectSelected }: { onAgentGenerated: (config: VoiceAgentConfigType, code: string) => void; onProjectSelected: (project: any) => void }) {
+function AuthenticatedLandingPage({ onAgentGenerated, onProjectSelected }: { 
+  onAgentGenerated: (config: VoiceAgentConfigType, code: string) => void; 
+  onProjectSelected: (project: Project) => void 
+}) {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { getUserProjects } = useDatabase();
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
   // Load user projects on component mount
@@ -638,7 +621,11 @@ function AuthenticatedLandingPage({ onAgentGenerated, onProjectSelected }: { onA
     const loadProjects = async () => {
       try {
         const userProjects = await getUserProjects();
-        setProjects(userProjects.data || []);
+        const projectsData = (userProjects.data || []).map(project => ({
+          ...project,
+          description: project.description || undefined
+        }));
+        setProjects(projectsData);
       } catch (error) {
         console.error('Failed to load projects:', error);
       } finally {

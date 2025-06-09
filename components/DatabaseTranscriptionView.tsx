@@ -3,11 +3,9 @@
 import { useEffect, useRef } from 'react';
 import TranscriptionView from './TranscriptionView';
 import { useDatabase } from '@/hooks/useDatabase';
-import { useVoiceAssistant } from '@livekit/components-react';
 
 export default function DatabaseTranscriptionView() {
   const { currentSession, addChatMessage } = useDatabase();
-  const { state } = useVoiceAssistant();
   const lastProcessedMessageRef = useRef<string>('');
 
   useEffect(() => {

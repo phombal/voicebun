@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
       
       return NextResponse.json({ files: fileList });
     } catch (error) {
-      return NextResponse.json({ error: 'Directory not found' }, { status: 404 });
+      console.error('Error reading directory:', error);
+      return NextResponse.json({ error: 'Failed to read directory' }, { status: 404 });
     }
   } catch (error) {
     console.error('Error listing files:', error);

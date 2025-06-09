@@ -21,7 +21,7 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Configuration
 
-- **Prompt**: A language tutor that helps practice conversational Spanish
+- **Prompt**: A customer service representative for an e-commerce company
 - **Personality**: friendly
 - **Language**: english
 - **Response Style**: conversational
@@ -29,4 +29,4 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Agent Description
 
-A language tutor that helps practice conversational Spanish
+A customer service representative for an e-commerce company

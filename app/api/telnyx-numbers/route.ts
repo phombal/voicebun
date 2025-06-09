@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 const TELNYX_API_KEY = 'KEY019747BF31A87C0761B99B4BAFE19A35_IauIHXvs7wQHzgZMVK2YA0';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Add query parameters that might help get full numbers
     const url = new URL('https://api.telnyx.com/v2/available_phone_numbers');
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     
     // Debug logging to see what Telnyx is returning
     console.log('Telnyx API Response:', JSON.stringify(data, null, 2));
-    console.log('Phone numbers from Telnyx:', data.data?.map((num: any) => num.phone_number));
+    console.log('Phone numbers from Telnyx:', data.data?.map((num: { phone_number: string }) => num.phone_number));
     
     // Return the phone numbers data
     return NextResponse.json(data);

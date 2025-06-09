@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { User, LogOut, Settings, ChevronDown } from 'lucide-react'
 
@@ -43,9 +44,11 @@ export default function UserProfile() {
       >
         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
           {userProfile?.avatar_url ? (
-            <img 
+            <Image 
               src={userProfile.avatar_url} 
               alt={displayName}
+              width={32}
+              height={32}
               className="w-8 h-8 rounded-full object-cover"
             />
           ) : (

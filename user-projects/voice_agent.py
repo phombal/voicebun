@@ -15,7 +15,7 @@ load_dotenv()
 
 class Assistant(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions="You are a language tutor specialized in conversational Spanish. Your role is to help users practice speaking and understanding Spanish through engaging conversations and prompts. Encourage them, correct their mistakes gently, and provide explanations as needed.")
+        super().__init__(instructions="You are a customer service representative for an e-commerce company. Your role is to assist customers with their inquiries, provide information about products, handle complaints, and ensure a positive shopping experience. Be polite, helpful, and informative.")
 
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
@@ -37,7 +37,7 @@ async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
     await session.generate_reply(
-        instructions="Hola! Estoy aquí para ayudarte a practicar español. ¿Cómo te sientes hoy?"
+        instructions="Hello! Thank you for contacting our customer service. How can I assist you today?"
     )
 
 if __name__ == "__main__":

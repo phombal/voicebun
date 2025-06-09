@@ -90,20 +90,20 @@ export interface AgentConfiguration {
   description: string | null;
   stt_provider: string;
   stt_model: string;
-  stt_config: Record<string, any>;
+  stt_config: Record<string, unknown>;
   tts_provider: string;
   tts_model: string;
-  tts_config: Record<string, any>;
+  tts_config: Record<string, unknown>;
   llm_provider: string;
   llm_model: string;
-  llm_config: Record<string, any>;
+  llm_config: Record<string, unknown>;
   vad_provider: string;
-  vad_config: Record<string, any>;
-  turn_detection_config: Record<string, any>;
-  function_calls: any[];
-  tool_integrations: any[];
+  vad_config: Record<string, unknown>;
+  turn_detection_config: Record<string, unknown>;
+  function_calls: unknown[];
+  tool_integrations: unknown[];
   agent_instructions: string;
-  agent_personality: Record<string, any>;
+  agent_personality: Record<string, unknown>;
   required_env_vars: string[];
   dependencies: string[];
   source_files: Record<string, string>;
@@ -135,7 +135,7 @@ export interface ChatSession {
   ended_at: string | null;
   message_count: number;
   is_active: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ChatMessage {
@@ -146,8 +146,8 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   is_checkpoint: boolean;
-  context_data: Record<string, any>;
-  metadata: Record<string, any>;
+  context_data: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ProjectFile {
@@ -210,7 +210,7 @@ export interface CodeChange {
   old_content: string | null;
   new_content: string | null;
   diff_content: string | null;
-  line_changes: Record<string, any> | null;
+  line_changes: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -219,8 +219,8 @@ export interface UserPreferences {
   user_id: string;
   editor_theme: string;
   auto_save_enabled: boolean;
-  notification_preferences: Record<string, any>;
-  ui_preferences: Record<string, any>;
+  notification_preferences: Record<string, unknown>;
+  ui_preferences: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -261,8 +261,8 @@ export interface RecentChatActivity {
   content: string;
   timestamp: string;
   is_checkpoint: boolean;
-  context_data: Record<string, any>;
-  metadata: Record<string, any>;
+  context_data: Record<string, unknown>;
+  metadata: Record<string, unknown>;
   project_id: string;
   project_name: string;
   user_name: string | null;
@@ -278,7 +278,7 @@ export interface FileChangeHistory {
   old_content: string | null;
   new_content: string | null;
   diff_content: string | null;
-  line_changes: Record<string, any> | null;
+  line_changes: Record<string, unknown> | null;
   created_at: string;
   file_name: string;
   file_path: string;
@@ -301,7 +301,7 @@ export interface CreateProjectRequest {
   name: string;
   description?: string;
   initial_prompt: string;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 export interface CreateSessionRequest {
@@ -314,8 +314,8 @@ export interface CreateMessageRequest {
   role: 'user' | 'assistant';
   content: string;
   is_checkpoint?: boolean;
-  context_data?: Record<string, any>;
-  metadata?: Record<string, any>;
+  context_data?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateFileRequest {

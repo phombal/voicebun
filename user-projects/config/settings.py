@@ -4,7 +4,7 @@ Configuration settings for the voice agent.
 
 # Agent Configuration
 AGENT_CONFIG = {
-    "prompt": "A language tutor that helps practice conversational Spanish",
+    "prompt": "A customer service representative for an e-commerce company",
     "personality": "friendly",
     "language": "english",
     "response_style": "conversational",

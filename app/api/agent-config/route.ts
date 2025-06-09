@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/database/auth';
-import { Database, AgentConfiguration, VoiceAgentConfig } from '@/lib/database/types';
+import { AgentConfiguration, VoiceAgentConfig } from '@/lib/database/types';
 
 // Function to extract agent configuration from code and user config
 function extractAgentConfiguration(
@@ -45,7 +45,7 @@ function extractAgentConfiguration(
   // Advanced parsing for STT configuration
   let sttProvider = 'deepgram';
   let sttModel = 'nova-2';
-  let sttConfig: any = {};
+  const sttConfig: Record<string, unknown> = {};
 
   // Look for STT initialization patterns
   const sttMatches = code.match(/(\w+)\.STT\s*\([^)]*\)/g);
@@ -76,7 +76,7 @@ function extractAgentConfiguration(
   // Advanced parsing for TTS configuration
   let ttsProvider = 'cartesia';
   let ttsModel = 'sonic-english';
-  let ttsConfig: any = {};
+  const ttsConfig: Record<string, unknown> = {};
 
   const ttsMatches = code.match(/(\w+)\.TTS\s*\([^)]*\)/g);
   if (ttsMatches && ttsMatches.length > 0) {
@@ -118,7 +118,7 @@ function extractAgentConfiguration(
   // Advanced parsing for LLM configuration
   let llmProvider = 'openai';
   let llmModel = 'gpt-4o-mini';
-  let llmConfig: any = {};
+  const llmConfig: Record<string, unknown> = {};
 
   const llmMatches = code.match(/(\w+)\.LLM\s*\([^)]*\)/g);
   if (llmMatches && llmMatches.length > 0) {
@@ -147,7 +147,7 @@ function extractAgentConfiguration(
 
   // Advanced parsing for VAD configuration
   let vadProvider = 'silero';
-  let vadConfig: any = {};
+  const vadConfig: Record<string, unknown> = {};
 
   const vadMatches = code.match(/(\w+)\.VAD\s*\([^)]*\)/g);
   if (vadMatches && vadMatches.length > 0) {
@@ -163,18 +163,18 @@ function extractAgentConfiguration(
   }
 
   // Parse turn detection configuration
-  let turnDetectionConfig: any = {};
+  const turnDetectionConfig: Record<string, unknown> = {};
   const turnDetectionMatches = code.match(/turn_detection\s*=\s*([^,\n)]+)/);
   if (turnDetectionMatches) {
     const turnDetectionMatch = turnDetectionMatches[1].trim();
     if (turnDetectionMatch.includes('MultilingualModel')) {
-      turnDetectionConfig = { type: 'multilingual' };
+      turnDetectionConfig.type = 'multilingual';
     }
     console.log('🔍 Parsed Turn Detection:', turnDetectionConfig);
   }
 
   // Parse noise cancellation configuration
-  let roomInputOptions: any = {};
+  const roomInputOptions: Record<string, unknown> = {};
   const noiseCancellationMatch = code.match(/noise_cancellation\s*=\s*([^,\n)]+)/);
   if (noiseCancellationMatch) {
     const ncType = noiseCancellationMatch[1].trim();

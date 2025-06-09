@@ -16,6 +16,11 @@ export type ConnectionDetails = {
   participantToken: string;
 };
 
+type RoomMetadata = {
+  agentConfig?: unknown;
+  generatedCode?: string;
+};
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     if (LIVEKIT_URL === undefined) {
@@ -48,7 +53,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
     
     // Create room metadata with agent configuration
-    const roomMetadata: any = {};
+    const roomMetadata: RoomMetadata = {};
     if (agentConfig) {
       roomMetadata.agentConfig = agentConfig;
     }
@@ -92,7 +97,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-function createParticipantToken(userInfo: AccessTokenOptions, roomName: string, roomMetadata?: any) {
+function createParticipantToken(userInfo: AccessTokenOptions, roomName: string, roomMetadata?: RoomMetadata) {
   const at = new AccessToken(API_KEY, API_SECRET, {
     ...userInfo,
     ttl: "15m",

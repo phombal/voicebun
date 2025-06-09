@@ -38,7 +38,7 @@ export default function AuthForm({ mode, onSuccess, onModeChange }: AuthFormProp
           onSuccess?.()
         }
       } else {
-        const { data, error } = await auth.signIn(email, password)
+        const { error } = await auth.signIn(email, password)
         
         if (error) {
           setError(error.message)
@@ -47,8 +47,6 @@ export default function AuthForm({ mode, onSuccess, onModeChange }: AuthFormProp
           onSuccess?.()
         }
       }
-    } catch (err) {
-      setError('An unexpected error occurred')
     } finally {
       setLoading(false)
     }

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       code: generatedCode
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error generating agent code:', error);
     return Response.json(
       { error: 'Failed to generate agent code' },

@@ -22,10 +22,7 @@ export function VoiceAgentConfig({ onConfigurationComplete }: VoiceAgentConfigPr
     responseStyle: "conversational"
   });
   
-  const [loading, setLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [openaiApiKey, setOpenaiApiKey] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   const personalityOptions = [
     { value: "friendly", label: "Friendly & Approachable" },
@@ -171,7 +168,6 @@ Generate the complete agent code with proper structure following the latest Live
             onChange={(e) => setConfig(prev => ({ ...prev, prompt: e.target.value }))}
             placeholder="Describe your voice agent's role, behavior, and any specific instructions..."
             className="w-full h-32 p-3 bg-black/30 border border-white/30 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none resize-none"
-            disabled={loading || isGenerating}
           />
         </div>
 
@@ -182,7 +178,6 @@ Generate the complete agent code with proper structure following the latest Live
             value={config.personality}
             onChange={(e) => setConfig(prev => ({ ...prev, personality: e.target.value }))}
             className="w-full p-3 bg-black/30 border border-white/30 rounded-lg text-white focus:border-blue-400 focus:outline-none"
-            disabled={loading || isGenerating}
           >
             {personalityOptions.map(option => (
               <option key={option.value} value={option.value} className="bg-gray-800">
@@ -203,7 +198,6 @@ Generate the complete agent code with proper structure following the latest Live
                   checked={config.capabilities.includes(capability)}
                   onChange={(e) => handleCapabilityChange(capability, e.target.checked)}
                   className="rounded border-white/30 bg-black/30 text-blue-500 focus:ring-blue-400"
-                  disabled={loading || isGenerating}
                 />
                 <span>{capability}</span>
               </label>
@@ -219,7 +213,6 @@ Generate the complete agent code with proper structure following the latest Live
               value={config.language}
               onChange={(e) => setConfig(prev => ({ ...prev, language: e.target.value }))}
               className="w-full p-3 bg-black/30 border border-white/30 rounded-lg text-white focus:border-blue-400 focus:outline-none"
-              disabled={loading || isGenerating}
             >
               {languageOptions.map(option => (
                 <option key={option.value} value={option.value} className="bg-gray-800">
@@ -236,7 +229,6 @@ Generate the complete agent code with proper structure following the latest Live
               value={config.responseStyle}
               onChange={(e) => setConfig(prev => ({ ...prev, responseStyle: e.target.value }))}
               className="w-full p-3 bg-black/30 border border-white/30 rounded-lg text-white focus:border-blue-400 focus:outline-none"
-              disabled={loading || isGenerating}
             >
               {responseStyleOptions.map(option => (
                 <option key={option.value} value={option.value} className="bg-gray-800">
@@ -247,24 +239,10 @@ Generate the complete agent code with proper structure following the latest Live
           </div>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm"
-          >
-            {error}
-          </motion.div>
-        )}
-
         {/* Submit Button */}
         <motion.button
           onClick={generateCode}
-          disabled={loading || isGenerating || !config.prompt.trim()}
           className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors duration-200"
-          whileHover={{ scale: loading || isGenerating ? 1 : 1.02 }}
-          whileTap={{ scale: loading || isGenerating ? 1 : 0.98 }}
         >
           {isGenerating ? (
             <div className="flex items-center justify-center">
