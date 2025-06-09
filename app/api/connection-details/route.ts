@@ -103,6 +103,7 @@ function createParticipantToken(userInfo: AccessTokenOptions, roomName: string, 
     canPublish: true,
     canPublishData: true,
     canSubscribe: true,
+    canUpdateOwnMetadata: true,
     roomCreate: true,
     ...(roomMetadata && { metadata: JSON.stringify(roomMetadata) })
   };

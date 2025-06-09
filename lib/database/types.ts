@@ -7,6 +7,11 @@ export interface Database {
         Insert: Omit<UserProfile, 'created_at' | 'updated_at'>;
         Update: Partial<Omit<UserProfile, 'id' | 'created_at'>>;
       };
+      agent_configurations: {
+        Row: AgentConfiguration;
+        Insert: Omit<AgentConfiguration, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<AgentConfiguration, 'id' | 'created_at'>>;
+      };
       projects: {
         Row: Project;
         Insert: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'last_accessed_at'>;
@@ -73,6 +78,37 @@ export interface UserProfile {
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentConfiguration {
+  id: string;
+  project_id: string;
+  user_id: string;
+  config_name: string;
+  description: string | null;
+  stt_provider: string;
+  stt_model: string;
+  stt_config: Record<string, any>;
+  tts_provider: string;
+  tts_model: string;
+  tts_config: Record<string, any>;
+  llm_provider: string;
+  llm_model: string;
+  llm_config: Record<string, any>;
+  vad_provider: string;
+  vad_config: Record<string, any>;
+  turn_detection_config: Record<string, any>;
+  function_calls: any[];
+  tool_integrations: any[];
+  agent_instructions: string;
+  agent_personality: Record<string, any>;
+  required_env_vars: string[];
+  dependencies: string[];
+  source_files: Record<string, string>;
+  is_active: boolean;
+  version: number;
   created_at: string;
   updated_at: string;
 }

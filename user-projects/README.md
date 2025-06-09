@@ -21,7 +21,7 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Configuration
 
-- **Prompt**: A healthcare helper that provides wellness tips and reminders
+- **Prompt**: A language tutor that helps practice conversational Spanish
 - **Personality**: friendly
 - **Language**: english
 - **Response Style**: conversational
@@ -29,4 +29,4 @@ This is an AI-powered voice agent built with LiveKit.
 
 ## Agent Description
 
-A healthcare helper that provides wellness tips and reminders
+A language tutor that helps practice conversational Spanish

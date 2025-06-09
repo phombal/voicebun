@@ -14,6 +14,38 @@ CREATE TABLE public.user_profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Agent configurations table - Stores extracted agent configurations for testing
+CREATE TABLE public.agent_configurations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    config_name TEXT NOT NULL,
+    description TEXT,
+    stt_provider TEXT NOT NULL,
+    stt_model TEXT NOT NULL,
+    stt_config JSONB DEFAULT '{}',
+    tts_provider TEXT NOT NULL,
+    tts_model TEXT NOT NULL,
+    tts_config JSONB DEFAULT '{}',
+    llm_provider TEXT NOT NULL,
+    llm_model TEXT NOT NULL,
+    llm_config JSONB DEFAULT '{}',
+    vad_provider TEXT NOT NULL DEFAULT 'silero',
+    vad_config JSONB DEFAULT '{}',
+    turn_detection_config JSONB DEFAULT '{}',
+    function_calls JSONB DEFAULT '[]',
+    tool_integrations JSONB DEFAULT '[]',
+    agent_instructions TEXT NOT NULL,
+    agent_personality JSONB DEFAULT '{}',
+    required_env_vars JSONB DEFAULT '[]',
+    dependencies JSONB DEFAULT '[]',
+    source_files JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    version INTEGER DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Projects table - Each voice agent project
 CREATE TABLE public.projects (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -149,6 +181,9 @@ CREATE TABLE public.project_collaborators (
 -- Indexes for performance
 CREATE INDEX idx_projects_user_id ON public.projects(user_id);
 CREATE INDEX idx_projects_updated_at ON public.projects(updated_at DESC);
+CREATE INDEX idx_agent_configurations_project_id ON public.agent_configurations(project_id);
+CREATE INDEX idx_agent_configurations_user_id ON public.agent_configurations(user_id);
+CREATE INDEX idx_agent_configurations_updated_at ON public.agent_configurations(updated_at DESC);
 CREATE INDEX idx_chat_sessions_project_id ON public.chat_sessions(project_id);
 CREATE INDEX idx_chat_sessions_user_id ON public.chat_sessions(user_id);
 CREATE INDEX idx_chat_messages_session_id ON public.chat_messages(session_id);
@@ -163,6 +198,7 @@ CREATE INDEX idx_code_changes_session_id ON public.code_changes(session_id);
 
 -- Enable RLS on all tables
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agent_configurations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
@@ -202,6 +238,42 @@ CREATE POLICY "Users can update own projects" ON public.projects
         EXISTS (
             SELECT 1 FROM public.project_collaborators 
             WHERE project_id = projects.id AND user_id = auth.uid() AND role IN ('owner', 'editor')
+        )
+    );
+
+-- Agent configurations policies
+CREATE POLICY "Users can view agent configurations for accessible projects" ON public.agent_configurations
+    FOR SELECT USING (
+        auth.uid() = user_id OR 
+        EXISTS (
+            SELECT 1 FROM public.projects p
+            JOIN public.project_collaborators pc ON p.id = pc.project_id 
+            WHERE p.id = agent_configurations.project_id AND pc.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can create agent configurations for accessible projects" ON public.agent_configurations
+    FOR INSERT WITH CHECK (
+        auth.uid() = user_id AND
+        EXISTS (
+            SELECT 1 FROM public.projects 
+            WHERE id = project_id AND (
+                user_id = auth.uid() OR 
+                EXISTS (
+                    SELECT 1 FROM public.project_collaborators 
+                    WHERE project_id = projects.id AND user_id = auth.uid() AND role IN ('owner', 'editor')
+                )
+            )
+        )
+    );
+
+CREATE POLICY "Users can update agent configurations for editable projects" ON public.agent_configurations
+    FOR UPDATE USING (
+        auth.uid() = user_id OR 
+        EXISTS (
+            SELECT 1 FROM public.projects p
+            JOIN public.project_collaborators pc ON p.id = pc.project_id 
+            WHERE p.id = agent_configurations.project_id AND pc.user_id = auth.uid() AND pc.role IN ('owner', 'editor')
         )
     );
 
@@ -330,6 +402,9 @@ CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON public.user_prof
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON public.projects
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_agent_configurations_updated_at BEFORE UPDATE ON public.agent_configurations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_project_files_updated_at BEFORE UPDATE ON public.project_files

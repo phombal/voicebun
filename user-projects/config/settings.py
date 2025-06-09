@@ -4,7 +4,7 @@ Configuration settings for the voice agent.
 
 # Agent Configuration
 AGENT_CONFIG = {
-    "prompt": "A healthcare helper that provides wellness tips and reminders",
+    "prompt": "A language tutor that helps practice conversational Spanish",
     "personality": "friendly",
     "language": "english",
     "response_style": "conversational",

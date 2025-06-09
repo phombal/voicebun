@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Room, RoomEvent } from "livekit-client";
 import Editor from '@monaco-editor/react';
 import { useDatabase } from '@/hooks/useDatabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { ChatSession } from '@/lib/database/types';
 
 interface GeneratedCodeDisplayProps {
@@ -495,6 +496,7 @@ def validate_config(config: dict) -> bool:
 }
 
 export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome }: GeneratedCodeDisplayProps) {
+  // State variables
   const [currentCode, setCurrentCode] = useState(code);
   const [selectedFile, setSelectedFile] = useState('voice_agent.py');
   const [fileSystemVersion, setFileSystemVersion] = useState(0);
@@ -532,6 +534,9 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(true);
   const [editorValue, setEditorValue] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [savedConfigurations, setSavedConfigurations] = useState<any[]>([]);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
 
   // Context menu state
   const [contextMenuPath, setContextMenuPath] = useState<string | null>(null);
@@ -545,6 +550,7 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
 
   // Database integration state
   const [codeEditSession, setCodeEditSession] = useState<ChatSession | null>(null);
+  const { user } = useAuth();
   const { 
     currentProject, 
     currentSession, 
@@ -552,7 +558,8 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     updateProjectFiles, 
     startChatSession,
     setCurrentProject,
-    setCurrentSession
+    setCurrentSession,
+    createProject
   } = useDatabase();
   
   // Ref for debouncing file saves
@@ -582,6 +589,36 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
     initCodeEditSession();
   }, [currentProject, codeEditSession, startChatSession]);
 
+  // Auto-create project if one doesn't exist
+  useEffect(() => {
+    const initializeProject = async () => {
+      if (!currentProject && createProject) {
+        try {
+          console.log('🚀 Auto-creating project for agent configuration...');
+          const project = await createProject(
+            `Voice Agent - ${config.prompt.substring(0, 50)}${config.prompt.length > 50 ? '...' : ''}`,
+            `Generated voice agent based on: ${config.prompt}`,
+            config.prompt,
+            config,
+            code
+          );
+          console.log('✅ Project auto-created:', project.id);
+        } catch (error) {
+          console.error('❌ Failed to auto-create project:', error);
+        }
+      }
+    };
+
+    initializeProject();
+  }, [currentProject, createProject, code, config]);
+
+  // Load agent configurations when project changes
+  useEffect(() => {
+    if (currentProject) {
+      loadAgentConfigurations();
+    }
+  }, [currentProject]);
+
   // Save chat messages to database
   const saveChatMessageToDatabase = async (message: ChatMessage) => {
     if (codeEditSession && addChatMessage) {
@@ -603,7 +640,14 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   const saveFileChangesToDatabase = async (changeDescription?: string) => {
     if (currentProject && codeEditSession && updateProjectFiles) {
       try {
+        console.log('💾 Attempting to save file changes to database...');
+        console.log('   • Project ID:', currentProject.id);
+        console.log('   • Session ID:', codeEditSession.id);
+        console.log('   • Change description:', changeDescription || 'No description');
+        
         const allFiles = vfs.getAllFiles();
+        console.log('   • Files to save:', allFiles.length);
+        
         const filesData = allFiles.map((file: VirtualFile) => ({
           path: file.path,
           name: file.name,
@@ -611,18 +655,35 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
           type: 'file' as const
         }));
 
+        console.log('   • Files data prepared:', filesData.map(f => ({ name: f.name, path: f.path, contentLength: f.content.length })));
+
+        // Generate a proper UUID for the message ID instead of "msg_${timestamp}"
+        const messageId = crypto.randomUUID();
+        console.log('   • Generated message ID:', messageId);
+
         await updateProjectFiles(
           currentProject.id,
           codeEditSession.id,
-          `msg_${Date.now()}`,
+          messageId,
           filesData,
           changeDescription
         );
         
-        console.log('💾 Saved file changes to database:', filesData.length, 'files');
+        console.log('✅ Successfully saved file changes to database:', filesData.length, 'files');
       } catch (error) {
         console.error('❌ Failed to save file changes to database:', error);
+        console.log('   • This error will not affect the local file editing or configuration saving');
+        console.log('   • Files are still saved locally in the Virtual File System');
+        
+        // Don't throw the error - just log it and continue
+        // The autosave functionality should continue working locally
       }
+    } else {
+      console.log('⏭️ Skipping database save - missing required dependencies:', {
+        hasProject: !!currentProject,
+        hasSession: !!codeEditSession,
+        hasUpdateFunction: !!updateProjectFiles
+      });
     }
   };
 
@@ -734,23 +795,40 @@ export function GeneratedCodeDisplay({ code, config, onReconfigure, onBackToHome
   // Save editor changes to virtual filesystem
   const handleEditorChange = (value: string | undefined) => {
     if (value !== undefined) {
+      console.log('📝 Editor change detected:', {
+        valueLength: value.length,
+        selectedFile: selectedFile,
+        timestamp: new Date().toISOString()
+      });
+      
       setEditorValue(value);
       const filePath = getSelectedFilePath();
       
+      console.log('   • File path resolved:', filePath);
+      
       // Auto-save with change description
-      vfs.updateFile(filePath, value, 'Manual edit');
+      const updateSuccess = vfs.updateFile(filePath, value, 'Manual edit');
+      console.log('   • VFS update result:', updateSuccess);
       
       if (selectedFile === 'voice_agent.py') {
         setCurrentCode(value);
+        console.log('   • Updated currentCode state for voice_agent.py');
       }
       
-      setFileSystemVersion(prev => prev + 1);
+      setFileSystemVersion(prev => {
+        console.log('   • Incrementing file system version:', prev + 1);
+        return prev + 1;
+      });
       
       // Save file changes to database (debounced)
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
+        console.log('   • Cleared existing save timeout');
       }
+      
+      console.log('   • Setting new save timeout (2 seconds)');
       saveTimeoutRef.current = setTimeout(() => {
+        console.log('⏰ Auto-save timeout triggered');
         saveFileChangesToDatabase('Manual file edit');
       }, 2000); // Save after 2 seconds of inactivity
     }
@@ -1251,10 +1329,22 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
                       const updated = vfs.updateFile(normalizedPath, operation.content, 'AI generated update');
                       if (updated) {
                         filesChanged = true;
+                        
+                        // Get the filename without path for comparison
+                        const fileName = normalizedPath.split('/').pop() || normalizedPath;
+                        
                         // Refresh editor if this file is currently selected
-                        if (selectedFile === normalizedPath) {
+                        if (selectedFile === fileName || selectedFile === normalizedPath) {
+                          console.log(`Refreshing editor for updated file: ${fileName}`);
                           setEditorValue(operation.content);
+                          
+                          // Update currentCode if this is the main voice agent file
+                          if (fileName === 'voice_agent.py') {
+                            setCurrentCode(operation.content);
+                            console.log('Updated currentCode state for voice_agent.py');
+                          }
                         }
+                        
                         console.log(`✅ Successfully updated file: ${normalizedPath}`);
                       } else {
                         console.error(`❌ Failed to update file: ${normalizedPath}`);
@@ -1316,10 +1406,26 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
 
                   // Select newly created file if any
                   if (newlyCreatedFile) {
+                    console.log(`Selecting newly created file: ${newlyCreatedFile}`);
                     setSelectedFile(newlyCreatedFile);
                     const file = vfs.getFile(newlyCreatedFile);
                     if (file) {
                       setEditorValue(file.content);
+                      console.log(`Updated editor with content from: ${newlyCreatedFile}`);
+                    }
+                  } else if (filesChanged) {
+                    // If no new file was created but files were updated, refresh the current file
+                    const currentFilePath = getSelectedFilePath();
+                    const currentFile = vfs.getFile(currentFilePath);
+                    if (currentFile) {
+                      setEditorValue(currentFile.content);
+                      console.log(`Refreshed editor with updated content from: ${currentFilePath}`);
+                      
+                      // Update currentCode if this is the main voice agent file
+                      if (currentFile.name === 'voice_agent.py') {
+                        setCurrentCode(currentFile.content);
+                        console.log('Updated currentCode state for voice_agent.py');
+                      }
                     }
                   }
 
@@ -1329,6 +1435,13 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
                     console.log('All files in VFS:', vfs.getAllFiles().map(f => f.path));
                     console.log('Selected file:', selectedFile);
                     console.log('Newly created file:', newlyCreatedFile);
+                    
+                    // Increment file system version to trigger UI updates
+                    setFileSystemVersion(prev => {
+                      const newVersion = prev + 1;
+                      console.log(`Incrementing file system version: ${prev} -> ${newVersion}`);
+                      return newVersion;
+                    });
                     
                     // Force refresh of the file tree by triggering a re-render
                     setMessages(prev => [...prev]); // This will trigger a re-render
@@ -1342,12 +1455,19 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
                         setEditorValue(file.content);
                         console.log(`Updated editor with content from: ${newlyCreatedFile}`);
                       }
-                    } else {
+                    } else if (filesChanged) {
                       // If no new file was created but files were updated, refresh the current file
-                      const currentFile = vfs.getFile(selectedFile);
+                      const currentFilePath = getSelectedFilePath();
+                      const currentFile = vfs.getFile(currentFilePath);
                       if (currentFile) {
                         setEditorValue(currentFile.content);
-                        console.log(`Refreshed editor with updated content from: ${selectedFile}`);
+                        console.log(`Refreshed editor with updated content from: ${currentFilePath}`);
+                        
+                        // Update currentCode if this is the main voice agent file
+                        if (currentFile.name === 'voice_agent.py') {
+                          setCurrentCode(currentFile.content);
+                          console.log('Updated currentCode state for voice_agent.py');
+                        }
                       }
                     }
                     
@@ -1444,56 +1564,41 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
 
   // Parse file operations from AI response - SIMPLIFIED AND RELIABLE
   const parseFileOperations = (content: string): Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> => {
-    const operations: Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> = [];
-    
     console.log('=== PARSING FILE OPERATIONS ===');
     console.log('Content length:', content.length);
-    console.log('Content preview:', content.substring(0, 500));
     
-    // ONLY look for the exact format: CREATE_FILE:filename.ext or UPDATE_FILE:filename.ext
-    // followed by ```language and code block
-    
-    // Split content into lines for easier processing
+    const operations: Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> = [];
     const lines = content.split('\n');
     
+    // First, try the explicit format (CREATE_FILE:, UPDATE_FILE:)
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       
-      // Check for CREATE_FILE: or UPDATE_FILE:
-      if (line.startsWith('CREATE_FILE:') || line.startsWith('UPDATE_FILE:')) {
-        const isCreate = line.startsWith('CREATE_FILE:');
-        const type = isCreate ? 'CREATE' : 'UPDATE';
+      // Look for explicit file operation markers
+      const createMatch = line.match(/^CREATE_FILE:\s*(.+)$/);
+      const updateMatch = line.match(/^UPDATE_FILE:\s*(.+)$/);
+      
+      if (createMatch || updateMatch) {
+        const type = createMatch ? 'CREATE' : 'UPDATE';
+        const filename = (createMatch || updateMatch)![1].trim();
         
-        // Extract filename
-        const prefix = isCreate ? 'CREATE_FILE:' : 'UPDATE_FILE:';
-        const filename = line.substring(prefix.length).trim();
+        console.log(`Found ${type} operation for: ${filename}`);
         
-        console.log(`Found ${type} operation for: "${filename}"`);
-        
-        // Validate filename
-        if (!filename || filename.length === 0 || filename.includes('undefined')) {
-          console.warn(`Invalid filename: "${filename}"`);
-          continue;
-        }
-        
-        // Look for the code block on the next lines
+        // Find the next code block
         let codeBlockStart = -1;
         let codeBlockEnd = -1;
-        let language = '';
         
-        // Find the opening ```
-        for (let j = i + 1; j < lines.length && j < i + 5; j++) {
-          const nextLine = lines[j].trim();
-          if (nextLine.startsWith('```')) {
+        // Look for opening ```
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].trim().startsWith('```')) {
             codeBlockStart = j;
-            language = nextLine.substring(3).trim();
-            console.log(`Found code block start at line ${j}, language: "${language}"`);
+            console.log(`Found code block start at line ${j}`);
             break;
           }
         }
         
         if (codeBlockStart === -1) {
-          console.warn(`No code block found after ${type}:${filename}`);
+          console.warn(`No code block found for ${type}:${filename}`);
           continue;
         }
         
@@ -1544,6 +1649,124 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
       }
     }
     
+    // If no explicit operations found, try fallback parsing
+    if (operations.length === 0) {
+      console.log('No explicit operations found, trying fallback parsing...');
+      
+      // Look for "Files modified:" or "**Files modified:**" section
+      let filesModifiedIndex = -1;
+      const modifiedFiles: string[] = [];
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.match(/\*?\*?Files? modified:?\*?\*?/i)) {
+          filesModifiedIndex = i;
+          console.log(`Found "Files modified" section at line ${i}`);
+          
+          // Parse the files listed after this
+          for (let j = i + 1; j < lines.length; j++) {
+            const fileLine = lines[j].trim();
+            if (!fileLine) break; // Stop at empty line
+            
+            // Look for patterns like "- Updated: filename" or "- filename"
+            const fileMatch = fileLine.match(/^-\s*(?:Updated?|Created?|Modified?)?\s*:?\s*(.+)$/i);
+            if (fileMatch) {
+              const filename = fileMatch[1].trim();
+              modifiedFiles.push(filename);
+              console.log(`Found modified file: ${filename}`);
+            }
+          }
+          break;
+        }
+      }
+      
+      // If we found modified files, try to match them with code blocks
+      if (modifiedFiles.length > 0) {
+        console.log(`Found ${modifiedFiles.length} modified files, looking for code blocks...`);
+        
+        // Find all code blocks in the content
+        const codeBlocks: Array<{start: number, end: number, language: string, content: string}> = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (line.startsWith('```')) {
+            const language = line.substring(3).trim();
+            let endIndex = -1;
+            
+            // Find closing ```
+            for (let j = i + 1; j < lines.length; j++) {
+              if (lines[j].trim() === '```') {
+                endIndex = j;
+                break;
+              }
+            }
+            
+            if (endIndex !== -1) {
+              const content = lines.slice(i + 1, endIndex).join('\n').trim();
+              codeBlocks.push({
+                start: i,
+                end: endIndex,
+                language,
+                content
+              });
+              console.log(`Found code block (${language}): ${content.length} chars`);
+            }
+          }
+        }
+        
+        // Try to match files with code blocks
+        for (const filename of modifiedFiles) {
+          const fileExt = filename.split('.').pop()?.toLowerCase() || '';
+          
+          // Find the best matching code block
+          let bestMatch = -1;
+          let bestScore = 0;
+          
+          for (let i = 0; i < codeBlocks.length; i++) {
+            const block = codeBlocks[i];
+            let score = 0;
+            
+            // Score based on language match
+            if (fileExt === 'py' && block.language === 'python') score += 10;
+            if (fileExt === 'js' && (block.language === 'javascript' || block.language === 'js')) score += 10;
+            if (fileExt === 'ts' && (block.language === 'typescript' || block.language === 'ts')) score += 10;
+            if (fileExt === 'tsx' && (block.language === 'tsx' || block.language === 'typescript')) score += 10;
+            
+            // Score based on proximity (closer to files modified section = higher score)
+            if (filesModifiedIndex !== -1) {
+              const distance = Math.abs(block.start - filesModifiedIndex);
+              score += Math.max(0, 100 - distance); // Closer = higher score
+            }
+            
+            // Score based on content size (reasonable size gets bonus)
+            if (block.content.length > 50 && block.content.length < 10000) {
+              score += 5;
+            }
+            
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = i;
+            }
+          }
+          
+          if (bestMatch !== -1 && bestScore > 0) {
+            const block = codeBlocks[bestMatch];
+            operations.push({
+              type: 'UPDATE', // Default to UPDATE for fallback parsing
+              filename,
+              content: block.content
+            });
+            console.log(`✅ Matched ${filename} with code block (score: ${bestScore})`);
+            
+            // Remove the matched block to avoid double-matching
+            codeBlocks.splice(bestMatch, 1);
+          } else {
+            console.warn(`❌ Could not match ${filename} with any code block`);
+          }
+        }
+      }
+    }
+    
     console.log('=== PARSING COMPLETE ===');
     console.log(`Found ${operations.length} file operations:`);
     operations.forEach(op => {
@@ -1560,15 +1783,269 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
     }
   };
 
+  // Function to save agent configuration to database
+  const saveAgentConfiguration = async (projectToUse?: any, userToUse?: any): Promise<string | null> => {
+    console.log('[DEBUG] ========= Starting saveAgentConfiguration =========');
+    console.log('[DEBUG] Config:', config);
+    console.log('[DEBUG] CurrentCode length:', currentCode?.length || 0);
+    console.log('[DEBUG] CurrentCode present:', !!currentCode);
+
+    // Debug: Check virtual file system contents
+    const allFiles = vfs.getAllFiles();
+    console.log('[DEBUG] All files in VFS:', allFiles.map(f => ({ name: f.name, path: f.path, contentLength: f.content.length })));
+    
+    // Debug: Try different ways to get the code - VFS should be the most up-to-date
+    const vfsCode1 = vfs.getFile('/voice_agent.py')?.content;
+    const vfsCode2 = vfs.getFile('voice_agent.py')?.content;
+    const selectedFilePath = getSelectedFilePath();
+    const vfsCode3 = vfs.getFile(selectedFilePath)?.content;
+    
+    console.log('[DEBUG] VFS code attempts:');
+    console.log('[DEBUG] - /voice_agent.py:', vfsCode1 ? `${vfsCode1.length} chars` : 'not found');
+    console.log('[DEBUG] - voice_agent.py:', vfsCode2 ? `${vfsCode2.length} chars` : 'not found');
+    console.log('[DEBUG] - selectedFilePath (' + selectedFilePath + '):', vfsCode3 ? `${vfsCode3.length} chars` : 'not found');
+    
+    // Priority order: VFS (most up-to-date) -> currentCode -> original code prop
+    // VFS should contain the latest editor changes
+    const finalCode = vfsCode1 || vfsCode2 || vfsCode3 || currentCode || code;
+    console.log('[DEBUG] Final code to save:', finalCode ? `${finalCode.length} chars` : 'no code');
+    console.log('[DEBUG] Code source priority used:', 
+      vfsCode1 ? 'VFS /voice_agent.py (most up-to-date)' :
+      vfsCode2 ? 'VFS voice_agent.py (most up-to-date)' :
+      vfsCode3 ? `VFS ${selectedFilePath} (most up-to-date)` :
+      currentCode ? 'currentCode (editor state)' :
+      code ? 'original code prop' : 'no code found'
+    );
+
+    // Log a preview of the code being saved
+    if (finalCode) {
+      console.log('[DEBUG] Code preview (first 200 chars):', finalCode.substring(0, 200) + (finalCode.length > 200 ? '...' : ''));
+    }
+
+    const projectToSave = projectToUse || currentProject;
+    const userToSave = userToUse || user;
+
+    try {
+      // Use provided project/user or fall back to current values
+      const project = projectToSave;
+      const userForConfig = userToSave;
+
+      if (!project || !userForConfig) {
+        console.error('❌ Missing required data for saving agent configuration:', {
+          hasProject: !!project,
+          hasUser: !!userForConfig
+        });
+        console.log('🔍 DEBUG: Project data:', project);
+        console.log('🔍 DEBUG: User data:', userForConfig);
+        return null;
+      }
+
+      const payload = {
+        projectId: projectToSave.id,
+        userId: userToSave.id,
+        name: `Configuration ${new Date().toISOString().replace(/[:.]/g, '-')}`,
+        config: config,
+        code: finalCode,
+        tools: [], // No tools currently implemented
+        created_at: new Date().toISOString(),
+      };
+
+      console.log('💾 Saving agent configuration to database:');
+      console.log('   • Project:', project.name, `(${project.id})`);
+      console.log('   • User ID:', userForConfig.id);
+      console.log('   • Config details:', {
+        prompt: config.prompt.substring(0, 80) + (config.prompt.length > 80 ? '...' : ''),
+        personality: config.personality,
+        language: config.language,
+        responseStyle: config.responseStyle,
+        capabilities: config.capabilities
+      });
+      console.log('   • Code size:', payload.code.length, 'characters');
+      console.log('🔍 DEBUG: Full payload being sent to API:', {
+        projectId: payload.projectId,
+        userId: payload.userId,
+        hasCode: !!payload.code,
+        codeLength: payload.code.length,
+        hasConfig: !!payload.config,
+        configKeys: Object.keys(payload.config)
+      });
+
+      const response = await fetch('/api/agent-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log('🔍 DEBUG: API response status:', response.status);
+      console.log('🔍 DEBUG: API response ok:', response.ok);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('🔍 DEBUG: Full API response:', result);
+        
+        const configId = result.config?.id;
+        
+        console.log('✅ Agent configuration saved successfully:');
+        console.log('   • Configuration ID:', configId);
+        console.log('   • Configuration name:', result.config?.config_name);
+        console.log('   • Response message:', result.message);
+        console.log('🔍 DEBUG: Extracted config ID:', configId);
+        
+        // Store the configuration ID for sending to the backend
+        setCurrentConfigurationId(configId);
+        
+        showNotification('Agent configuration saved successfully!', 'success');
+        // Reload configurations after saving
+        await loadAgentConfigurations();
+        
+        // Return the configuration ID for immediate use
+        return configId;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Failed to save agent configuration:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText
+        });
+        console.log('🔍 DEBUG: Failed response body:', errorText);
+        showNotification('Failed to save agent configuration', 'error');
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Error saving agent configuration:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        type: typeof error,
+        error: error
+      });
+      showNotification('Error saving agent configuration', 'error');
+      return null;
+    }
+  };
+
+  const loadAgentConfigurations = async () => {
+    try {
+      if (!currentProject) {
+        console.log('❌ No current project for loading configurations');
+        return;
+      }
+
+      console.log('📥 Loading agent configurations for project:', currentProject.name);
+      const response = await fetch(`/api/agent-config?projectId=${currentProject.id}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        setSavedConfigurations(result.configs || []);
+        console.log('✅ Loaded agent configurations:');
+        console.log('   • Total configurations:', result.configs?.length || 0);
+        if (result.configs?.length > 0) {
+          const latestConfig = result.configs[0];
+          console.log('   • Latest configuration:', {
+            id: latestConfig.id,
+            name: latestConfig.config_name,
+            created: latestConfig.created_at
+          });
+          
+          // Set the current configuration ID to the latest one
+          setCurrentConfigurationId(latestConfig.id);
+          console.log('   • Set current configuration ID to:', latestConfig.id);
+        }
+      } else {
+        console.error('❌ Failed to load agent configurations:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error loading agent configurations:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        error: error
+      });
+    }
+  };
+
   const startConversation = async () => {
     setIsConnecting(true);
     
     try {
       console.log('🚀 Starting conversation...');
       
+      // DEBUG: Log the config and code values we have
+      console.log('🔍 DEBUG: Configuration and code values:');
+      console.log('   • config:', config);
+      console.log('   • currentCode length:', currentCode?.length || 0);
+      console.log('   • config.prompt:', config?.prompt || 'MISSING');
+      console.log('   • Has config?', !!config);
+      console.log('   • Has currentCode?', !!currentCode);
+      
       // IMMEDIATELY set conversation state to prevent any navigation
       console.log('🎯 Setting conversation state to TRUE immediately');
       setIsInConversation(true);
+
+      // FIRST: Ensure project and session are ready before proceeding
+      console.log('🔍 Checking project and session status...');
+      
+      // Wait for project to be created if it doesn't exist
+      let projectToUse = currentProject;
+      if (!projectToUse && createProject) {
+        console.log('📦 Creating project before starting conversation...');
+        try {
+          projectToUse = await createProject(
+            `Voice Agent - ${config.prompt.substring(0, 50)}${config.prompt.length > 50 ? '...' : ''}`,
+            `Generated voice agent based on: ${config.prompt}`,
+            config.prompt,
+            config,
+            code
+          );
+          console.log('✅ Project created for conversation:', projectToUse.id);
+        } catch (error) {
+          console.error('❌ Failed to create project for conversation:', error);
+          throw new Error('Failed to create project for conversation');
+        }
+      }
+
+      // Wait for session to be created if it doesn't exist
+      let sessionToUse = codeEditSession;
+      if (projectToUse && !sessionToUse && startChatSession) {
+        console.log('💬 Creating session before starting conversation...');
+        try {
+          sessionToUse = await startChatSession(projectToUse.id);
+          console.log('✅ Session created for conversation:', sessionToUse.id);
+        } catch (error) {
+          console.error('❌ Failed to create session for conversation:', error);
+          throw new Error('Failed to create session for conversation');
+        }
+      }
+
+      // Verify we have everything we need
+      if (!projectToUse || !sessionToUse) {
+        throw new Error('Failed to establish project and session for conversation');
+      }
+
+      console.log('✅ Project and session ready:', {
+        projectId: projectToUse.id,
+        sessionId: sessionToUse.id
+      });
+
+      // SAVE agent configuration BEFORE connecting to room
+      console.log('💾 About to call saveAgentConfiguration...');
+      console.log('💾 Saving agent configuration with confirmed project and session...');
+      const savedConfigId = await saveAgentConfiguration(projectToUse, user);
+      console.log('🔍 DEBUG: saveAgentConfiguration returned:', savedConfigId);
+      
+      // Use the saved configuration ID or fall back to current state
+      const configIdToSend = savedConfigId || currentConfigurationId;
+      
+      console.log('🔍 DEBUG: Configuration ID values:');
+      console.log('   • savedConfigId:', savedConfigId);
+      console.log('   • currentConfigurationId:', currentConfigurationId);
+      console.log('   • configIdToSend:', configIdToSend);
+      
+      // Ensure we have a configuration ID before proceeding
+      if (!configIdToSend) {
+        console.warn('⚠️ No configuration ID available - configuration may not have been saved successfully');
+      }
       
       // Generate room connection details
       const url = new URL(
@@ -1590,58 +2067,69 @@ Please regenerate the complete, corrected code that follows LiveKit patterns exa
         hasServerUrl: !!connectionDetailsData.serverUrl
       });
 
-      console.log('🔌 Connecting to room:', connectionDetailsData.roomName);
+      console.log('🔌 Connecting to room with metadata:', {
+        roomName: connectionDetailsData.roomName,
+        configurationId: configIdToSend,
+        configKeys: Object.keys(config)
+      });
+
+      // Connect to room first
       await room.connect(connectionDetailsData.serverUrl, connectionDetailsData.participantToken);
-      await room.localParticipant.setMicrophoneEnabled(true);
       
       console.log('✅ Connected to room successfully');
+      
+      // Wait a moment for connection to be fully established
+      console.log('⏳ Waiting for connection to stabilize before setting metadata...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Then set metadata with configuration information
+      const roomMetadata = {
+        configurationId: configIdToSend,
+        agentConfig: config,
+        generatedCode: currentCode,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Set participant metadata after connection
+      console.log('📋 Setting participant metadata:', {
+        configurationId: configIdToSend,
+        metadataSize: JSON.stringify(roomMetadata).length + ' bytes'
+      });
+      
+      try {
+        await room.localParticipant.setMetadata(JSON.stringify(roomMetadata));
+        console.log('✅ Successfully set participant metadata');
+        
+        // Verify metadata was set
+        const currentMetadata = room.localParticipant.metadata;
+        console.log('🔍 Current participant metadata:', currentMetadata);
+        
+        if (currentMetadata) {
+          try {
+            const parsedMetadata = JSON.parse(currentMetadata);
+            console.log('🔍 Parsed metadata configuration ID:', parsedMetadata.configurationId);
+          } catch (e) {
+            console.error('❌ Failed to parse metadata:', e);
+          }
+        } else {
+          console.warn('⚠️ No metadata found after setting it');
+        }
+      } catch (error) {
+        console.error('❌ Failed to set participant metadata:', error);
+      }
+      
+      await room.localParticipant.setMicrophoneEnabled(true);
+      
+      console.log('✅ Connected to room successfully with configuration metadata');
       console.log('👥 Current participants:', room.remoteParticipants.size);
+      console.log('📋 Sent configuration ID via metadata:', configIdToSend);
       
       // Wait for the room to be fully established and for any agents to join
       console.log('⏳ Waiting for room to stabilize...');
       await new Promise(resolve => setTimeout(resolve, 3000));
       
       console.log('👥 Participants after wait:', room.remoteParticipants.size);
-      
-      // Send configuration as data message immediately after connecting
-      if (config && currentCode) {
-        const configMessage = {
-          type: 'agent_setup',
-          config: config,
-          generatedCode: currentCode
-        };
-        
-        console.log('📤 Preparing to send agent configuration:', {
-          configKeys: Object.keys(config),
-          codeLength: currentCode.length,
-          participantCount: room.remoteParticipants.size
-        });
-        
-        // Send as data message to the room
-        const encoder = new TextEncoder();
-        const data = encoder.encode(JSON.stringify(configMessage));
-        
-        try {
-          // Send multiple times with delays to ensure delivery
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            await room.localParticipant.publishData(data, { reliable: true });
-            console.log(`📤 Sent agent configuration (attempt ${attempt}):`, { 
-              messageSize: data.length,
-              timestamp: new Date().toISOString()
-            });
-            
-            // Wait between attempts
-            if (attempt < 3) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-          
-        } catch (error) {
-          console.error('❌ Failed to send agent configuration:', error);
-        }
-      }
-      
-      console.log('🎉 Conversation should now be active');
+      console.log('🎉 Conversation should now be active with configuration:', configIdToSend);
       
     } catch (error) {
       console.error('❌ Failed to connect to room:', error);
@@ -2430,6 +2918,24 @@ async def update_record(
     }
   ];
 
+  // Clear any existing timeouts on component mount to prevent cached timeout callbacks
+  useEffect(() => {
+    // Clear all existing timeouts that might have been set before the UUID fix
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+      console.log('🧹 Cleared any existing save timeouts on component mount');
+    }
+    
+    // Force a cleanup of any stale timeout references
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        console.log('🧹 Cleaned up save timeout on component unmount');
+      }
+    };
+  }, []); // Empty dependency array means this runs once on mount
+
   return (
     <RoomContext.Provider value={room}>
       <div className="w-full h-screen bg-gray-900 flex">
@@ -2462,7 +2968,7 @@ async def update_record(
                 </button>
               </div>
             </div>
-            <p className="text-gray-400 text-sm">Ask me to modify your voice agent code, add features, or explain how it works</p>
+            <p className="text-gray-400 text-sm">Ask me to modify your voice agent code, add features, fix issues, or explain how it works</p>
           </div>
 
           {/* Messages area */}
@@ -2777,14 +3283,6 @@ async def update_record(
               </div>
             ) : (
               <div className="h-full flex flex-col">
-                {/* Agent description */}
-                <div className="p-6 bg-gray-800 border-b border-gray-700">
-                  <h3 className="text-lg font-semibold text-white mb-3">Agent Description</h3>
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <p className="text-gray-300 leading-relaxed">{config.prompt}</p>
-                  </div>
-                </div>
-
                 {/* Test area - Show voice interface if connected, otherwise show start button */}
                 <div className="flex-1 bg-gray-900">
                   {isInConversation ? (
@@ -3343,4 +3841,4 @@ async def update_record(
       </div>
     </RoomContext.Provider>
   );
-} 
+}
