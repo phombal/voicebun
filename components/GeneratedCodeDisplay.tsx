@@ -31,6 +31,23 @@ interface PhoneNumberFeature {
   name: string;
 }
 
+interface ServiceIntegration {
+  name: string;
+  displayName: string;
+  description: string;
+  requiredCredentials: {
+    name: string;
+    label: string;
+    type: 'text' | 'password';
+    placeholder: string;
+  }[];
+}
+
+interface DetectedService {
+  service: ServiceIntegration;
+  messageId: string;
+}
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -570,6 +587,99 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
   // Ref for debouncing file saves
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Service integration state
+  const [detectedServices, setDetectedServices] = useState<DetectedService[]>([]);
+  const [showServiceCredentialsModal, setShowServiceCredentialsModal] = useState(false);
+  const [currentService, setCurrentService] = useState<DetectedService | null>(null);
+  const [serviceCredentials, setServiceCredentials] = useState<Record<string, string>>({});
+
+  // Define available service integrations
+  const availableServices: ServiceIntegration[] = [
+    {
+      name: 'stripe',
+      displayName: 'Stripe',
+      description: 'Payment processing integration',
+      requiredCredentials: [
+        {
+          name: 'apiKey',
+          label: 'Stripe API Key',
+          type: 'password',
+          placeholder: 'sk_test_...'
+        }
+      ]
+    },
+    {
+      name: 'google-calendar',
+      displayName: 'Google Calendar',
+      description: 'Calendar management integration',
+      requiredCredentials: [
+        {
+          name: 'clientId',
+          label: 'Google Client ID',
+          type: 'text',
+          placeholder: 'your-client-id.googleusercontent.com'
+        },
+        {
+          name: 'clientSecret',
+          label: 'Google Client Secret',
+          type: 'password',
+          placeholder: 'your-client-secret'
+        }
+      ]
+    },
+    {
+      name: 'twilio',
+      displayName: 'Twilio',
+      description: 'SMS and voice communication',
+      requiredCredentials: [
+        {
+          name: 'accountSid',
+          label: 'Twilio Account SID',
+          type: 'text',
+          placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+        },
+        {
+          name: 'authToken',
+          label: 'Twilio Auth Token',
+          type: 'password',
+          placeholder: 'your-auth-token'
+        }
+      ]
+    },
+    {
+      name: 'slack',
+      displayName: 'Slack',
+      description: 'Team collaboration integration',
+      requiredCredentials: [
+        {
+          name: 'botToken',
+          label: 'Slack Bot Token',
+          type: 'password',
+          placeholder: 'xoxb-your-bot-token'
+        }
+      ]
+    },
+    {
+      name: 'gmail',
+      displayName: 'Gmail',
+      description: 'Email integration',
+      requiredCredentials: [
+        {
+          name: 'clientId',
+          label: 'Gmail Client ID',
+          type: 'text',
+          placeholder: 'your-client-id.googleusercontent.com'
+        },
+        {
+          name: 'clientSecret',
+          label: 'Gmail Client Secret',
+          type: 'password',
+          placeholder: 'your-client-secret'
+        }
+      ]
+    }
+  ];
+
   // Initialize VFS
   const [vfs] = useState(() => {
     const virtualFileSystem = new VirtualFileSystem();
@@ -1072,6 +1182,47 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
     };
   };
 
+  // Detect service integrations mentioned in user messages
+  const detectServiceMentions = (message: string, messageId: string): DetectedService[] => {
+    const serviceMentions = message.match(/@([^@\s]+)/g);
+    const detectedInMessage: DetectedService[] = [];
+    
+    if (!serviceMentions) return detectedInMessage;
+    
+    serviceMentions.forEach(mention => {
+      const serviceName = mention.substring(1).toLowerCase(); // Remove @ and convert to lowercase
+      
+      // Check for exact matches and common variations
+      const service = availableServices.find(s => {
+        const name = s.name.toLowerCase();
+        const displayName = s.displayName.toLowerCase();
+        
+        return name === serviceName || 
+               displayName === serviceName ||
+               name.replace('-', ' ') === serviceName ||
+               name.replace('-', '') === serviceName ||
+               displayName.replace(' ', '') === serviceName ||
+               displayName.replace(' ', '-') === serviceName;
+      });
+      
+      if (service) {
+        // Check if this service for this message is already detected
+        const existingDetection = detectedServices.find(d => 
+          d.service.name === service.name && d.messageId === messageId
+        );
+        
+        if (!existingDetection) {
+          detectedInMessage.push({
+            service,
+            messageId
+          });
+        }
+      }
+    });
+    
+    return detectedInMessage;
+  };
+
   // LiveKit tool structure validation
   const validateLiveKitToolStructure = (code: string, requestedTools: string[]): { isValid: boolean; issues: string[]; suggestions: string[] } => {
     const issues: string[] = [];
@@ -1156,6 +1307,12 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
     // Parse tool calls from user message
     const { hasToolCalls, toolCalls } = parseToolCalls(inputMessage);
 
+    // Detect service integrations in the message
+    const newlyDetectedServices = detectServiceMentions(inputMessage, userMessage.id);
+    if (newlyDetectedServices.length > 0) {
+      setDetectedServices(prev => [...prev, ...newlyDetectedServices]);
+    }
+
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsGenerating(true);
@@ -1179,7 +1336,7 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
 
       // Show notification about file context being sent
       if (fileContext.length > 0) {
-        showNotification(`Sending context for ${fileContext.length} files to AI assistant`, 'success');
+        // showNotification(`Sending context for ${fileContext.length} files to AI assistant`, 'success');
       }
 
       const response = await fetch('/api/chat', {
@@ -1530,7 +1687,7 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
       setAvailableCheckpoints(newCheckpoints);
     }
     
-    showNotification(`Rolled back to checkpoint: ${checkpointMessage.timestamp.toLocaleString()}`, 'success');
+    // showNotification(`Rolled back to checkpoint: ${checkpointMessage.timestamp.toLocaleString()}`, 'success');
     setShowCheckpointModal(false);
   };
 
@@ -1861,7 +2018,6 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
         // Store the configuration ID for sending to the backend
         setCurrentConfigurationId(configId);
         
-        showNotification('Agent configuration saved successfully!', 'success');
         // Reload configurations after saving
         await loadAgentConfigurations();
         
@@ -1875,7 +2031,7 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
           errorText: errorText
         });
         console.log('🔍 DEBUG: Failed response body:', errorText);
-        showNotification('Failed to save agent configuration', 'error');
+        // showNotification('Failed to save agent configuration', 'error');
         return null;
       }
     } catch (error) {
@@ -1884,7 +2040,7 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
         type: typeof error,
         error: error
       });
-      showNotification('Error saving agent configuration', 'error');
+      // showNotification('Error saving agent configuration', 'error');
       return null;
     }
   };
@@ -2170,18 +2326,64 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
   }
 
   // Show notification helper
-  const showNotification = (message: string, type: 'success' | 'error') => {
-    const notification = document.createElement('div');
-    notification.textContent = message;
-    notification.className = `fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 ${
-      type === 'success' ? 'bg-green-500' : 'bg-red-500'
-    } text-white`;
-    document.body.appendChild(notification);
-    setTimeout(() => {
-      if (document.body.contains(notification)) {
-        document.body.removeChild(notification);
-      }
-    }, 3000);
+  // const showNotification = (message: string, type: 'success' | 'error') => {
+  //   const notification = document.createElement('div');
+  //   notification.textContent = message;
+  //   notification.className = `fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 ${
+  //     type === 'success' ? 'bg-green-500' : 'bg-red-500'
+  //   } text-white`;
+  //   document.body.appendChild(notification);
+  //   setTimeout(() => {
+  //     if (document.body.contains(notification)) {
+  //       document.body.removeChild(notification);
+  //     }
+  //   }, 3000);
+  // };
+
+  // Service credential handling functions
+  const openServiceCredentialsModal = (detectedService: DetectedService) => {
+    setCurrentService(detectedService);
+    setServiceCredentials({});
+    setShowServiceCredentialsModal(true);
+  };
+
+  const handleCredentialChange = (credentialName: string, value: string) => {
+    setServiceCredentials(prev => ({
+      ...prev,
+      [credentialName]: value
+    }));
+  };
+
+  const saveServiceCredentials = () => {
+    if (!currentService) return;
+    
+    // Here you would typically save the credentials securely
+    // For now, we'll just show a success notification
+    // showNotification(
+    //   `${currentService.service.displayName} credentials saved successfully!`, 
+    //   'success'
+    // );
+    
+    // Remove the service from detected services since credentials are provided
+    setDetectedServices(prev => 
+      prev.filter(service => 
+        !(service.service.name === currentService.service.name && 
+          service.messageId === currentService.messageId)
+      )
+    );
+    
+    setShowServiceCredentialsModal(false);
+    setCurrentService(null);
+    setServiceCredentials({});
+  };
+
+  const dismissServicePrompt = (detectedService: DetectedService) => {
+    setDetectedServices(prev => 
+      prev.filter(service => 
+        !(service.service.name === detectedService.service.name && 
+          service.messageId === detectedService.messageId)
+      )
+    );
   };
 
   // Create new file or folder
@@ -2190,17 +2392,17 @@ export function GeneratedCodeDisplay({ code, config, onBackToHome }: Omit<Genera
       const file = vfs.createNewFile(parentPath, name);
       if (file) {
         setFileSystemVersion(prev => prev + 1);
-        showNotification(`File "${name}" created successfully!`, 'success');
+        // showNotification(`File "${name}" created successfully!`, 'success');
       } else {
-        showNotification(`File "${name}" already exists!`, 'error');
+        // showNotification(`File "${name}" already exists!`, 'error');
       }
     } else {
       const folder = vfs.createNewFolder(parentPath, name);
       if (folder) {
         setFileSystemVersion(prev => prev + 1);
-        showNotification(`Folder "${name}" created successfully!`, 'success');
+        // showNotification(`Folder "${name}" created successfully!`, 'success');
       } else {
-        showNotification(`Folder "${name}" already exists!`, 'error');
+        // showNotification(`Folder "${name}" already exists!`, 'error');
       }
     }
   };
@@ -2847,51 +3049,51 @@ async def update_record(
 
   return (
     <RoomContext.Provider value={room}>
-      <div className="w-full h-screen bg-gray-900 flex">
+      <div className="w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex">
         {/* Left side - Chat conversation */}
-        <div className="w-1/3 bg-gray-800 border-r border-gray-700 flex flex-col">
+        <div className="w-1/3 bg-gradient-to-b from-gray-800/90 to-gray-900/90 backdrop-blur-sm border-r border-gray-700/50 flex flex-col">
           {/* Chat header */}
-          <div className="p-4 border-b border-gray-700 bg-gray-750">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold text-white">Code Assistant</h2>
-              <div className="flex items-center space-x-2">
+          <div className="p-6 border-b border-gray-700/30 bg-gradient-to-r from-gray-800/50 to-gray-700/30 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold text-white tracking-tight">Code Assistant</h2>
+              <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setShowCheckpointModal(true)}
                   disabled={availableCheckpoints.length === 0}
-                  className="flex items-center text-gray-400 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700/50 transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed rounded-lg border border-gray-600/30"
                   title="View checkpoints"
                 >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   Checkpoints ({availableCheckpoints.length})
                 </button>
                 <button
                   onClick={onBackToHome}
-                  className="flex items-center text-gray-400 hover:text-white transition-colors text-sm"
+                  className="flex items-center px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700/50 transition-all duration-200 text-sm rounded-lg border border-gray-600/30"
                 >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                   Back to Home
                 </button>
               </div>
             </div>
-            <p className="text-gray-400 text-sm">Ask me to modify your voice agent code, add features, fix issues, or explain how it works</p>
+            <p className="text-gray-400 text-sm leading-relaxed">Ask me to modify your voice agent code, add features, fix issues, or explain how it works</p>
           </div>
 
           {/* Messages area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-lg p-3 ${
+                <div className={`max-w-[85%] rounded-2xl p-4 shadow-lg backdrop-blur-sm border ${
                   message.role === 'user' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-700 text-gray-200'
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-500/30 shadow-blue-500/20' 
+                    : 'bg-gradient-to-r from-gray-700/80 to-gray-800/80 text-gray-100 border-gray-600/30 shadow-gray-900/50'
                 }`}>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs opacity-70">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap font-medium">{message.content}</p>
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/10">
+                    <p className="text-xs opacity-70 font-medium">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                     {message.checkpoint && message.role === 'assistant' && message.filesSnapshot && (
@@ -2901,10 +3103,10 @@ async def update_record(
                             rollbackToCheckpoint(message);
                           }
                         }}
-                        className="ml-2 px-1 py-0.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors flex items-center"
+                        className="ml-2 px-2 py-1 bg-blue-600/80 hover:bg-blue-600 text-white text-xs rounded-lg transition-all duration-200 flex items-center shadow-lg border border-blue-500/30"
                         title="Restore to this checkpoint"
                       >
-                        <svg className="w-2.5 h-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                         </svg>
                         Restore
@@ -2916,51 +3118,97 @@ async def update_record(
             ))}
             {isGenerating && (
               <div className="flex justify-start">
-                <div className="bg-gray-700 text-gray-200 rounded-lg p-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                    <span className="text-sm">Thinking...</span>
+                <div className="bg-gradient-to-r from-gray-700/80 to-gray-800/80 text-gray-100 rounded-2xl p-4 shadow-lg backdrop-blur-sm border border-gray-600/30">
+                  <div className="flex items-center space-x-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent"></div>
+                    <span className="text-sm font-medium">Thinking...</span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Service Integration Alerts */}
+            {detectedServices.length > 0 && (
+              <div className="space-y-3">
+                {detectedServices.map((detectedService, index) => (
+                  <div key={`${detectedService.service.name}-${detectedService.messageId}-${index}`} 
+                       className="bg-gradient-to-r from-blue-900/40 to-blue-800/30 border border-blue-600/40 rounded-2xl p-5 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-start space-x-4">
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-400/30">
+                          <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-white mb-2 text-base">
+                          {detectedService.service.displayName} Integration Detected
+                        </h4>
+                        <p className="text-gray-300 text-sm mb-3 leading-relaxed">
+                          {detectedService.service.description}
+                        </p>
+                        <p className="text-gray-400 text-xs mb-4 leading-relaxed">
+                          To enable this integration, please provide your API credentials.
+                        </p>
+                        <div className="flex items-center space-x-3">
+                          <button
+                            onClick={() => openServiceCredentialsModal(detectedService)}
+                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-lg border border-blue-500/30"
+                          >
+                            Configure
+                          </button>
+                          <button
+                            onClick={() => dismissServicePrompt(detectedService)}
+                            className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-lg border border-gray-500/30"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
           {/* Message input */}
-          <div className="p-4 border-t border-gray-700 relative">
+          <div className="p-6 border-t border-gray-700/30 bg-gradient-to-r from-gray-800/30 to-gray-700/20 backdrop-blur-sm relative">
             {/* Tool dropdown */}
             {showToolDropdown && filteredTools.length > 0 && (
-              <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-800 border border-gray-600 rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
-                <div className="p-2 border-b border-gray-600">
-                  <div className="text-xs text-gray-400 font-medium">Available Tools</div>
+              <div className="absolute bottom-full left-6 right-6 mb-3 bg-gradient-to-b from-gray-800/95 to-gray-900/95 backdrop-blur-lg border border-gray-600/40 rounded-2xl shadow-2xl max-h-64 overflow-y-auto z-50">
+                <div className="p-4 border-b border-gray-600/30">
+                  <div className="text-sm text-gray-300 font-semibold">Available Tools</div>
                 </div>
                 {filteredTools.map((tool, index) => (
                   <div
                     key={tool.name}
                     onClick={() => handleToolSelect(tool)}
-                    className={`p-3 cursor-pointer transition-colors ${
+                    className={`p-4 cursor-pointer transition-all duration-200 ${
                       index === selectedToolIndex
-                        ? 'bg-blue-600 text-white'
-                        : 'hover:bg-gray-700 text-gray-300'
+                        ? 'bg-gradient-to-r from-blue-600/50 to-blue-700/50 text-white'
+                        : 'hover:bg-gray-700/50 text-gray-300'
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-4">
                       <div className="flex-shrink-0">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-medium ${
-                          tool.category === 'Payment' ? 'bg-green-500 text-white' :
-                          tool.category === 'Communication' ? 'bg-blue-500 text-white' :
-                          tool.category === 'Productivity' ? 'bg-purple-500 text-white' :
-                          tool.category === 'Data' ? 'bg-orange-500 text-white' :
-                          'bg-gray-500 text-white'
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shadow-lg ${
+                          tool.category === 'Payment' ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' :
+                          tool.category === 'Communication' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' :
+                          tool.category === 'Productivity' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white' :
+                          tool.category === 'Data' ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white' :
+                          'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
                         }`}>
                           {tool.display.charAt(0)}
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{tool.display}</div>
-                        <div className="text-xs text-gray-400 truncate">{tool.description}</div>
+                        <div className="font-semibold text-sm">{tool.display}</div>
+                        <div className="text-xs text-gray-400 truncate leading-relaxed">{tool.description}</div>
                         <div className="text-xs text-gray-500 mt-1">
-                          <span className="px-1.5 py-0.5 bg-gray-600 rounded text-xs">{tool.category}</span>
+                          <span className="px-2 py-1 bg-gray-600/50 rounded-lg text-xs font-medium">{tool.category}</span>
                         </div>
                       </div>
                       <div className="flex-shrink-0">
@@ -2971,41 +3219,47 @@ async def update_record(
                     </div>
                   </div>
                 ))}
-                <div className="p-2 border-t border-gray-600 bg-gray-750">
-                  <div className="text-xs text-gray-500">
-                    Use <kbd className="px-1 py-0.5 bg-gray-600 rounded text-xs">↑</kbd> <kbd className="px-1 py-0.5 bg-gray-600 rounded text-xs">↓</kbd> to navigate, <kbd className="px-1 py-0.5 bg-gray-600 rounded text-xs">Enter</kbd> to select
+                <div className="p-4 border-t border-gray-600/30 bg-gray-800/50">
+                  <div className="text-xs text-gray-500 leading-relaxed">
+                    Use <kbd className="px-2 py-1 bg-gray-600/50 rounded text-xs font-medium">↑</kbd> <kbd className="px-2 py-1 bg-gray-600/50 rounded text-xs font-medium">↓</kbd> to navigate, <kbd className="px-2 py-1 bg-gray-600/50 rounded text-xs font-medium">Enter</kbd> to select
                   </div>
                 </div>
               </div>
             )}
             
-            <div className="flex space-x-2">
-              <div className="flex-1 relative">
-                <textarea
-                  value={inputMessage}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDownInInput}
-                  placeholder="Ask me to modify the code, add features, or explain something... (Type @ to add tools)"
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-400 focus:outline-none resize-none"
-                  rows={2}
-                  disabled={isGenerating}
-                />
-                {/* @ symbol hint */}
-                {!inputMessage && (
-                  <div className="absolute right-3 top-3 text-gray-500 text-xs pointer-events-none">
-                    Try typing @ for tools
-                  </div>
-                )}
+            <div className="relative bg-gray-800/60 backdrop-blur-sm rounded-3xl border border-gray-600/40 p-1 shadow-2xl">
+              <div className="flex items-end space-x-3 p-3">
+                <div className="flex-1 relative">
+                  <textarea
+                    value={inputMessage}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDownInInput}
+                    placeholder="Ask me anything..."
+                    className="w-full p-4 bg-transparent text-white placeholder-gray-400 focus:outline-none resize-none text-base leading-relaxed"
+                    rows={1}
+                    disabled={isGenerating}
+                    style={{
+                      minHeight: '24px',
+                      maxHeight: '120px',
+                      height: 'auto'
+                    }}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={sendMessage}
+                  disabled={!inputMessage.trim() || isGenerating}
+                  className="flex-shrink-0 w-10 h-10 bg-white hover:bg-gray-100 disabled:bg-gray-600 disabled:cursor-not-allowed text-gray-900 disabled:text-gray-400 rounded-full transition-all duration-200 flex items-center justify-center shadow-lg"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                </button>
               </div>
-              <button
-                onClick={sendMessage}
-                disabled={!inputMessage.trim() || isGenerating}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
             </div>
           </div>
         </div>
@@ -3742,6 +3996,73 @@ async def update_record(
                   className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Service Credentials Modal */}
+        {showServiceCredentialsModal && currentService && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white flex items-center">
+                  <svg className="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                          d="M15 7a2 2 0 012 2m0 0a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2m0 0V7a2 2 0 012-2h2z" />
+                  </svg>
+                  Configure {currentService.service.displayName}
+                </h3>
+                <button
+                  onClick={() => setShowServiceCredentialsModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-gray-300 text-sm mb-4">
+                  {currentService.service.description}
+                </p>
+                <div className="space-y-4">
+                  {currentService.service.requiredCredentials.map((credential) => (
+                    <div key={credential.name}>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
+                        {credential.label}
+                      </label>
+                      <input
+                        type={credential.type}
+                        placeholder={credential.placeholder}
+                        value={serviceCredentials[credential.name] || ''}
+                        onChange={(e) => handleCredentialChange(credential.name, e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white 
+                                 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowServiceCredentialsModal(false)}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveServiceCredentials}
+                  disabled={currentService.service.requiredCredentials.some(cred => 
+                    !serviceCredentials[cred.name]?.trim()
+                  )}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed 
+                           text-white rounded-lg transition-colors"
+                >
+                  Save Credentials
                 </button>
               </div>
             </div>
