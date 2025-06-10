@@ -3058,17 +3058,6 @@ async def update_record(
               <h2 className="text-xl font-bold text-white tracking-tight">Code Assistant</h2>
               <div className="flex items-center space-x-3">
                 <button
-                  onClick={() => setShowCheckpointModal(true)}
-                  disabled={availableCheckpoints.length === 0}
-                  className="flex items-center px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700/50 transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed rounded-lg border border-gray-600/30"
-                  title="View checkpoints"
-                >
-                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Checkpoints ({availableCheckpoints.length})
-                </button>
-                <button
                   onClick={onBackToHome}
                   className="flex items-center px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700/50 transition-all duration-200 text-sm rounded-lg border border-gray-600/30"
                 >
