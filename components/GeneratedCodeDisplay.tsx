@@ -105,7 +105,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   useEffect(() => {
     console.log('🔄 STATE CHANGE - activeTab:', activeTab);
   }, [activeTab]);
-  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'functions' | 'phone' | 'other'>('instructions');
+  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'functions' | 'phone' | 'other' | 'test'>('instructions');
 
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
 
@@ -1579,6 +1579,22 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                 {activeMenu === 'other' && (
                   <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
                 )}
+                </button>
+                <button
+                onClick={() => {
+                  console.log('🔄 Test tab clicked from navigation');
+                  setActiveMenu('test');
+                }}
+                className={`text-base font-bold transition-colors relative ${
+                  activeMenu === 'test' 
+                    ? 'text-orange-400' 
+                    : 'text-gray-300 hover:text-white'
+                }`}
+              >
+                Test
+                {activeMenu === 'test' && (
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
+                )}
                         </button>
                       </div>
                     <div className="flex items-center space-x-3">
@@ -1601,22 +1617,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                           </>
                         )}
                       </button>
-                      <button
-                onClick={() => {
-                  console.log('🔄 Test button clicked, switching to test tab');
-                  console.log('   • Current activeTab:', activeTab);
-                  console.log('   • Current activeMenu:', activeMenu);
-                  setActiveTab('test');
-                  console.log('   • Set activeTab to: test');
-                }}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === 'test' 
-                    ? 'bg-white text-gray-900' 
-                    : 'bg-gray-700 hover:bg-gray-600 text-white'
-                }`}
-              >
-                Test
-                      </button>
+
                       <button className="px-4 py-1.5 bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white text-sm font-medium rounded-lg transition-all duration-200">
                 Publish
               </button>
@@ -1625,7 +1626,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
 
           {/* Content area */}
           <div className="flex-1 overflow-hidden">
-            {activeTab === 'test' ? (
+            {activeMenu === 'test' ? (
               <div className="h-full flex flex-col">
                 {/* Test area - Show voice interface if connected, otherwise show start button */}
                 <div className="flex-1 bg-gray-900">
