@@ -261,7 +261,7 @@ export interface ProjectData {
   llm_max_response_length: 150 | 300 | 500 | 1000;
   
   // Speech-to-Text Configuration
-  stt_provider: 'deepgram' | 'openai-whisper' | 'google-speech' | 'azure-speech' | 'assembly-ai';
+  stt_provider: 'deepgram';
   stt_language: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh';
   stt_quality: 'standard' | 'enhanced' | 'premium';
   stt_processing_mode: 'streaming' | 'batch';
@@ -269,10 +269,8 @@ export interface ProjectData {
   stt_auto_punctuation: boolean;
   
   // Text-to-Speech Configuration
-  tts_provider: 'openai' | 'elevenlabs' | 'azure' | 'google' | 'amazon';
-  tts_voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
-  tts_speaking_speed: number;
-  tts_quality: 'standard' | 'premium';
+  tts_provider: 'cartesia' | 'elevenlabs' | 'openai';
+  tts_voice: 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female';
   
   // Phone Configuration
   phone_number: string | null;
@@ -320,16 +318,14 @@ export interface ProjectDataConfig {
   llm_model?: string;
   llm_temperature?: number;
   llm_max_response_length?: 150 | 300 | 500 | 1000;
-  stt_provider?: 'deepgram' | 'openai-whisper' | 'google-speech' | 'azure-speech' | 'assembly-ai';
+  stt_provider?: 'deepgram';
   stt_language?: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh';
   stt_quality?: 'standard' | 'enhanced' | 'premium';
   stt_processing_mode?: 'streaming' | 'batch';
   stt_noise_suppression?: boolean;
   stt_auto_punctuation?: boolean;
-  tts_provider?: 'openai' | 'elevenlabs' | 'azure' | 'google' | 'amazon';
-  tts_voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
-  tts_speaking_speed?: number;
-  tts_quality?: 'standard' | 'premium';
+  tts_provider?: 'cartesia' | 'elevenlabs' | 'openai';
+  tts_voice?: 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female';
   phone_number?: string;
   phone_inbound_enabled?: boolean;
   phone_outbound_enabled?: boolean;

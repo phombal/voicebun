@@ -37,7 +37,7 @@ function TypewriterEffect() {
       if (i < fullText.length) {
         setText(fullText.slice(0, i + 1));
         i++;
-      } else {
+        } else {
         clearInterval(timer);
       }
     }, 100);
@@ -88,7 +88,7 @@ function LoadingPage() {
     return () => clearInterval(interval);
   }, [tips.length]);
 
-  return (
+    return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -98,7 +98,7 @@ function LoadingPage() {
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}
     >
-      <div className="text-center">
+        <div className="text-center">
         {/* Animated VoiceBun Logo */}
         <motion.div
           animate={{ 
@@ -152,8 +152,8 @@ function LoadingPage() {
         </motion.div>
       </div>
     </motion.div>
-  );
-}
+    );
+  }
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
@@ -194,7 +194,7 @@ export default function LandingPage() {
   ];
 
   if (loading) {
-    return (
+  return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -211,93 +211,93 @@ export default function LandingPage() {
         background: 'linear-gradient(to bottom, rgb(24, 0, 121) 0%, rgb(255, 106, 0) 40%, rgb(255, 255, 255) 70%)', 
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}>
-        {/* Header */}
-        <header className="border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      {/* Header */}
+      <header className="border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="flex items-center">
               <img 
                 src="/VoiceBun-White.png" 
                 alt="VoiceBun" 
                 className="h-10 w-auto"
               />
-            </div>
-            <div className="flex items-center space-x-4">
-              <a
-                href="/auth"
-                className="text-white/70 hover:text-white transition-colors"
-              >
-                Sign In
-              </a>
-              <a
+          </div>
+          <div className="flex items-center space-x-4">
+            <a
+              href="/auth"
+              className="text-white/70 hover:text-white transition-colors"
+            >
+              Sign In
+            </a>
+            <a
                 href="/auth"
                 className="bg-white text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-              >
-                Get Started
-              </a>
-            </div>
+            >
+              Get Started
+            </a>
           </div>
-        </header>
+        </div>
+      </header>
 
         {/* Hero Section */}
-        <section className="max-w-7xl mx-auto px-6 py-20">
-          <div className="text-center">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+      <section className="max-w-7xl mx-auto px-6 py-20">
+        <div className="text-center">
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
               className="text-4xl md:text-5xl font-bold text-white mb-6"
               style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
-            >
-              <TypewriterEffect />
-            </motion.h1>
-            
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-xl text-white/80 mb-12 max-w-3xl mx-auto"
-            >
-              Create and share voice agents by chatting with AI
-            </motion.p>
+          >
+            <TypewriterEffect />
+          </motion.h1>
+          
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-xl text-white/80 mb-12 max-w-3xl mx-auto"
+          >
+            Create and share voice agents by chatting with AI
+          </motion.p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="relative max-w-4xl mx-auto mb-8"
-            >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="relative max-w-4xl mx-auto mb-8"
+          >
               <div className="bg-gray-900/95 backdrop-blur-md rounded-3xl p-4 shadow-2xl shadow-black/40">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 relative">
-                    <textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Describe the voice agent you want to create..."
-                      className="w-full h-16 p-4 bg-transparent text-white placeholder-white/60 focus:outline-none resize-none text-lg text-left"
-                    />
-                  </div>
-                  
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!prompt.trim()}
-                    className="w-10 h-10 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
-                  >
-                    <svg className="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                    </svg>
-                  </button>
+              <div className="flex items-center gap-4">
+                <div className="flex-1 relative">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Describe the voice agent you want to create..."
+                    className="w-full h-16 p-4 bg-transparent text-white placeholder-white/60 focus:outline-none resize-none text-lg text-left"
+                  />
                 </div>
+                
+                <button
+                  onClick={handleSubmit}
+                  disabled={!prompt.trim()}
+                  className="w-10 h-10 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
+                >
+                  <svg className="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                </button>
               </div>
-            </motion.div>
+            </div>
+          </motion.div>
 
             {/* Example prompts */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
               className="flex flex-wrap justify-center gap-3 mb-16"
-            >
+          >
               {examplePrompts.map((example, index) => (
                 <button
                   key={index}
@@ -307,11 +307,11 @@ export default function LandingPage() {
                   {example}
                 </button>
               ))}
-            </motion.div>
-          </div>
-        </section>
+          </motion.div>
+        </div>
+      </section>
 
-        {/* Features Section */}
+      {/* Features Section */}
         <section className="max-w-7xl mx-auto px-6 py-20">
           <div className="grid md:grid-cols-3 gap-8">
             <FeatureCard
@@ -329,9 +329,9 @@ export default function LandingPage() {
               title="Deploy Instantly"
               description="Get your voice agent running in minutes, not hours"
             />
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
+    </div>
 
       {/* Auth Prompt Modal */}
       {showAuthPrompt && (
@@ -380,35 +380,35 @@ function AuthPromptModal({ onClose, onAuthComplete }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <motion.div
+    <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="bg-white rounded-2xl p-8 max-w-md mx-4"
       >
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Ready to create your voice agent?</h2>
         <p className="text-gray-600 mb-6">Sign up or sign in to start building your custom voice agent.</p>
-        
+          
         <div className="flex flex-col space-y-3">
-          <button
-            onClick={handleSignUp}
+            <button
+              onClick={handleSignUp}
             className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
+            >
             Create Account
-          </button>
-          <button
-            onClick={handleSignIn}
+            </button>
+            <button
+              onClick={handleSignIn}
             className="w-full bg-gray-100 text-gray-900 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-          >
-            Sign In
-          </button>
-          <button
-            onClick={onClose}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={onClose}
             className="w-full text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
+            >
+              Cancel
+            </button>
         </div>
       </motion.div>
-    </div>
+        </div>
   );
 }

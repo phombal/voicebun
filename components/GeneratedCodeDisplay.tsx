@@ -128,16 +128,15 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     llmModel: 'gpt-4o-mini',
     llmTemperature: 0.7,
     llmMaxResponseLength: 300 as 150 | 300 | 500 | 1000,
-    sttProvider: 'deepgram' as 'deepgram' | 'openai-whisper' | 'google-speech' | 'azure-speech' | 'assembly-ai',
+    sttProvider: 'deepgram' as 'deepgram',
     sttLanguage: 'en' as 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh',
     sttQuality: 'enhanced' as 'standard' | 'enhanced' | 'premium',
     sttProcessingMode: 'streaming' as 'streaming' | 'batch',
     sttNoiseSuppression: true,
     sttAutoPunctuation: true,
-    ttsProvider: 'openai' as 'openai' | 'elevenlabs' | 'azure' | 'google' | 'amazon',
-    ttsVoice: 'nova' as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer',
-    ttsSpeakingSpeed: 1.0,
-    ttsQuality: 'premium' as 'standard' | 'premium',
+    ttsProvider: 'cartesia' as 'cartesia' | 'elevenlabs' | 'openai',
+    ttsVoice: 'neutral' as 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female',
+
     phoneNumber: null as string | null,
     phoneInboundEnabled: true,
     phoneOutboundEnabled: false,
@@ -278,8 +277,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
           sttAutoPunctuation: projectData.stt_auto_punctuation,
           ttsProvider: projectData.tts_provider,
           ttsVoice: projectData.tts_voice,
-          ttsSpeakingSpeed: projectData.tts_speaking_speed,
-          ttsQuality: projectData.tts_quality,
           phoneNumber: projectData.phone_number,
           phoneInboundEnabled: projectData.phone_inbound_enabled,
           phoneOutboundEnabled: projectData.phone_outbound_enabled,
@@ -356,8 +353,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         stt_auto_punctuation: projectConfig.sttAutoPunctuation,
         tts_provider: projectConfig.ttsProvider,
         tts_voice: projectConfig.ttsVoice,
-        tts_speaking_speed: projectConfig.ttsSpeakingSpeed,
-        tts_quality: projectConfig.ttsQuality,
         phone_number: projectConfig.phoneNumber,
         phone_inbound_enabled: projectConfig.phoneInboundEnabled,
         phone_outbound_enabled: projectConfig.phoneOutboundEnabled,
@@ -410,6 +405,17 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       }
       } catch (error) {
       console.error('❌ Failed to save project configuration:', error);
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        errorType: error?.constructor?.name || 'Unknown type',
+        configData: {
+          ttsProvider: projectConfig.ttsProvider,
+          ttsVoice: projectConfig.ttsVoice,
+          llmProvider: projectConfig.llmProvider,
+          sttProvider: projectConfig.sttProvider
+        }
+      });
       
       // Show error notification
       const notification = document.createElement('div');
@@ -460,6 +466,14 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   useEffect(() => {
     console.log('🔄 Conversation state changed:', isInConversation);
   }, [isInConversation]);
+
+  // Auto-end conversation when navigating away from test tab
+  useEffect(() => {
+    if (activeMenu !== 'test' && isInConversation) {
+      console.log('🔄 User navigated away from test tab, ending conversation...');
+      endConversation();
+    }
+  }, [activeMenu, isInConversation]);
 
 
 
@@ -1126,17 +1140,51 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       console.log('   • Room participants:', room.remoteParticipants.size);
       console.log('   • Local participant:', room.localParticipant.identity);
       
-      // Set participant metadata with project ID
+      // Set participant metadata with project ID and model configurations
       const roomMetadata = {
         projectId: projectToUse.id,
         configurationId: currentConfigurationId,
-        agentConfig: config,
+        agentConfig: {
+          ...config,
+          prompt: projectConfig.systemPrompt || config.prompt // Use AI-generated system prompt if available, fallback to original
+        },
+        modelConfigurations: {
+          // LLM Configuration
+          llm: {
+            provider: projectConfig.llmProvider,
+            model: projectConfig.llmModel,
+            temperature: projectConfig.llmTemperature,
+            maxResponseLength: projectConfig.llmMaxResponseLength
+          },
+          // STT Configuration
+          stt: {
+            provider: projectConfig.sttProvider,
+            language: projectConfig.sttLanguage,
+            quality: projectConfig.sttQuality,
+            processingMode: projectConfig.sttProcessingMode,
+            noiseSuppression: projectConfig.sttNoiseSuppression,
+            autoPunctuation: projectConfig.sttAutoPunctuation
+          },
+          // TTS Configuration
+          tts: {
+            provider: projectConfig.ttsProvider,
+            voice: projectConfig.ttsVoice
+          },
+          // Additional configurations
+          firstMessageMode: projectConfig.firstMessageMode,
+          responseLatencyPriority: projectConfig.responseLatencyPriority
+        },
         timestamp: new Date().toISOString()
       };
       
       console.log('📋 Setting participant metadata:');
       console.log('   • Project ID:', projectToUse.id);
       console.log('   • Configuration ID:', currentConfigurationId);
+      console.log('   • System Prompt Source:', projectConfig.systemPrompt ? 'AI-generated' : 'User input');
+      console.log('   • System Prompt Length:', (projectConfig.systemPrompt || config.prompt).length, 'characters');
+      console.log('   • LLM Provider/Model:', `${projectConfig.llmProvider}/${projectConfig.llmModel}`);
+      console.log('   • STT Provider/Language:', `${projectConfig.sttProvider}/${projectConfig.sttLanguage}`);
+      console.log('   • TTS Provider/Voice:', `${projectConfig.ttsProvider}/${projectConfig.ttsVoice}`);
       console.log('   • Metadata size:', JSON.stringify(roomMetadata).length, 'bytes');
       
         await room.localParticipant.setMetadata(JSON.stringify(roomMetadata));
@@ -1299,9 +1347,28 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
               exit={{ opacity: 0, top: "-10px" }}
               transition={{ duration: 0.4, ease: [0.09, 1.04, 0.245, 1.055] }}
               className="flex h-8 absolute left-1/2 -translate-x-1/2 justify-center items-center space-x-4"
+              style={{
+                '--lk-button-disconnect-bg': 'white',
+                '--lk-button-disconnect-bg-hover': 'white',
+                '--lk-button-bg': 'white',
+                '--lk-button-bg-hover': 'white',
+                '--lk-fg': 'black',
+                '--lk-fg-contrast': 'white',
+                '--lk-mic-button-bg': 'white',
+                '--lk-mic-button-bg-hover': 'white',
+                '--lk-control-bg': 'white',
+                '--lk-control-bg-hover': 'white'
+              } as React.CSSProperties}
             >
               <VoiceAssistantControlBar controls={{ leave: false }} />
-              <DisconnectButton onClick={endConversation}>
+              <DisconnectButton 
+                onClick={endConversation}
+                style={{ 
+                  backgroundColor: 'white',
+                  borderColor: 'white'
+                }}
+                className="!bg-red-600 hover:!bg-red-700 !border-red-600 hover:!border-red-700"
+              >
                 <CloseIcon />
               </DisconnectButton>
             </motion.div>
@@ -1331,46 +1398,33 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
 
   // Dynamic provider mapping based on model
   const modelProviderMapping: { [key: string]: string } = {
-    'gpt-4-turbo': 'openai',
-    'gpt-4': 'openai', 
-    'gpt-3.5-turbo': 'openai',
-    'claude-3-5-sonnet': 'anthropic',
-    'claude-3-sonnet': 'anthropic',
-    'claude-3-haiku': 'anthropic',
-    'gemini-pro': 'google',
-    'gemini-1.5-pro': 'google',
-    'o1-preview': 'openai',
-    'o1-mini': 'openai'
+    'gpt-4o-mini': 'openai',
+    'gpt-4o': 'openai',
+    'gpt-4.1': 'openai',
+    'gpt-4.1-mini': 'openai',
+    'gpt-4.1-nano': 'openai',
+    'claude-opus-4': 'anthropic',
+    'claude-sonnet-4': 'anthropic',
+    'claude-3-5-haiku': 'anthropic'
   };
 
   const providers = [
     { value: 'openai', label: 'OpenAI' },
-    { value: 'anthropic', label: 'Anthropic' }, 
-    { value: 'google', label: 'Google' },
-    { value: 'azure', label: 'Azure OpenAI' }
+    { value: 'anthropic', label: 'Anthropic' }
   ];
 
   const modelsByProvider: { [key: string]: { value: string; label: string }[] } = {
     openai: [
-      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-      { value: 'gpt-4', label: 'GPT-4' },
-      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-      { value: 'o1-preview', label: 'O1 Preview' },
-      { value: 'o1-mini', label: 'O1 Mini' }
+      { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+      { value: 'gpt-4o', label: 'GPT-4o' },
+      { value: 'gpt-4.1', label: 'GPT-4.1' },
+      { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+      { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' }
     ],
     anthropic: [
-      { value: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
-      { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-      { value: 'claude-3-haiku', label: 'Claude 3 Haiku' }
-    ],
-    google: [
-      { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-      { value: 'gemini-pro', label: 'Gemini Pro' }
-    ],
-    azure: [
-      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-      { value: 'gpt-4', label: 'GPT-4' },
-      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+      { value: 'claude-opus-4', label: 'Claude Opus 4' },
+      { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
+      { value: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' }
     ]
   };
 
@@ -1602,7 +1656,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                         onClick={saveProjectConfiguration}
                         disabled={isSavingConfig}
                         className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
-                      >
+              >
                         {isSavingConfig ? (
                           <>
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
@@ -1924,23 +1978,8 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                           <label className="block text-sm font-medium text-gray-300">
                             Transcriber Provider
                           </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.sttProvider}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, sttProvider: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
-                            >
-                              <option value="deepgram" className="bg-gray-700 text-white">Deepgram</option>
-                              <option value="openai-whisper" className="bg-gray-700 text-white">OpenAI Whisper</option>
-                              <option value="google-speech" className="bg-gray-700 text-white">Google Speech-to-Text</option>
-                              <option value="azure-speech" className="bg-gray-700 text-white">Azure Speech Services</option>
-                              <option value="assembly-ai" className="bg-gray-700 text-white">AssemblyAI</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
+                          <div className="bg-gray-700 border border-gray-600 rounded-xl px-4 py-3">
+                            <span className="text-white">Deepgram</span>
                           </div>
                       </div>
 
@@ -1996,27 +2035,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                       </div>
                     </div>
 
-                        {/* Real-time Processing */}
-                        <div className="space-y-3">
-                      <label className="block text-sm font-medium text-gray-300">
-                            Processing Mode
-                      </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.sttProcessingMode}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, sttProcessingMode: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
-                            >
-                              <option value="streaming" className="bg-gray-700 text-white">Streaming (Real-time)</option>
-                              <option value="batch" className="bg-gray-700 text-white">Batch (After speech ends)</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
+
                     </div>
 
                       {/* Advanced Transcription Settings */}
@@ -2085,11 +2104,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsProvider: e.target.value as any }))}
                               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
                             >
-                              <option value="openai" className="bg-gray-700 text-white">OpenAI TTS</option>
+                              <option value="cartesia" className="bg-gray-700 text-white">Cartesia</option>
                               <option value="elevenlabs" className="bg-gray-700 text-white">ElevenLabs</option>
-                              <option value="azure" className="bg-gray-700 text-white">Azure Speech Services</option>
-                              <option value="google" className="bg-gray-700 text-white">Google Text-to-Speech</option>
-                              <option value="amazon" className="bg-gray-700 text-white">Amazon Polly</option>
+                              <option value="openai" className="bg-gray-700 text-white">OpenAI</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2110,12 +2127,12 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsVoice: e.target.value as any }))}
                               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
                             >
-                              <option value="alloy" className="bg-gray-700 text-white">Alloy (Neutral)</option>
-                              <option value="echo" className="bg-gray-700 text-white">Echo (Male)</option>
-                              <option value="fable" className="bg-gray-700 text-white">Fable (British Male)</option>
-                              <option value="onyx" className="bg-gray-700 text-white">Onyx (Deep Male)</option>
-                              <option value="nova" className="bg-gray-700 text-white">Nova (Female)</option>
-                              <option value="shimmer" className="bg-gray-700 text-white">Shimmer (Soft Female)</option>
+                              <option value="neutral" className="bg-gray-700 text-white">Neutral</option>
+                              <option value="male" className="bg-gray-700 text-white">Male</option>
+                              <option value="british_male" className="bg-gray-700 text-white">British Male</option>
+                              <option value="deep_male" className="bg-gray-700 text-white">Deep Male</option>
+                              <option value="female" className="bg-gray-700 text-white">Female</option>
+                              <option value="soft_female" className="bg-gray-700 text-white">Soft Female</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2125,50 +2142,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                           </div>
                         </div>
 
-                        {/* Speaking Speed */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
-                            Speaking Speed
-                          </label>
-                        <div className="space-y-2">
-                            <input
-                              type="range"
-                              min="0.5"
-                              max="2.0"
-                              step="0.1"
-                              value={projectConfig.ttsSpeakingSpeed}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsSpeakingSpeed: parseFloat(e.target.value) }))}
-                              className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
-                            />
-                            <div className="flex justify-between text-xs text-gray-400">
-                              <span>Slow (0.5x)</span>
-                              <span>Normal (1.0x)</span>
-                              <span>Fast (2.0x)</span>
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* Voice Stability */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
-                            Voice Quality
-                          </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.ttsQuality}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsQuality: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
-                            >
-                              <option value="standard" className="bg-gray-700 text-white">Standard (Faster)</option>
-                              <option value="premium" className="bg-gray-700 text-white">Premium (Higher Quality)</option>
-                          </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
                       </div>
 
                       {/* Voice Preview */}
@@ -2192,118 +2166,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                     </div>
                   </div>
 
-                  {/* Performance & Cost Settings */}
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      Performance & Cost
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Response Latency */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
-                            Response Latency Priority
-                          </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.responseLatencyPriority}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, responseLatencyPriority: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
-                            >
-                              <option value="speed" className="bg-gray-700 text-white">Speed (Lower quality, faster response)</option>
-                              <option value="balanced" className="bg-gray-700 text-white">Balanced (Good quality and speed)</option>
-                              <option value="quality" className="bg-gray-700 text-white">Quality (Best quality, slower response)</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* First Message Mode */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
-                            First Message Mode
-                          </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.firstMessageMode}
-                              onChange={(e) => {
-                                setProjectConfig(prev => ({ ...prev, firstMessageMode: e.target.value as any }));
-                                setFirstMessageMode(e.target.value);
-                              }}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
-                            >
-                              {firstMessageModeOptions.map(option => (
-                                <option key={option.value} value={option.value} className="bg-gray-700 text-white">
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Cost Estimation */}
-                      <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-lg font-medium text-white mb-3 flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                        </svg>
-                          Estimated Costs
-                      </h4>
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div>
-                          <p className="text-gray-400 text-sm">Per Minute</p>
-                            <p className="text-white text-lg font-semibold">$0.12</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400 text-sm">Per Hour</p>
-                            <p className="text-white text-lg font-semibold">$7.20</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400 text-sm">Monthly (Est.)</p>
-                            <p className="text-white text-lg font-semibold">$120.00</p>
-                          </div>
-                        </div>
-                        <p className="text-gray-400 text-xs mt-3 text-center">
-                          Costs vary based on usage, model selection, and conversation length
-                        </p>
-                        </div>
-                      </div>
-                    </div>
 
-                  {/* Save Configuration */}
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={saveProjectConfiguration}
-                      disabled={isSavingConfig}
-                      className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center"
-                    >
-                      {isSavingConfig ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Model Configuration'
-                      )}
-                    </button>
-                    <button className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
-                      Reset to Defaults
-                    </button>
-                  </div>
                 </div>
               </div>
             ) : activeMenu === 'functions' ? (
@@ -2316,7 +2181,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                         </svg>
                       Functions & Tools
                     </h3>
-                    
+                      
                     <div className="text-center py-12">
                       <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
                         <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

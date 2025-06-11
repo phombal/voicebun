@@ -91,11 +91,11 @@ export function useDatabase() {
   // Start a new chat session (simplified - no chat sessions for now)
   const startChatSession = useCallback(async (projectId: string): Promise<any> => {
     if (!user) throw new Error('User not authenticated');
-    
+
     // For now, just return a mock session since we don't have chat_sessions table
     const mockSession: ChatSession = {
       id: `session_${Date.now()}`,
-      project_id: projectId,
+        project_id: projectId,
       user_id: user.id,
       title: `Chat Session - ${new Date().toLocaleString()}`,
       started_at: new Date().toISOString(),
@@ -121,9 +121,9 @@ export function useDatabase() {
     // For now, just return a mock message since we don't have chat_messages table
     const mockMessage = {
       id: `msg_${Date.now()}`,
-      session_id: sessionId,
-      role,
-      content,
+        session_id: sessionId,
+        role,
+        content,
       is_checkpoint: isCheckpoint,
       created_at: new Date().toISOString(),
       metadata: {}
