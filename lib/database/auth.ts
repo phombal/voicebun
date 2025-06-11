@@ -55,26 +55,5 @@ export const auth = {
     return supabase.auth.onAuthStateChange(callback)
   },
 
-  // Get user profile from database
-  async getUserProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    
-    return { data, error }
-  },
-
-  // Update user profile
-  async updateUserProfile(userId: string, updates: Partial<Database['public']['Tables']['user_profiles']['Update']>) {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
+  // User profile functions removed (no user_profiles table)
 } 

@@ -2,72 +2,19 @@
 export interface Database {
   public: {
     Tables: {
-      user_profiles: {
-        Row: UserProfile;
-        Insert: Omit<UserProfile, 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<UserProfile, 'id' | 'created_at'>>;
-      };
-      agent_configurations: {
-        Row: AgentConfiguration;
-        Insert: Omit<AgentConfiguration, 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<AgentConfiguration, 'id' | 'created_at'>>;
-      };
       projects: {
         Row: Project;
         Insert: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'last_accessed_at'>;
         Update: Partial<Omit<Project, 'id' | 'created_at'>>;
       };
-      chat_sessions: {
-        Row: ChatSession;
-        Insert: Omit<ChatSession, 'id' | 'started_at' | 'message_count'>;
-        Update: Partial<Omit<ChatSession, 'id' | 'started_at'>>;
-      };
-      chat_messages: {
-        Row: ChatMessage;
-        Insert: Omit<ChatMessage, 'id' | 'timestamp'>;
-        Update: Partial<Omit<ChatMessage, 'id' | 'timestamp'>>;
-      };
-      project_files: {
-        Row: ProjectFile;
-        Insert: Omit<ProjectFile, 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<ProjectFile, 'id' | 'created_at'>>;
-      };
-      file_snapshots: {
-        Row: FileSnapshot;
-        Insert: Omit<FileSnapshot, 'id' | 'created_at'>;
-        Update: Partial<Omit<FileSnapshot, 'id' | 'created_at'>>;
-      };
-      project_snapshots: {
-        Row: ProjectSnapshot;
-        Insert: Omit<ProjectSnapshot, 'id' | 'created_at'>;
-        Update: Partial<Omit<ProjectSnapshot, 'id' | 'created_at'>>;
-      };
-      code_changes: {
-        Row: CodeChange;
-        Insert: Omit<CodeChange, 'id' | 'created_at'>;
-        Update: Partial<Omit<CodeChange, 'id' | 'created_at'>>;
-      };
-      user_preferences: {
-        Row: UserPreferences;
-        Insert: Omit<UserPreferences, 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<UserPreferences, 'id' | 'created_at'>>;
-      };
-      project_collaborators: {
-        Row: ProjectCollaborator;
-        Insert: Omit<ProjectCollaborator, 'id' | 'invited_at'>;
-        Update: Partial<Omit<ProjectCollaborator, 'id' | 'invited_at'>>;
+      project_data: {
+        Row: ProjectData;
+        Insert: Omit<ProjectData, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<ProjectData, 'id' | 'created_at'>>;
       };
     };
     Views: {
-      project_overview: {
-        Row: ProjectOverview;
-      };
-      recent_chat_activity: {
-        Row: RecentChatActivity;
-      };
-      file_change_history: {
-        Row: FileChangeHistory;
-      };
+      // No views currently
     };
   };
 }
@@ -294,6 +241,115 @@ export interface VoiceAgentConfig {
   language: string;
   responseStyle: string;
   capabilities: string[];
+}
+
+// Project Data Configuration - detailed settings that users can update
+export interface ProjectData {
+  id: string;
+  project_id: string;
+  user_id: string;
+  
+  // System Prompt & Instructions
+  system_prompt: string;
+  agent_instructions: string | null;
+  first_message_mode: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
+  
+  // Base Model Configuration
+  llm_provider: 'openai' | 'anthropic' | 'google' | 'azure';
+  llm_model: string;
+  llm_temperature: number;
+  llm_max_response_length: 150 | 300 | 500 | 1000;
+  
+  // Speech-to-Text Configuration
+  stt_provider: 'deepgram' | 'openai-whisper' | 'google-speech' | 'azure-speech' | 'assembly-ai';
+  stt_language: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh';
+  stt_quality: 'standard' | 'enhanced' | 'premium';
+  stt_processing_mode: 'streaming' | 'batch';
+  stt_noise_suppression: boolean;
+  stt_auto_punctuation: boolean;
+  
+  // Text-to-Speech Configuration
+  tts_provider: 'openai' | 'elevenlabs' | 'azure' | 'google' | 'amazon';
+  tts_voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+  tts_speaking_speed: number;
+  tts_quality: 'standard' | 'premium';
+  
+  // Phone Configuration
+  phone_number: string | null;
+  phone_inbound_enabled: boolean;
+  phone_outbound_enabled: boolean;
+  phone_recording_enabled: boolean;
+  
+  // Performance Settings
+  response_latency_priority: 'speed' | 'balanced' | 'quality';
+  
+  // Knowledge Base Files
+  knowledge_base_files: Array<{
+    name: string;
+    type: 'pdf' | 'txt' | 'docx' | 'csv' | 'json';
+    content: string;
+    size: number;
+  }>;
+  
+  // Functions & Tools
+  functions_enabled: boolean;
+  custom_functions: Array<{
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+  }>;
+  
+  // Webhooks
+  webhooks_enabled: boolean;
+  webhook_url: string | null;
+  webhook_events: string[];
+  
+  // Metadata
+  version: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Configuration input type (without metadata fields)
+export interface ProjectDataConfig {
+  system_prompt: string;
+  agent_instructions?: string;
+  first_message_mode?: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
+  llm_provider?: 'openai' | 'anthropic' | 'google' | 'azure';
+  llm_model?: string;
+  llm_temperature?: number;
+  llm_max_response_length?: 150 | 300 | 500 | 1000;
+  stt_provider?: 'deepgram' | 'openai-whisper' | 'google-speech' | 'azure-speech' | 'assembly-ai';
+  stt_language?: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh';
+  stt_quality?: 'standard' | 'enhanced' | 'premium';
+  stt_processing_mode?: 'streaming' | 'batch';
+  stt_noise_suppression?: boolean;
+  stt_auto_punctuation?: boolean;
+  tts_provider?: 'openai' | 'elevenlabs' | 'azure' | 'google' | 'amazon';
+  tts_voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+  tts_speaking_speed?: number;
+  tts_quality?: 'standard' | 'premium';
+  phone_number?: string;
+  phone_inbound_enabled?: boolean;
+  phone_outbound_enabled?: boolean;
+  phone_recording_enabled?: boolean;
+  response_latency_priority?: 'speed' | 'balanced' | 'quality';
+  knowledge_base_files?: Array<{
+    name: string;
+    type: 'pdf' | 'txt' | 'docx' | 'csv' | 'json';
+    content: string;
+    size: number;
+  }>;
+  functions_enabled?: boolean;
+  custom_functions?: Array<{
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+  }>;
+  webhooks_enabled?: boolean;
+  webhook_url?: string;
+  webhook_events?: string[];
 }
 
 // Request types for creating entities

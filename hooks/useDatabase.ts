@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { DatabaseService } from '@/lib/database/service';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -8,9 +8,15 @@ import {
   VoiceAgentConfig as VoiceAgentConfigType 
 } from '@/lib/database/types';
 
+// Create singleton instance outside the hook to prevent multiple instances
+const dbInstance = new DatabaseService();
+
+// Global state to prevent concurrent project creation
+let isCreatingProjectGlobally = false;
+const pendingProjectCreations = new Map<string, Promise<Project>>();
+
 export function useDatabase() {
   const { user } = useAuth();
-  const [db] = useState(() => new DatabaseService());
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
 
@@ -25,248 +31,143 @@ export function useDatabase() {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      // First, ensure user profile exists
-      try {
-        let userProfile = await db.getUserProfile();
-        if (!userProfile) {
-          console.log('🔄 Creating user profile...');
-          userProfile = await db.createUserProfile({
-            id: user.id,
-            email: user.email || null,
-            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
-            avatar_url: user.user_metadata?.avatar_url || null
-          });
-          console.log('✅ User profile created:', userProfile.id);
-        } else {
-          console.log('✅ User profile exists:', userProfile.id);
-        }
-      } catch (profileError) {
-        console.error('❌ Failed to ensure user profile exists:', profileError);
-        throw new Error('Failed to create user profile. Please try again.');
+      // Create a unique key based on timestamp to prevent only rapid duplicate clicks
+      const projectKey = `${Date.now()}_${Math.random()}`;
+      
+      // Only prevent rapid duplicate creation within a very short timeframe (same second)
+      const rapidDuplicateKey = `${prompt.substring(0, 50)}_${Math.floor(Date.now() / 1000)}`;
+      
+      // Check if there's already a pending creation for this exact project within the same second
+      if (pendingProjectCreations.has(rapidDuplicateKey)) {
+        console.log('🔄 Preventing rapid duplicate creation...');
+        return await pendingProjectCreations.get(rapidDuplicateKey)!;
       }
 
-      // Then, create the project
-      const project = await db.createProject({
+      // Prevent very rapid concurrent creation (within same second)
+      if (isCreatingProjectGlobally) {
+        console.log('🔄 Another project creation in progress, waiting briefly...');
+        await new Promise(resolve => setTimeout(resolve, 50));
+        // Reset the global flag and allow creation
+        isCreatingProjectGlobally = false;
+      }
+
+      isCreatingProjectGlobally = true;
+
+      // Always create a new project - users should be able to create multiple similar projects
+      console.log('🆕 Creating new project:', name);
+
+      // Create the project creation promise and store it with rapid duplicate key
+      const creationPromise = dbInstance.createProject({
         name,
         description,
         initial_prompt: prompt,
         config: config as any
       });
 
+      pendingProjectCreations.set(rapidDuplicateKey, creationPromise);
+
+      const project = await creationPromise;
+
       console.log('✅ Project created successfully:', project.id);
-
-      // Then create project files (but don't fail if this fails)
-      try {
-        // Create initial project files
-        await db.createProjectFile(project.id, {
-          file_path: 'voice_agent.py',
-          file_name: 'voice_agent.py',
-          content: generatedCode,
-          file_type: 'file'
-        });
-
-        // Create requirements.txt
-        const requirementsContent = `livekit-agents
-livekit-plugins-openai
-livekit-plugins-deepgram
-livekit-plugins-cartesia
-livekit-plugins-silero
-python-dotenv`;
-
-        await db.createProjectFile(project.id, {
-          file_path: 'requirements.txt',
-          file_name: 'requirements.txt',
-          content: requirementsContent,
-          file_type: 'file'
-        });
-
-        // Create .env.example
-        const envExampleContent = `# LiveKit Configuration
-LIVEKIT_URL=wss://your-livekit-server.com
-LIVEKIT_API_KEY=your-api-key
-LIVEKIT_API_SECRET=your-api-secret
-
-# AI Service API Keys
-OPENAI_API_KEY=your-openai-api-key
-DEEPGRAM_API_KEY=your-deepgram-api-key
-CARTESIA_API_KEY=your-cartesia-api-key`;
-
-        await db.createProjectFile(project.id, {
-          file_path: '.env.example',
-          file_name: '.env.example',
-          content: envExampleContent,
-          file_type: 'file'
-        });
-
-        // Create README.md
-        const readmeContent = `# Voice Agent
-
-This is an AI-powered voice agent built with LiveKit.
-
-## Setup
-
-1. Install dependencies:
-   \`\`\`bash
-   pip install -r requirements.txt
-   \`\`\`
-
-2. Copy \`.env.example\` to \`.env\` and fill in your API keys:
-   \`\`\`bash
-   cp .env.example .env
-   \`\`\`
-
-3. Run the agent:
-   \`\`\`bash
-   python voice_agent.py
-   \`\`\`
-
-## Configuration
-
-- **Prompt**: ${config.prompt}
-- **Personality**: ${config.personality}
-- **Language**: ${config.language}
-- **Response Style**: ${config.responseStyle}
-- **Capabilities**: ${config.capabilities.join(', ') || 'None specified'}
-
-## Agent Description
-
-${config.prompt}
-`;
-
-        await db.createProjectFile(project.id, {
-          file_path: 'README.md',
-          file_name: 'README.md',
-          content: readmeContent,
-          file_type: 'file'
-        });
-
-        console.log('✅ Project files created successfully in database');
-      } catch (fileError) {
-        console.warn('⚠️ Failed to create some project files in database:', fileError);
-        // Don't throw here - the project was created successfully
-      }
-
       setCurrentProject(project);
+      
+      // Cleanup - remove after a short delay to prevent rapid duplicates
+      setTimeout(() => {
+        pendingProjectCreations.delete(rapidDuplicateKey);
+      }, 1000);
+      
+      isCreatingProjectGlobally = false;
+      
       return project;
     } catch (error) {
       console.error('❌ Failed to create project:', error);
+      isCreatingProjectGlobally = false;
+      // Clear pending creation on error
+      pendingProjectCreations.clear();
       throw error;
     }
-  }, [user, db]);
+  }, [user]);
 
-  // Start a new chat session
-  const startChatSession = useCallback(async (projectId: string): Promise<ChatSession> => {
+  // Start a new chat session (simplified - no chat sessions for now)
+  const startChatSession = useCallback(async (projectId: string): Promise<any> => {
     if (!user) throw new Error('User not authenticated');
+    
+    // For now, just return a mock session since we don't have chat_sessions table
+    const mockSession: ChatSession = {
+      id: `session_${Date.now()}`,
+      project_id: projectId,
+      user_id: user.id,
+      title: `Chat Session - ${new Date().toLocaleString()}`,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+      is_active: true,
+      message_count: 0,
+      metadata: {}
+    };
+    
+    setCurrentSession(mockSession);
+    return mockSession;
+  }, [user]);
 
-    try {
-      // Ensure user profile exists
-      let userProfile = await db.getUserProfile();
-      if (!userProfile) {
-        console.log('🔄 Creating user profile for chat session...');
-        userProfile = await db.createUserProfile({
-          id: user.id,
-          email: user.email || null,
-          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
-          avatar_url: user.user_metadata?.avatar_url || null
-        });
-        console.log('✅ User profile created for chat session:', userProfile.id);
-      }
-
-      const session = await db.createChatSession({
-        project_id: projectId,
-        title: `Chat Session - ${new Date().toLocaleString()}`
-      });
-
-      setCurrentSession(session);
-      return session;
-    } catch (error) {
-      console.error('❌ Failed to start chat session:', error);
-      throw error;
-    }
-  }, [user, db]);
-
-  // Add a message to the current session
+  // Add a message to the current session (simplified - no messages table for now)
   const addChatMessage = useCallback(async (
     sessionId: string,
     role: 'user' | 'assistant',
     content: string,
     isCheckpoint: boolean = false
-  ): Promise<ChatMessage> => {
+  ): Promise<any> => {
     if (!user) throw new Error('User not authenticated');
 
-    try {
-      // Ensure user profile exists
-      let userProfile = await db.getUserProfile();
-      if (!userProfile) {
-        console.log('🔄 Creating user profile for chat message...');
-        userProfile = await db.createUserProfile({
-          id: user.id,
-          email: user.email || null,
-          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
-          avatar_url: user.user_metadata?.avatar_url || null
-        });
-        console.log('✅ User profile created for chat message:', userProfile.id);
-      }
+    // For now, just return a mock message since we don't have chat_messages table
+    const mockMessage = {
+      id: `msg_${Date.now()}`,
+      session_id: sessionId,
+      role,
+      content,
+      is_checkpoint: isCheckpoint,
+      created_at: new Date().toISOString(),
+      metadata: {}
+    };
 
-      const message = await db.createChatMessage({
-        session_id: sessionId,
-        role,
-        content,
-        is_checkpoint: isCheckpoint
-      });
-
-      return message;
-    } catch (error) {
-      console.error('❌ Failed to add chat message:', error);
-      throw error;
-    }
-  }, [user, db]);
-
-  // Update project files when code changes
-  const updateProjectFiles = useCallback(async (
-    projectId: string,
-    sessionId: string,
-    messageId: string,
-    files: Array<{ path: string; name: string; content: string; type: 'file' | 'folder' }>,
-    changeDescription?: string
-  ): Promise<void> => {
-    if (!user) throw new Error('User not authenticated');
-
-    await db.syncVirtualFileSystemToDatabase(
-      projectId,
-      sessionId,
-      messageId,
-      files,
-      changeDescription
-    );
-  }, [user, db]);
+    return mockMessage;
+  }, [user]);
 
   // Get user's projects
   const getUserProjects = useCallback(async () => {
     if (!user) throw new Error('User not authenticated');
-    return await db.getUserProjects();
-  }, [user, db]);
+    return await dbInstance.getUserProjects();
+  }, [user]);
 
-  // Get project chat sessions
-  const getProjectSessions = useCallback(async (projectId: string) => {
+  // Project Data Management
+  const createProjectData = useCallback(async (projectId: string, data: any) => {
     if (!user) throw new Error('User not authenticated');
-    return await db.getProjectChatSessions(projectId);
-  }, [user, db]);
+    return await dbInstance.createProjectData(projectId, data);
+  }, [user]);
 
-  // Get session messages
-  const getSessionMessages = useCallback(async (sessionId: string) => {
+  const getProjectData = useCallback(async (projectId: string) => {
     if (!user) throw new Error('User not authenticated');
-    return await db.getSessionMessages(sessionId);
-  }, [user, db]);
+    return await dbInstance.getProjectData(projectId);
+  }, [user]);
+
+  const updateProjectData = useCallback(async (projectId: string, updates: any) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.updateProjectData(projectId, updates);
+  }, [user]);
+
+  const getProjectDataHistory = useCallback(async (projectId: string) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.getProjectDataHistory(projectId);
+  }, [user]);
 
   return {
     createProject,
     startChatSession,
     addChatMessage,
-    updateProjectFiles,
     getUserProjects,
-    getProjectSessions,
-    getSessionMessages,
+    createProjectData,
+    getProjectData,
+    updateProjectData,
+    getProjectDataHistory,
     currentProject,
     currentSession,
     setCurrentProject,
