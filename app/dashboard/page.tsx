@@ -114,14 +114,7 @@ function LoadingPage() {
   );
 }
 
-// Main component with Suspense boundary
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<LoadingPage />}>
-      <DashboardContent />
-    </Suspense>
-  );
-}
+// Component that uses useSearchParams and needs to be wrapped in Suspense
 function DashboardContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
