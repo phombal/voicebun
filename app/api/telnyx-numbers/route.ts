@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 
-const TELNYX_API_KEY = 'KEY019747BF31A87C0761B99B4BAFE19A35_IauIHXvs7wQHzgZMVK2YA0';
+const TELNYX_API_KEY = 'KEY01976106909F3A83248E3224B59F5E7A_Rgqv8pzX6B1hHUlVRdZdjp';
 
 export async function GET() {
   try {
-    // Add query parameters that might help get full numbers
+    // Search for fresh, purchasable numbers using working API key and filters
     const url = new URL('https://api.telnyx.com/v2/available_phone_numbers');
-    url.searchParams.append('filter[limit]', '50');
-    url.searchParams.append('filter[features]', 'voice,sms');
+    url.searchParams.append('filter[limit]', '20');
     url.searchParams.append('filter[country_code]', 'US');
+    url.searchParams.append('filter[phone_number_type]', 'local');
+    url.searchParams.append('filter[features][]', 'voice');
+    url.searchParams.append('filter[features][]', 'sms');
+    url.searchParams.append('sort[cost_information][monthly_cost]', 'asc');
     
     const response = await fetch(url.toString(), {
       method: 'GET',

@@ -17,14 +17,17 @@
     "@monaco-editor/react": "^4.7.0",
     "@octokit/rest": "^21.1.1",
     "@supabase/supabase-js": "^2.50.0",
+    "@types/jsonwebtoken": "^9.0.9",
     "framer-motion": "^11.18.0",
+    "jsonwebtoken": "^9.0.2",
     "livekit-client": "^2.8.0",
-    "livekit-server-sdk": "^2.9.7",
+    "livekit-server-sdk": "^2.13.0",
     "lucide-react": "^0.513.0",
     "monaco-editor": "^0.52.2",
     "openai": "^5.1.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "telnyx": "^2.0.0"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",

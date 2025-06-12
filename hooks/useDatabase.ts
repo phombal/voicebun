@@ -159,6 +159,11 @@ export function useDatabase() {
     return await dbInstance.getProjectDataHistory(projectId);
   }, [user]);
 
+  const getProjectPhoneNumbers = useCallback(async (projectId: string) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.getProjectPhoneNumbers(projectId);
+  }, [user]);
+
   return {
     createProject,
     startChatSession,
@@ -168,6 +173,7 @@ export function useDatabase() {
     getProjectData,
     updateProjectData,
     getProjectDataHistory,
+    getProjectPhoneNumbers,
     currentProject,
     currentSession,
     setCurrentProject,

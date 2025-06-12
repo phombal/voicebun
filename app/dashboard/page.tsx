@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { Project as DatabaseProject } from '@/lib/database/types';
@@ -114,7 +114,15 @@ function LoadingPage() {
   );
 }
 
+// Main component with Suspense boundary
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<LoadingPage />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+function DashboardContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();

@@ -18,6 +18,8 @@ import Editor from '@monaco-editor/react';
 import { useDatabase } from '@/hooks/useDatabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatSession, Project } from '@/lib/database/types';
+import { TelnyxNumbersModal } from './TelnyxNumbersModal';
+import { PhoneNumberManager } from './PhoneNumberManager';
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -64,6 +66,8 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   const [showCheckpointModal, setShowCheckpointModal] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showTelephonyModal, setShowTelephonyModal] = useState(false);
+  const [showTelnyxNumbersModal, setShowTelnyxNumbersModal] = useState(false);
+  const [phoneNumberRefreshKey, setPhoneNumberRefreshKey] = useState(0);
   const [availableNumbers, setAvailableNumbers] = useState<Array<{
     id: string; 
     number: string;
@@ -87,6 +91,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
   const [isAssigningNumber, setIsAssigningNumber] = useState(false);
   const [assignedPhoneNumber, setAssignedPhoneNumber] = useState<string | null>(null);
+  const [assignedPhoneNumberId, setAssignedPhoneNumberId] = useState<string | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyFile, setHistoryFile] = useState<string | null>(null);
   const [room] = useState(new Room());
@@ -150,6 +155,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     webhookEvents: [] as string[]
   });
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // New file modal state
   const [showNewFileModal, setShowNewFileModal] = useState(false);
@@ -167,7 +173,8 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     createProject,
     createProjectData,
     getProjectData,
-    updateProjectData
+    updateProjectData,
+    getProjectPhoneNumbers
   } = useDatabase();
   
   // Ref for debouncing file saves
@@ -245,6 +252,69 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   }, [currentProject]);
 
   // Load project configuration from database
+  // Load assigned phone number for the project
+  const loadAssignedPhoneNumber = useCallback(async () => {
+    const projectToUse = project || currentProject;
+    if (!projectToUse) return;
+    
+    try {
+      const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
+      console.log('📱 Project phone numbers loaded:', phoneNumbers);
+      console.log('📱 Number of phone numbers found:', phoneNumbers.length);
+      
+      if (phoneNumbers.length > 0) {
+        // Debug: Log all phone numbers with their status
+        phoneNumbers.forEach((pn: any, index: number) => {
+          console.log(`📱 Phone #${index + 1}:`, {
+            id: pn.id,
+            number: pn.phone_number,
+            status: pn.status,
+            is_active: pn.is_active,
+            dispatch_rule_id: pn.dispatch_rule_id
+          });
+        });
+        
+        // Try to find an active phone number with more flexible criteria
+        let activePhoneNumber = phoneNumbers.find((pn: any) => pn.is_active && pn.status === 'active');
+        
+        // If no "active" status found, try other common status values
+        if (!activePhoneNumber) {
+          console.log('📱 No phone number with status="active" found, trying other statuses...');
+          activePhoneNumber = phoneNumbers.find((pn: any) => pn.is_active && pn.status === 'assigned');
+        }
+        
+        // If still not found, try any active phone number
+        if (!activePhoneNumber) {
+          console.log('📱 No phone number with status="assigned" found, trying any active...');
+          activePhoneNumber = phoneNumbers.find((pn: any) => pn.is_active);
+        }
+        
+        // If still not found, just take the first one
+        if (!activePhoneNumber && phoneNumbers.length > 0) {
+          console.log('📱 No active phone number found, taking the first one...');
+          activePhoneNumber = phoneNumbers[0];
+        }
+        
+        if (activePhoneNumber) {
+          setAssignedPhoneNumber(activePhoneNumber.phone_number);
+          setAssignedPhoneNumberId(activePhoneNumber.id);
+          console.log('📱 Loaded assigned phone number:', {
+            number: activePhoneNumber.phone_number,
+            id: activePhoneNumber.id,
+            status: activePhoneNumber.status,
+            is_active: activePhoneNumber.is_active
+          });
+        } else {
+          console.log('📱 No suitable phone number found');
+        }
+      } else {
+        console.log('📱 No phone numbers found for this project');
+      }
+    } catch (error) {
+      console.error('❌ Error loading assigned phone number:', error);
+    }
+  }, [project, currentProject, getProjectPhoneNumbers]);
+
   const loadProjectConfiguration = useCallback(async () => {
     const projectToUse = project || currentProject;
     if (!projectToUse) {
@@ -440,10 +510,11 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       console.log('📥 Loading configurations for project:', projectToUse.name);
       loadAgentConfigurations();
       loadProjectConfiguration();
+      loadAssignedPhoneNumber();
     } else {
       console.log('⏭️ Skipping configuration load - no project available');
     }
-  }, [project, currentProject, loadAgentConfigurations, loadProjectConfiguration]);
+  }, [project, currentProject, loadAgentConfigurations, loadProjectConfiguration, loadAssignedPhoneNumber]);
 
   // Save file changes to database
   const saveFileChangesToDatabase = async (changeDescription?: string) => {
@@ -483,7 +554,16 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     const welcomeMessage: ChatMessage = {
       id: '1',
       role: 'assistant',
-      content: `I've generated your voice agent code based on your description: "${config.prompt}". You can ask me to modify the code, add features, fix issues, or explain how it works. What would you like me to help you with?`,
+      content: `Hi! I'm Bun, your voice agent configuration assistant. I can help you optimize your agent's settings for your specific use case.
+
+I can suggest changes to:
+• System prompts and agent personality
+• Model selection and parameters  
+• Speech-to-text and text-to-speech settings
+• Response latency and quality preferences
+• Phone and webhook configurations
+
+Just tell me what you want your voice agent to do or any issues you're experiencing, and I'll suggest the best configuration settings for you. What would you like to configure?`,
       timestamp: new Date(),
       checkpoint: true,
       filesSnapshot: createFilesSnapshot()
@@ -534,6 +614,147 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     }
   };
 
+  const handlePublish = async () => {
+    if (!currentProject && !project) {
+      console.log('❌ No project available for publishing');
+      // Show error notification
+      const notification = document.createElement('div');
+      notification.textContent = 'No project selected for publishing';
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 3000);
+      return;
+    }
+
+    setIsPublishing(true);
+    
+    try {
+      const projectToUse = project || currentProject;
+      console.log('🚀 Publishing configuration for project:', projectToUse?.id);
+      
+      // First save the current configuration
+      await saveProjectConfiguration();
+      
+      // Get all phone numbers for this project
+      console.log('📱 Getting all phone numbers for project...');
+      const phoneNumbers = await getProjectPhoneNumbers(projectToUse!.id);
+      console.log('📱 Found phone numbers:', phoneNumbers.length);
+      
+      if (phoneNumbers.length === 0) {
+        throw new Error('No phone numbers assigned to this project. Please assign a phone number first.');
+      }
+      
+      // Show progress notification
+      const progressNotification = document.createElement('div');
+      progressNotification.textContent = `Updating ${phoneNumbers.length} phone number(s)...`;
+      progressNotification.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      document.body.appendChild(progressNotification);
+      
+      // Update dispatch rules for all phone numbers
+      const updateResults = [];
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (let i = 0; i < phoneNumbers.length; i++) {
+        const phoneNumber = phoneNumbers[i];
+        console.log(`🔄 Updating phone number ${i + 1}/${phoneNumbers.length}: ${phoneNumber.phone_number}`);
+        
+        // Update progress notification
+        progressNotification.textContent = `Updating ${phoneNumber.phone_number} (${i + 1}/${phoneNumbers.length})...`;
+        
+        try {
+          const response = await fetch('/api/update-dispatch-rule', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              phoneNumberId: phoneNumber.id,
+              projectId: projectToUse?.id,
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update dispatch rule');
+          }
+          
+          const result = await response.json();
+          
+          updateResults.push({
+            phoneNumber: phoneNumber.phone_number,
+            phoneNumberId: phoneNumber.id,
+            success: true,
+            result: result
+          });
+          successCount++;
+          console.log(`✅ Updated ${phoneNumber.phone_number} successfully`);
+          
+        } catch (error) {
+          console.error(`❌ Failed to update ${phoneNumber.phone_number}:`, error);
+          updateResults.push({
+            phoneNumber: phoneNumber.phone_number,
+            phoneNumberId: phoneNumber.id,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          errorCount++;
+        }
+      }
+      
+      // Remove progress notification
+      if (document.body.contains(progressNotification)) {
+        document.body.removeChild(progressNotification);
+      }
+      
+      // Show summary notification
+      const notification = document.createElement('div');
+      if (errorCount === 0) {
+        notification.textContent = `🎉 Configuration published successfully for all ${successCount} phone numbers!`;
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      } else if (successCount > 0) {
+        notification.textContent = `⚠️ Partially successful: Updated ${successCount} phone numbers, ${errorCount} failed. Check console for details.`;
+        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
+      } else {
+        throw new Error(`Failed to update any phone numbers (${errorCount} failures)`);
+      }
+      
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 5000);
+      
+      console.log('📊 Update Summary:', {
+        total: phoneNumbers.length,
+        successful: successCount,
+        failed: errorCount,
+        details: updateResults
+      });
+      
+    } catch (error) {
+      console.error('❌ Failed to publish configuration:', error);
+      
+      // Show error notification
+      const notification = document.createElement('div');
+      notification.textContent = `Failed to publish: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 5000);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   const fetchAvailableNumbers = async () => {
     setIsLoadingNumbers(true);
     try {
@@ -560,6 +781,8 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       setIsLoadingNumbers(false);
     }
   };
+
+
 
   const assignPhoneNumber = async () => {
     if (!selectedNumber) return;
@@ -627,10 +850,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       timestamp: new Date()
     };
 
-
-
-
-
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsGenerating(true);
@@ -642,15 +861,44 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         content: msg.content
       }));
 
+      // Prepare current configuration context
+      const configurationContext = {
+        systemPrompt: projectConfig.systemPrompt,
+        agentInstructions: projectConfig.agentInstructions,
+        firstMessageMode: projectConfig.firstMessageMode,
+        llmProvider: projectConfig.llmProvider,
+        llmModel: projectConfig.llmModel,
+        llmTemperature: projectConfig.llmTemperature,
+        llmMaxResponseLength: projectConfig.llmMaxResponseLength,
+        sttProvider: projectConfig.sttProvider,
+        sttLanguage: projectConfig.sttLanguage,
+        sttQuality: projectConfig.sttQuality,
+        sttProcessingMode: projectConfig.sttProcessingMode,
+        sttNoiseSuppression: projectConfig.sttNoiseSuppression,
+        sttAutoPunctuation: projectConfig.sttAutoPunctuation,
+        ttsProvider: projectConfig.ttsProvider,
+        ttsVoice: projectConfig.ttsVoice,
+        phoneNumber: projectConfig.phoneNumber,
+        phoneInboundEnabled: projectConfig.phoneInboundEnabled,
+        phoneOutboundEnabled: projectConfig.phoneOutboundEnabled,
+        phoneRecordingEnabled: projectConfig.phoneRecordingEnabled,
+        responseLatencyPriority: projectConfig.responseLatencyPriority,
+        knowledgeBaseFiles: projectConfig.knowledgeBaseFiles,
+        functionsEnabled: projectConfig.functionsEnabled,
+        customFunctions: projectConfig.customFunctions,
+        webhooksEnabled: projectConfig.webhooksEnabled,
+        webhookUrl: projectConfig.webhookUrl,
+        webhookEvents: projectConfig.webhookEvents
+      };
 
-
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/config-chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          messages: messagesToSend
+          messages: messagesToSend,
+          configuration: configurationContext
         }),
       });
 
@@ -715,9 +963,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                 } else if (parsed.type === 'complete') {
                   console.log('Received complete signal, content length:', parsed.content?.length);
                   
-                  // Final update with complete content
-                  assistantMessage.content = parsed.content || '';
-                  
                                     // Final update with complete content
                   assistantMessage.content = parsed.content || '';
                   assistantMessage.checkpoint = true;
@@ -730,8 +975,52 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                     )
                   );
 
+                  // Handle configuration updates if present
+                  if (parsed.configurationUpdates && Array.isArray(parsed.configurationUpdates)) {
+                    console.log('Processing configuration updates:', parsed.configurationUpdates);
+                    
+                    // Apply configuration updates
+                    setProjectConfig(prev => {
+                      const newConfig = { ...prev };
+                      
+                      parsed.configurationUpdates.forEach((update: any) => {
+                        if (update.field && update.value !== undefined) {
+                          console.log(`Updating ${update.field} to:`, update.value);
+                          (newConfig as any)[update.field] = update.value;
+                        }
+                      });
+                      
+                      return newConfig;
+                    });
 
-
+                    // Show notification about configuration updates
+                    const updateCount = parsed.configurationUpdates.length;
+                    const notification = document.createElement('div');
+                    
+                    // Create a more detailed notification
+                    const updatedFields = parsed.configurationUpdates.map((update: any) => update.field).join(', ');
+                    notification.innerHTML = `
+                      <div class="flex items-center space-x-3">
+                        <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <div class="font-medium">Configuration Updated</div>
+                          <div class="text-sm opacity-90">Updated: ${updatedFields}</div>
+                        </div>
+                      </div>
+                    `;
+                    notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+                    document.body.appendChild(notification);
+                    setTimeout(() => {
+                      if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                      }
+                    }, 6000);
+                  }
 
                 } else if (parsed.type === 'error') {
                   console.error('Received error from stream:', parsed.error);
@@ -758,10 +1047,28 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         console.error('Error stack:', error.stack);
       }
       
+      let errorContent = `Sorry, there was an error processing your request: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      
+      // Check if it's an API key error
+      if (error instanceof Error && error.message.includes('API key')) {
+        errorContent = `⚠️ **Configuration Required**
+
+The OpenAI API key is not configured. To use the configuration assistant:
+
+1. Add your OpenAI API key to your environment variables:
+   \`OPENAI_API_KEY=your_openai_api_key\`
+
+2. Restart your development server
+
+You can get an API key from: https://platform.openai.com/api-keys
+
+For now, you can still manually configure your voice agent using the tabs above.`;
+      }
+      
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `Sorry, there was an error processing your request: ${error instanceof Error ? error.message : 'Unknown error'}. Please check the console for more details.`,
+        content: errorContent,
         timestamp: new Date(),
         isError: true
       };
@@ -1129,19 +1436,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       console.log('   • hasToken:', !!connectionDetailsData.participantToken);
       console.log('   • tokenLength:', connectionDetailsData.participantToken?.length || 0);
 
-      // Connect to room
-      console.log('🔌 Connecting to LiveKit room...');
-      console.log('   • Room state before connect:', room.state);
-      
-      await room.connect(connectionDetailsData.serverUrl, connectionDetailsData.participantToken);
-      
-      console.log('✅ Connected to room successfully');
-      console.log('   • Room state after connect:', room.state);
-      console.log('   • Room participants:', room.remoteParticipants.size);
-      console.log('   • Local participant:', room.localParticipant.identity);
-      
-      // Set participant metadata with project ID and model configurations
-      const roomMetadata = {
+      // Create explicit agent dispatch for this room
+      console.log('🤖 Creating explicit agent dispatch...');
+      const agentMetadata = {
         projectId: projectToUse.id,
         configurationId: currentConfigurationId,
         agentConfig: {
@@ -1173,11 +1470,10 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
           // Additional configurations
           firstMessageMode: projectConfig.firstMessageMode,
           responseLatencyPriority: projectConfig.responseLatencyPriority
-        },
-        timestamp: new Date().toISOString()
+        }
       };
-      
-      console.log('📋 Setting participant metadata:');
+
+      console.log('📋 Agent dispatch metadata:');
       console.log('   • Project ID:', projectToUse.id);
       console.log('   • Configuration ID:', currentConfigurationId);
       console.log('   • System Prompt Source:', projectConfig.systemPrompt ? 'AI-generated' : 'User input');
@@ -1185,14 +1481,72 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       console.log('   • LLM Provider/Model:', `${projectConfig.llmProvider}/${projectConfig.llmModel}`);
       console.log('   • STT Provider/Language:', `${projectConfig.sttProvider}/${projectConfig.sttLanguage}`);
       console.log('   • TTS Provider/Voice:', `${projectConfig.ttsProvider}/${projectConfig.ttsVoice}`);
-      console.log('   • Metadata size:', JSON.stringify(roomMetadata).length, 'bytes');
       
-        await room.localParticipant.setMetadata(JSON.stringify(roomMetadata));
-      console.log('✅ Metadata set successfully');
+      try {
+        const dispatchResponse = await fetch('/api/agent-dispatch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            roomName: connectionDetailsData.roomName,
+            agentName: 'voice-agent',
+            projectId: projectToUse.id,
+            metadata: agentMetadata
+          }),
+        });
+
+        if (!dispatchResponse.ok) {
+          const dispatchError = await dispatchResponse.json();
+          throw new Error(`Failed to create agent dispatch: ${dispatchError.error || 'Unknown error'}`);
+        }
+
+        const dispatchResult = await dispatchResponse.json();
+        console.log('✅ Agent dispatch created successfully:', dispatchResult);
+      } catch (dispatchError) {
+        console.error('❌ Failed to create agent dispatch:', dispatchError);
+        // Don't throw here - we can still try to connect and the agent might pick up from room metadata
+        console.log('⚠️ Continuing with room connection anyway...');
+      }
+
+      // Connect to room
+      console.log('🔌 Connecting to LiveKit room...');
+      console.log('   • Room state before connect:', room.state);
+      console.log('   • Server URL:', connectionDetailsData.serverUrl);
+      console.log('   • Token length:', connectionDetailsData.participantToken?.length);
+      console.log('   • Room name:', connectionDetailsData.roomName);
+      
+      try {
+        await room.connect(connectionDetailsData.serverUrl, connectionDetailsData.participantToken);
+        console.log('✅ Connected to room successfully');
+        console.log('   • Room state after connect:', room.state);
+        console.log('   • Room participants:', room.remoteParticipants.size);
+        console.log('   • Local participant:', room.localParticipant.identity);
+        console.log('   • Room name:', room.name);
+      } catch (connectionError) {
+        console.error('❌ LiveKit room connection failed:', connectionError);
+        throw new Error(`Failed to connect to LiveKit room: ${connectionError instanceof Error ? connectionError.message : 'Unknown connection error'}`);
+      }
       
       console.log('🎤 Enabling microphone...');
-      await room.localParticipant.setMicrophoneEnabled(true);
-      console.log('✅ Microphone enabled');
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        console.log('✅ Microphone enabled');
+        console.log('   • Audio tracks count:', Array.from(room.localParticipant.audioTrackPublications.values()).length);
+      } catch (micError) {
+        console.error('❌ Failed to enable microphone:', micError);
+        // Show user-friendly error
+        const notification = document.createElement('div');
+        notification.textContent = 'Failed to access microphone. Please check permissions and try again.';
+        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 5000);
+        console.log('⚠️ Continuing without microphone...');
+      }
       
       console.log('🎉 Voice conversation setup complete!');
       console.log('   • Project ID:', projectToUse.id);
@@ -1278,7 +1632,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                 {isConnecting ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
-                    Connecting...
+                    Creating Agent Session...
                   </>
                 ) : (
                   'Start Conversation'
@@ -1448,7 +1802,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         <div className="w-1/4 bg-gradient-to-b from-gray-800/90 to-gray-900/90 backdrop-blur-sm border-r border-gray-700/50 flex flex-col">
           {/* Header with logo */}
           <div className="p-3 border-b border-gray-700/30 bg-gray-800/50">
-            <div className="flex items-center">
+            <div className="flex items-center justify-between">
               <button
                 onClick={onBackToHome}
                 className="hover:opacity-80 transition-opacity cursor-pointer"
@@ -1460,6 +1814,10 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                   className="w-10 h-10"
                 />
               </button>
+              <div className="flex items-center space-x-2 text-xs text-gray-400">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span>Configuration Assistant</span>
+              </div>
             </div>
           </div>
 
@@ -1663,18 +2021,24 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                             <span>Saving...</span>
                           </>
                         ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                            <span>Save Configuration</span>
-                          </>
+                          <span>Save</span>
                         )}
                       </button>
 
-                      <button className="px-4 py-1.5 bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white text-sm font-medium rounded-lg transition-all duration-200">
-                Publish
-              </button>
+                      <button 
+                        onClick={handlePublish}
+                        disabled={isPublishing}
+                        className="px-4 py-1.5 bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 disabled:from-orange-300 disabled:to-orange-400 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center space-x-2"
+                      >
+                        {isPublishing ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                            <span>Publishing...</span>
+                          </>
+                        ) : (
+                          <span>Publish</span>
+                        )}
+                      </button>
                       </div>
                   </div>
 
@@ -2211,45 +2575,30 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                         Configure phone numbers for your voice agent to handle inbound and outbound calls.
                       </p>
                       
-                      {/* Current Phone Number */}
+                      {/* Phone Number Manager */}
                       <div className="bg-gray-700 rounded-lg p-4">
-                        <h4 className="text-lg font-medium text-white mb-3">Current Phone Number</h4>
-                        {assignedPhoneNumber ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                              </div>
-                              <div>
-                                <p className="text-white font-medium">{assignedPhoneNumber}</p>
-                                <p className="text-gray-400 text-sm">Active • Ready for calls</p>
-                              </div>
-                            </div>
-                            <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors">
-                              Release Number
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                              </svg>
-                            </div>
-                            <p className="text-gray-400 mb-4">No phone number assigned</p>
-                            <button
-                              onClick={() => {
-                                setShowTelephonyModal(true);
-                                fetchAvailableNumbers();
-                              }}
-                              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-                            >
-                              Get Phone Number
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center justify-between mb-4">
+                          <button
+                            onClick={() => setShowTelnyxNumbersModal(true)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span>Purchase Number</span>
+                          </button>
+                        </div>
+                        
+                        <PhoneNumberManager
+                          key={phoneNumberRefreshKey}
+                          projectId={project?.id || currentProject?.id}
+                          onPhoneNumberAssigned={(phoneNumber, phoneNumberId) => {
+                            setAssignedPhoneNumber(phoneNumber);
+                            setAssignedPhoneNumberId(phoneNumberId);
+                            // Update project config with the assigned phone number
+                            setProjectConfig(prev => ({ ...prev, phoneNumber }));
+                          }}
+                        />
                       </div>
                       
                       {/* Phone Number Settings */}
@@ -2271,9 +2620,10 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                             <div>
                               <p className="text-white font-medium">Outbound Calls</p>
                               <p className="text-gray-400 text-sm">Allow agent to make outgoing calls</p>
+                              <p className="text-gray-500 text-xs mt-1">Coming Soon</p>
                       </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" className="sr-only peer" />
+                            <label className="relative inline-flex items-center cursor-pointer opacity-50 cursor-not-allowed">
+                              <input type="checkbox" className="sr-only peer" disabled />
                               <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                             </label>
                         </div>
@@ -2291,55 +2641,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
                         </div>
                         </div>
                         
-                      {/* Call Analytics */}
-                        <div className="bg-gray-700 rounded-lg p-4">
-                        <h4 className="text-lg font-medium text-white mb-4">Call Analytics</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-white">0</p>
-                            <p className="text-gray-400 text-sm">Total Calls</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-white">0m</p>
-                            <p className="text-gray-400 text-sm">Total Duration</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-white">$0.00</p>
-                            <p className="text-gray-400 text-sm">Total Cost</p>
-                        </div>
-                      </div>
-                    </div>
 
-                      {/* Webhook Configuration */}
-                      <div className="bg-gray-700 rounded-lg p-4">
-                        <h4 className="text-lg font-medium text-white mb-4">Webhook Configuration</h4>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                              Webhook URL
-                            </label>
-                            <input
-                              type="url"
-                              placeholder="https://your-domain.com/webhook"
-                              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <p className="text-gray-400 text-xs mt-1">
-                              Receive call events and transcriptions at this URL
-                            </p>
-                    </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-medium">Enable Webhooks</p>
-                              <p className="text-gray-400 text-sm">Send call events to your webhook URL</p>
-                  </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" className="sr-only peer" />
-                              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                </div>
-              </div>
-                    </div>
+
+
                         </div>
                         </div>
                 </div>
@@ -2378,6 +2682,19 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
           </div>
         </div>
       </div>
+
+      {/* Telnyx Numbers Modal */}
+      <TelnyxNumbersModal
+        isOpen={showTelnyxNumbersModal}
+        onClose={() => setShowTelnyxNumbersModal(false)}
+        onSelectNumber={(phoneNumber) => {
+          // Trigger a refresh of the phone number list
+          setPhoneNumberRefreshKey(prev => prev + 1);
+          setShowTelnyxNumbersModal(false);
+        }}
+        userId={user?.id}
+        projectId={project?.id || currentProject?.id}
+      />
     </RoomContext.Provider>
   );
 } 

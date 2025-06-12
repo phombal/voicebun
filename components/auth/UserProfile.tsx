@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { User, LogOut, Settings, ChevronDown } from 'lucide-react'
 
 export default function UserProfile() {
-  const { user, userProfile, signOut } = useAuth()
+  const { user, signOut } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -28,10 +28,10 @@ export default function UserProfile() {
 
   if (!user) return null
 
-  const displayName = userProfile?.full_name || user.email?.split('@')[0] || 'User'
+  const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
   const initials = displayName
     .split(' ')
-    .map(name => name[0])
+    .map((name: string) => name[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
@@ -43,9 +43,9 @@ export default function UserProfile() {
         className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 rounded-lg px-3 py-2 transition-colors"
       >
         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-          {userProfile?.avatar_url ? (
+          {user.user_metadata?.avatar_url ? (
             <Image 
-              src={userProfile.avatar_url} 
+              src={user.user_metadata.avatar_url} 
               alt={displayName}
               width={32}
               height={32}

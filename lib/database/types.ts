@@ -12,6 +12,11 @@ export interface Database {
         Insert: Omit<ProjectData, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<ProjectData, 'id' | 'created_at'>>;
       };
+      phone_numbers: {
+        Row: PhoneNumber;
+        Insert: Omit<PhoneNumber, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<PhoneNumber, 'id' | 'created_at'>>;
+      };
     };
     Views: {
       // No views currently
@@ -180,6 +185,21 @@ export interface ProjectCollaborator {
   invited_by: string | null;
   invited_at: string;
   accepted_at: string | null;
+}
+
+export interface PhoneNumber {
+  id: string;
+  phone_number: string;
+  user_id: string;
+  project_id: string | null; // Allow null for unassigned numbers
+  telnyx_order_id: string | null;
+  telnyx_phone_number_id: string | null;
+  dispatch_rule_id: string | null; // LiveKit SIP dispatch rule ID
+  status: string;
+  is_active: boolean;
+  voice_agent_enabled: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 // View types
