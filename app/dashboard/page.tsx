@@ -553,3 +553,12 @@ if __name__ == "__main__":
     </motion.div>
   );
 } 
+
+// Main page component that wraps DashboardContent with Suspense
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<LoadingPage />}>
+      <DashboardContent />
+    </Suspense>
+  );
+} 

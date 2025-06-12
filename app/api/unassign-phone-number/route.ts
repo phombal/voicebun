@@ -109,11 +109,60 @@ export async function POST(request: NextRequest) {
       console.log('📋 Listing existing dispatch rules...');
       const dispatchRules = await sipClient.listSipDispatchRule();
       
-      // Find dispatch rules that reference this phone number
-      const targetDispatchRules = dispatchRules.filter((rule: any) => 
-        (rule.name && rule.name.includes(phoneNumber.phone_number)) ||
-        (rule.attributes && rule.attributes['phone_number'] === phoneNumber.phone_number)
-      );
+      // Find dispatch rules using multiple methods:
+      // 1. Check if we have a stored dispatch rule ID and it exists
+      // 2. Search by name containing the phone number
+      // 3. Search by metadata containing the phone number
+      const targetDispatchRules: any[] = [];
+      
+      // Method 1: Check stored dispatch rule ID
+      if (phoneNumber.dispatch_rule_id) {
+        console.log(`🔍 Checking stored dispatch rule ID: ${phoneNumber.dispatch_rule_id}`);
+        const storedRule = dispatchRules.find((rule: any) => 
+          rule.sipDispatchRuleId === phoneNumber.dispatch_rule_id
+        );
+        
+        if (storedRule) {
+          console.log('✅ Found dispatch rule using stored ID');
+          targetDispatchRules.push(storedRule);
+        } else {
+          console.log('⚠️ Stored dispatch rule ID not found, searching by other methods...');
+        }
+      }
+      
+      // Method 2 & 3: Search by name, attributes, and metadata
+      const additionalRules = dispatchRules.filter((rule: any) => {
+        // Skip if already found by stored ID
+        if (targetDispatchRules.some(existingRule => existingRule.sipDispatchRuleId === rule.sipDispatchRuleId)) {
+          return false;
+        }
+        
+        // Check name
+        if (rule.name && rule.name.includes(phoneNumber.phone_number)) {
+          return true;
+        }
+        
+        // Check attributes
+        if (rule.attributes && rule.attributes['phone_number'] === phoneNumber.phone_number) {
+          return true;
+        }
+        
+        // Check metadata
+        if (rule.metadata) {
+          try {
+            const metadata = JSON.parse(rule.metadata);
+            if (metadata.phoneNumber === phoneNumber.phone_number) {
+              return true;
+            }
+          } catch (e) {
+            // Ignore JSON parse errors
+          }
+        }
+        
+        return false;
+      });
+      
+      targetDispatchRules.push(...additionalRules);
       
       console.log(`📋 Found ${targetDispatchRules.length} dispatch rule(s) for ${phoneNumber.phone_number}`);
       
