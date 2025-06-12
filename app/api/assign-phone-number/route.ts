@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/service';
+import { SipClient } from 'livekit-server-sdk';
+import { RoomAgentDispatch, RoomConfiguration } from '@livekit/protocol';
+import type { SipDispatchRuleIndividual } from 'livekit-server-sdk';
 
 const TELNYX_API_KEY = 'KEY01976106909F3A83248E3224B59F5E7A_Rgqv8pzX6B1hHUlVRdZdjp';
 
@@ -173,7 +176,7 @@ export async function POST(request: NextRequest) {
     try {
       // First, ensure we have the latest project configuration from Supabase
       console.log('📊 Retrieving latest project configuration from database...');
-      const latestProjectData = await db.getProjectData(body.projectId);
+      const latestProjectData = await db.getProjectDataWithServiceRole(body.projectId);
       console.log('✅ Latest project data retrieved:', latestProjectData ? 'found' : 'not found');
       
       if (latestProjectData) {
@@ -189,25 +192,136 @@ export async function POST(request: NextRequest) {
         });
       }
       
-      // Call our LiveKit trunk setup API which will use the latest config
-      const trunkSetupResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/setup-livekit-trunk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phoneNumberId: body.phoneNumberId,
-          phoneNumber: phoneNumber.phone_number,
-          projectId: body.projectId
-        })
-      });
+      // Initialize LiveKit SIP client directly
+      const sipClient = new SipClient(
+        process.env.LIVEKIT_URL!,
+        process.env.LIVEKIT_API_KEY!,
+        process.env.LIVEKIT_API_SECRET!
+      );
 
-      if (trunkSetupResponse.ok) {
-        const trunkSetupData = await trunkSetupResponse.json();
-        console.log('✅ LiveKit trunk setup completed with latest configuration:', trunkSetupData.method);
-      } else {
-        const errorText = await trunkSetupResponse.text();
-        console.log('⚠️ LiveKit trunk setup failed:', errorText);
+      // Setup inbound trunk and dispatch rule directly
+      let trunkId: string | null = null;
+      let dispatchRuleId: string | null = null;
+
+      // Step 6a: Create or find inbound trunk
+      try {
+        console.log('📞 Setting up LiveKit inbound trunk...');
+        
+        // Check if trunk already exists for this phone number
+        const existingTrunks = await sipClient.listSipInboundTrunk();
+        const existingTrunk = existingTrunks.find(trunk => 
+          trunk.numbers && trunk.numbers.includes(phoneNumber.phone_number)
+        );
+
+        if (existingTrunk) {
+          console.log('✅ Found existing inbound trunk:', existingTrunk.sipTrunkId);
+          trunkId = existingTrunk.sipTrunkId;
+        } else {
+          // Create new inbound trunk
+          const newTrunk = await sipClient.createSipInboundTrunk(
+            `Inbound trunk for ${phoneNumber.phone_number}`,
+            [phoneNumber.phone_number],
+            {
+              krispEnabled: false
+            }
+          );
+          trunkId = newTrunk.sipTrunkId;
+          console.log('✅ LiveKit inbound trunk created successfully:', trunkId);
+        }
+      } catch (trunkError: any) {
+        console.error('❌ Failed to create/find inbound trunk:', trunkError);
+        throw new Error(`Inbound trunk setup failed: ${trunkError.message}`);
+      }
+
+      // Step 6b: Create dispatch rule with latest project configuration
+      if (trunkId) {
+        try {
+          console.log('🎯 Creating dispatch rule for phone number...');
+          
+          // Create metadata with latest project configuration
+          const roomMetadata = {
+            projectId: body.projectId,
+            agentConfig: {
+              prompt: latestProjectData?.system_prompt || 'You are a helpful voice assistant.'
+            },
+            modelConfigurations: {
+              // LLM Configuration
+              llm: {
+                provider: latestProjectData?.llm_provider || 'openai',
+                model: latestProjectData?.llm_model || 'gpt-4o-mini',
+                temperature: latestProjectData?.llm_temperature || 0.7,
+                maxResponseLength: latestProjectData?.llm_max_response_length || 300
+              },
+              // STT Configuration
+              stt: {
+                provider: latestProjectData?.stt_provider || 'deepgram',
+                language: latestProjectData?.stt_language || 'en',
+                quality: latestProjectData?.stt_quality || 'enhanced',
+                processingMode: latestProjectData?.stt_processing_mode || 'streaming',
+                noiseSuppression: latestProjectData?.stt_noise_suppression ?? true,
+                autoPunctuation: latestProjectData?.stt_auto_punctuation ?? true
+              },
+              // TTS Configuration
+              tts: {
+                provider: latestProjectData?.tts_provider || 'cartesia',
+                voice: latestProjectData?.tts_voice || 'neutral'
+              },
+              // Additional configurations
+              firstMessageMode: latestProjectData?.first_message_mode || 'wait',
+              responseLatencyPriority: latestProjectData?.response_latency_priority || 'balanced'
+            },
+            phoneNumber: phoneNumber.phone_number,
+            timestamp: new Date().toISOString()
+          };
+
+          console.log('📋 Room metadata to be set:', JSON.stringify(roomMetadata, null, 2));
+
+          // Check for existing dispatch rule
+          const existingRules = await sipClient.listSipDispatchRule();
+          const existingRule = existingRules.find((rule: any) => 
+            (rule.name && rule.name.includes(phoneNumber.phone_number)) ||
+            (rule.metadata && JSON.parse(rule.metadata || '{}').phoneNumber === phoneNumber.phone_number)
+          );
+
+          if (existingRule) {
+            console.log(`📋 Dispatch rule already exists: ${existingRule.sipDispatchRuleId}`);
+            dispatchRuleId = existingRule.sipDispatchRuleId;
+          } else {
+            // Create new dispatch rule
+            const rule: SipDispatchRuleIndividual = {
+              roomPrefix: "call-",
+              type: 'individual',
+            };
+
+            const newDispatchRule = await sipClient.createSipDispatchRule(
+              rule,
+              {
+                name: `Dispatch rule for ${phoneNumber.phone_number}`,
+                roomConfig: new RoomConfiguration({
+                  agents: [
+                    new RoomAgentDispatch({
+                      agentName: "voice-agent",
+                      metadata: JSON.stringify(roomMetadata)
+                    }),]
+                }),
+                trunkIds: [trunkId],
+                metadata: JSON.stringify(roomMetadata)
+              }
+            );
+            dispatchRuleId = newDispatchRule.sipDispatchRuleId;
+            console.log('✅ LiveKit dispatch rule created successfully:', dispatchRuleId);
+          }
+
+          // Update phone number with dispatch rule ID
+          if (dispatchRuleId) {
+            await db.updatePhoneNumberDispatchRuleWithServiceRole(body.phoneNumberId, dispatchRuleId);
+            console.log('✅ Updated phone number with dispatch rule ID');
+          }
+
+        } catch (dispatchError: any) {
+          console.error('❌ Failed to create dispatch rule:', dispatchError);
+          // Continue with success even if dispatch rule fails
+        }
       }
       
     } catch (liveKitError) {
