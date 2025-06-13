@@ -86,12 +86,18 @@ export async function POST(request: NextRequest) {
           try {
             // Get the subscription details
             const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+            
+            // Get the current period dates from the subscription items
+            const subscriptionItem = subscription.items.data[0];
+            const currentPeriodStart = subscriptionItem?.current_period_start;
+            const currentPeriodEnd = subscriptionItem?.current_period_end;
+            
             console.log('📈 Retrieved subscription raw data:', {
               id: subscription.id,
               status: subscription.status,
-              current_period_start_raw: (subscription as any).current_period_start,
-              current_period_end_raw: (subscription as any).current_period_end,
-              cancel_at_period_end_raw: (subscription as any).cancel_at_period_end,
+              current_period_start_raw: currentPeriodStart,
+              current_period_end_raw: currentPeriodEnd,
+              cancel_at_period_end_raw: subscription.cancel_at_period_end,
               metadata: subscription.metadata
             });
             
@@ -107,8 +113,8 @@ export async function POST(request: NextRequest) {
             
             if (userId) {
               // Convert timestamps with detailed logging
-              const currentPeriodStart = timestampToISO((subscription as any).current_period_start, 'current_period_start');
-              const currentPeriodEnd = timestampToISO((subscription as any).current_period_end, 'current_period_end');
+              const currentPeriodStartISO = timestampToISO(currentPeriodStart, 'current_period_start');
+              const currentPeriodEndISO = timestampToISO(currentPeriodEnd, 'current_period_end');
               
               // Update or create user plan
               const planData = {
@@ -117,9 +123,9 @@ export async function POST(request: NextRequest) {
                 stripe_customer_id: session.customer as string,
                 stripe_subscription_id: session.subscription as string,
                 stripe_price_id: subscription.items.data[0]?.price.id || null,
-                current_period_start: currentPeriodStart,
-                current_period_end: currentPeriodEnd,
-                cancel_at_period_end: (subscription as any).cancel_at_period_end || false,
+                current_period_start: currentPeriodStartISO,
+                current_period_end: currentPeriodEndISO,
+                cancel_at_period_end: subscription.cancel_at_period_end || false,
                 conversation_minutes_used: 0,
                 conversation_minutes_limit: 400, // Professional plan limit
               };
@@ -162,11 +168,17 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         console.log('🔄 Subscription updated:', subscription.id);
+        
+        // Get the current period dates from the subscription items
+        const subscriptionItem = subscription.items.data[0];
+        const currentPeriodStart = subscriptionItem?.current_period_start;
+        const currentPeriodEnd = subscriptionItem?.current_period_end;
+        
         console.log('📊 Subscription update raw data:', {
           status: subscription.status,
-          current_period_start_raw: (subscription as any).current_period_start,
-          current_period_end_raw: (subscription as any).current_period_end,
-          cancel_at_period_end_raw: (subscription as any).cancel_at_period_end,
+          current_period_start_raw: currentPeriodStart,
+          current_period_end_raw: currentPeriodEnd,
+          cancel_at_period_end_raw: subscription.cancel_at_period_end,
           metadata: subscription.metadata
         });
         
@@ -180,20 +192,40 @@ export async function POST(request: NextRequest) {
           
           if (userPlan) {
             // Convert timestamps with detailed logging
-            const currentPeriodStart = timestampToISO((subscription as any).current_period_start, 'current_period_start');
-            const currentPeriodEnd = timestampToISO((subscription as any).current_period_end, 'current_period_end');
+            const currentPeriodStartISO = timestampToISO(currentPeriodStart, 'current_period_start');
+            const currentPeriodEndISO = timestampToISO(currentPeriodEnd, 'current_period_end');
 
-            const updates = {
-              subscription_status: (subscription as any).status as any,
-              current_period_start: currentPeriodStart,
-              current_period_end: currentPeriodEnd,
-              cancel_at_period_end: (subscription as any).cancel_at_period_end || false,
-            };
-            
-            console.log('📝 Update data:', JSON.stringify(updates, null, 2));
-            
-            await db.updateUserPlanWithServiceRole(userPlan.user_id, updates);
-            console.log('✅ Updated subscription for user:', userPlan.user_id);
+            // Check if subscription has actually ended (status is 'canceled' and period has ended)
+            if (subscription.status === 'canceled') {
+              console.log('🔄 Subscription has ended, downgrading to free plan');
+              const updates = {
+                plan_name: 'free' as const,
+                subscription_status: 'inactive' as const,
+                stripe_subscription_id: null,
+                stripe_price_id: null,
+                current_period_start: null,
+                current_period_end: null,
+                cancel_at_period_end: false,
+                conversation_minutes_limit: 5, // Free plan limit
+                conversation_minutes_used: Math.min(userPlan.conversation_minutes_used, 5), // Cap at free limit
+              };
+              
+              await db.updateUserPlanWithServiceRole(userPlan.user_id, updates);
+              console.log('✅ Downgraded user to free plan:', userPlan.user_id);
+            } else {
+              // Regular subscription update (still active but may be scheduled for cancellation)
+              const updates = {
+                subscription_status: subscription.status as any,
+                current_period_start: currentPeriodStartISO,
+                current_period_end: currentPeriodEndISO,
+                cancel_at_period_end: subscription.cancel_at_period_end || false,
+              };
+              
+              console.log('📝 Update data:', JSON.stringify(updates, null, 2));
+              
+              await db.updateUserPlanWithServiceRole(userPlan.user_id, updates);
+              console.log('✅ Updated subscription for user:', userPlan.user_id);
+            }
           } else {
             console.error('❌ No user plan found for user:', userId);
           }

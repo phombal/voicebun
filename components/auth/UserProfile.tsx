@@ -3,13 +3,18 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
+import { useDatabase } from '@/hooks/useDatabase'
+import { UserPlan } from '@/lib/database/types'
 import { User, LogOut, Settings, ChevronDown, CreditCard } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 export default function UserProfile() {
   const { user, signOut } = useAuth()
+  const { getUserPlan } = useDatabase()
   const [isOpen, setIsOpen] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
+  const [userPlan, setUserPlan] = useState<UserPlan | null>(null)
+  const [planLoading, setPlanLoading] = useState(true)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -23,6 +28,24 @@ export default function UserProfile() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    loadUserPlan()
+  }, [user])
+
+  const loadUserPlan = async () => {
+    if (!user) return
+    
+    try {
+      setPlanLoading(true)
+      const plan = await getUserPlan()
+      setUserPlan(plan)
+    } catch (err: any) {
+      console.error('Error loading user plan in UserProfile:', err)
+    } finally {
+      setPlanLoading(false)
+    }
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -76,6 +99,9 @@ export default function UserProfile() {
     .toUpperCase()
     .slice(0, 2)
 
+  // Check if user should see upgrade option (only for free plan users)
+  const shouldShowUpgrade = !planLoading && userPlan?.plan_name === 'free'
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -120,14 +146,17 @@ export default function UserProfile() {
               Profile Settings
             </button>
             
-            <button
-              onClick={handleUpgrade}
-              disabled={upgrading}
-              className="w-full flex items-center px-4 py-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <CreditCard className="w-4 h-4 mr-3" />
-              {upgrading ? 'Processing...' : 'Upgrade Plan'}
-            </button>
+            {/* Only show upgrade button for free plan users */}
+            {shouldShowUpgrade && (
+              <button
+                onClick={handleUpgrade}
+                disabled={upgrading}
+                className="w-full flex items-center px-4 py-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CreditCard className="w-4 h-4 mr-3" />
+                {upgrading ? 'Processing...' : 'Upgrade Plan'}
+              </button>
+            )}
           </div>
           
           <div className="border-t border-gray-200 pt-2">

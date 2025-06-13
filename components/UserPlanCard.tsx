@@ -10,6 +10,8 @@ export default function UserPlanCard() {
   const [userPlan, setUserPlan] = useState<UserPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { getUserPlan } = useDatabase();
   const { user } = useAuth();
@@ -23,6 +25,9 @@ export default function UserPlanCard() {
     try {
       setLoading(true);
       const plan = await getUserPlan();
+      console.log('🔍 Loaded user plan:', plan);
+      console.log('📋 Plan name:', plan?.plan_name);
+      console.log('📊 Plan status:', plan?.subscription_status);
       setUserPlan(plan);
     } catch (err: any) {
       console.error('Error loading user plan:', err);
@@ -65,6 +70,80 @@ export default function UserPlanCard() {
       alert('Failed to start upgrade process. Please try again.');
     } finally {
       setUpgrading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!user || !userPlan) return;
+
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel your subscription? You\'ll continue to have access until the end of your current billing period.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setCanceling(true);
+
+      const response = await fetch('/api/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription');
+      }
+
+      // Refresh the user plan data
+      await loadUserPlan();
+      
+      alert('Your subscription has been scheduled for cancellation at the end of your current billing period.');
+    } catch (error) {
+      console.error('Error canceling subscription:', error);
+      alert('Failed to cancel subscription. Please try again.');
+    } finally {
+      setCanceling(false);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    if (!user || !userPlan) return;
+
+    try {
+      setReactivating(true);
+
+      const response = await fetch('/api/reactivate-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reactivate subscription');
+      }
+
+      // Refresh the user plan data
+      await loadUserPlan();
+      
+      alert('Your subscription has been reactivated!');
+    } catch (error) {
+      console.error('Error reactivating subscription:', error);
+      alert('Failed to reactivate subscription. Please try again.');
+    } finally {
+      setReactivating(false);
     }
   };
 
@@ -160,15 +239,47 @@ export default function UserPlanCard() {
             {getPlanDisplayName(userPlan.plan_name)} Plan
           </h3>
         </div>
-        {userPlan.plan_name === 'free' && (
+        <div className="flex items-center space-x-2">
+          {/* Debug refresh button */}
           <button
-            onClick={handleUpgrade}
-            disabled={upgrading}
-            className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={loadUserPlan}
+            className="px-2 py-1 bg-gray-500/20 text-gray-300 text-xs rounded hover:bg-gray-500/30 transition-colors"
+            title="Refresh plan data"
           >
-            {upgrading ? 'Processing...' : 'Upgrade'}
+            🔄
           </button>
-        )}
+          
+          {/* Action buttons based on plan status */}
+          {userPlan.plan_name === 'free' ? (
+            <button
+              onClick={handleUpgrade}
+              disabled={upgrading}
+              className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {upgrading ? 'Processing...' : 'Upgrade'}
+            </button>
+          ) : userPlan.subscription_status === 'active' ? (
+            <>
+              {userPlan.cancel_at_period_end ? (
+                <button
+                  onClick={handleReactivateSubscription}
+                  disabled={reactivating}
+                  className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {reactivating ? 'Processing...' : 'Reactivate'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleCancelSubscription}
+                  disabled={canceling}
+                  className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {canceling ? 'Processing...' : 'Cancel'}
+                </button>
+              )}
+            </>
+          ) : null}
+        </div>
       </div>
 
       {/* Usage Statistics */}
@@ -195,22 +306,31 @@ export default function UserPlanCard() {
       {/* Subscription Status */}
       <div className="flex items-center justify-between text-sm">
         <span className="text-white/70">Status</span>
-        <span className={`capitalize ${
-          userPlan.subscription_status === 'active' 
-            ? 'text-green-400' 
-            : userPlan.subscription_status === 'past_due'
-            ? 'text-yellow-400'
-            : 'text-white/70'
-        }`}>
-          {userPlan.subscription_status}
-        </span>
+        <div className="text-right">
+          <span className={`capitalize ${
+            userPlan.subscription_status === 'active' 
+              ? 'text-green-400' 
+              : userPlan.subscription_status === 'past_due'
+              ? 'text-yellow-400'
+              : 'text-white/70'
+          }`}>
+            {userPlan.subscription_status}
+          </span>
+          {userPlan.cancel_at_period_end && (
+            <div className="text-xs text-orange-400 mt-1">
+              Cancels at period end
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Next Billing Date */}
+      {/* Next Billing Date or Cancellation Date */}
       {userPlan.current_period_end && userPlan.subscription_status === 'active' && (
         <div className="flex items-center justify-between text-sm mt-2">
-          <span className="text-white/70">Next Billing</span>
           <span className="text-white/70">
+            {userPlan.cancel_at_period_end ? 'Access Until' : 'Next Billing'}
+          </span>
+          <span className={`${userPlan.cancel_at_period_end ? 'text-orange-400' : 'text-white/70'}`}>
             {new Date(userPlan.current_period_end).toLocaleDateString()}
           </span>
         </div>
