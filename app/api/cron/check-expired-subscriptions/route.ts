@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseServiceRole } from '@/lib/database/auth'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 })
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +17,7 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Starting expired subscription check...')
 
     // Get all active subscriptions that are scheduled for cancellation
-    const { data: expiredPlans, error } = await supabase
+    const { data: expiredPlans, error } = await supabaseServiceRole
       .from('user_plans')
       .select('*')
       .eq('subscription_status', 'active')
@@ -64,7 +59,7 @@ export async function GET(request: NextRequest) {
           }
 
           // Downgrade to free plan
-          const { error: updateError } = await supabase
+          const { error: updateError } = await supabaseServiceRole
             .from('user_plans')
             .update({
               plan_name: 'free',

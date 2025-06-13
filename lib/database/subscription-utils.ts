@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import 'server-only'
+import { supabaseServiceRole } from './auth'
 import Stripe from 'stripe'
 import { UserPlan } from './types'
 
@@ -6,19 +7,15 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 })
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 /**
  * Check if a user's subscription has expired and downgrade if necessary
  * This is called when users access the application as a safety check
+ * SERVER-SIDE ONLY - Do not import this on the client
  */
 export async function checkAndUpdateExpiredSubscription(userId: string): Promise<UserPlan | null> {
   try {
     // Get user's current plan
-    const { data: userPlan, error } = await supabase
+    const { data: userPlan, error } = await supabaseServiceRole
       .from('user_plans')
       .select('*')
       .eq('user_id', userId)
@@ -61,7 +58,7 @@ export async function checkAndUpdateExpiredSubscription(userId: string): Promise
 
         if (shouldDowngrade) {
           // Downgrade to free plan
-          const { data: updatedPlan, error: updateError } = await supabase
+          const { data: updatedPlan, error: updateError } = await supabaseServiceRole
             .from('user_plans')
             .update({
               plan_name: 'free',
@@ -100,10 +97,11 @@ export async function checkAndUpdateExpiredSubscription(userId: string): Promise
 /**
  * Sync user plan with Stripe subscription status
  * Useful for ensuring data consistency
+ * SERVER-SIDE ONLY - Do not import this on the client
  */
 export async function syncUserPlanWithStripe(userId: string): Promise<UserPlan | null> {
   try {
-    const { data: userPlan, error } = await supabase
+    const { data: userPlan, error } = await supabaseServiceRole
       .from('user_plans')
       .select('*')
       .eq('user_id', userId)
@@ -143,7 +141,7 @@ export async function syncUserPlanWithStripe(userId: string): Promise<UserPlan |
         updates.current_period_end = new Date(currentPeriodEnd * 1000).toISOString()
       }
 
-      const { data: updatedPlan, error: updateError } = await supabase
+      const { data: updatedPlan, error: updateError } = await supabaseServiceRole
         .from('user_plans')
         .update(updates)
         .eq('user_id', userId)

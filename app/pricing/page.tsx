@@ -1,195 +1,232 @@
 'use client';
 
-import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/database/auth';
+import { Check, Zap, Crown, Building } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+interface PricingPlan {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  interval: string;
+  features: string[];
+  popular?: boolean;
+  stripePriceId: string;
+}
+
+const plans: PricingPlan[] = [
+  {
+    id: 'free',
+    name: 'Free',
+    description: 'Perfect for trying out our voice agent platform',
+    price: 0,
+    interval: 'month',
+    features: [
+      '5 conversation minutes per month',
+      '1 voice agent project',
+      'Basic voice customization',
+      'Email support',
+      'Community access'
+    ],
+    stripePriceId: '',
+  },
+  {
+    id: 'professional',
+    name: 'Professional',
+    description: 'Ideal for businesses and power users',
+    price: 29,
+    interval: 'month',
+    features: [
+      '400 conversation minutes per month',
+      'Unlimited voice agent projects',
+      'Advanced voice customization',
+      'Priority email support',
+      'Analytics dashboard',
+      'Custom integrations',
+      'Phone number provisioning'
+    ],
+    popular: true,
+    stripePriceId: 'price_1QdVJhRuWKCS4zq4oGJvhzpF',
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    description: 'For large organizations with custom needs',
+    price: 99,
+    interval: 'month',
+    features: [
+      'Unlimited conversation minutes',
+      'Unlimited voice agent projects',
+      'White-label solution',
+      'Dedicated account manager',
+      '24/7 phone support',
+      'Custom integrations',
+      'SLA guarantee',
+      'On-premise deployment option'
+    ],
+    stripePriceId: 'price_enterprise_monthly',
+  },
+];
 
 export default function PricingPage() {
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
 
-  const handleUpgrade = async () => {
-    try {
-      setLoading(true);
-      
-      // Check if user is authenticated
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        // Redirect to sign in if not authenticated
-        router.push('/auth');
-        return;
-      }
-
-      // If user is already authenticated, redirect to dashboard
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
+  useEffect(() => {
+    // Get initial user
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
       setLoading(false);
+    };
+
+    getUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSubscribe = async (plan: PricingPlan) => {
+    if (!user) {
+      // Redirect to sign up
+      window.location.href = '/auth/signup';
+      return;
+    }
+
+    if (plan.id === 'free') {
+      // Free plan - no payment needed
+      return;
+    }
+
+    setProcessingPlan(plan.id);
+
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: plan.stripePriceId,
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.sessionId) {
+        // Redirect to Stripe Checkout
+        const stripe = (window as any).Stripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+        await stripe.redirectToCheckout({
+          sessionId: data.sessionId,
+        });
+      } else {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      alert('Failed to start checkout process. Please try again.');
+    } finally {
+      setProcessingPlan(null);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <header className="border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold">VoiceAgent</h1>
-            </div>
-            <nav className="hidden md:flex space-x-8">
-              <a
-                href="/pricing"
-                className="text-white font-medium"
-              >
-                Pricing
-              </a>
-              <a
-                href="/auth"
-                className="text-white/70 hover:text-white transition-colors"
-              >
-                Sign In
-              </a>
-              <a
-                href="/auth"
-                className="bg-white text-black px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors"
-              >
-                Get Started for Free
-              </a>
-            </nav>
-          </div>
-        </div>
-      </header>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {/* Hero Section */}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="container mx-auto px-4 py-16 max-w-7xl">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold mb-6">
-            Simple, transparent pricing
+          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+            Choose Your Plan
           </h1>
-          <p className="text-xl text-white/70 max-w-2xl mx-auto">
-            Choose the plan that's right for you. Start free, upgrade when you need more.
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Select the perfect plan for your voice agent needs. Upgrade or downgrade at any time.
           </p>
         </div>
 
-        {/* Pricing Cards */}
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Free Plan */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
-            <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold mb-2">Free</h3>
-              <div className="text-4xl font-bold mb-4">
-                $0<span className="text-lg text-white/70">/month</span>
-              </div>
-              <p className="text-white/70">Perfect for getting started</p>
-            </div>
-            
-            <ul className="space-y-4 mb-8">
-              <li className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                5 conversation minutes/month
-              </li>
-              <li className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                1 voice agent
-              </li>
-              <li className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Basic support
-              </li>
-            </ul>
-            
-            <button className="w-full bg-white/10 text-white py-3 px-6 rounded-lg font-medium hover:bg-white/20 transition-colors mb-8">
-              Current Plan
-            </button>
-          </div>
-
-          {/* Professional Plan */}
-          <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-2xl p-8 relative">
-            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-              <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-1 rounded-full text-sm font-medium">
-                Most Popular
-              </span>
-            </div>
-            
-            <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold mb-2">Professional</h3>
-              <div className="text-4xl font-bold mb-4">
-                $20<span className="text-lg text-white/70">/month</span>
-              </div>
-              <p className="text-white/70">For growing businesses</p>
-            </div>
-            
-            <ul className="space-y-4 mb-8">
-              <li className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                400 conversation minutes/month
-              </li>
-              <li className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Unlimited voice agents
-              </li>
-              <li className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Priority support
-              </li>
-              <li className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Advanced analytics
-              </li>
-            </ul>
-            
-            <button 
-              onClick={handleUpgrade}
-              disabled={loading}
-              className="w-full bg-white text-black py-3 px-6 rounded-lg font-medium hover:bg-gray-100 transition-colors mb-8 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          {plans.map((plan) => (
+            <div 
+              key={plan.id} 
+              className={`relative bg-white rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl ${
+                plan.popular ? 'ring-2 ring-blue-500 shadow-2xl scale-105' : ''
+              }`}
             >
-              {loading ? 'Processing...' : 'GET STARTED'}
-            </button>
-          </div>
+              {plan.popular && (
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium">
+                  Most Popular
+                </div>
+              )}
+              
+              <div className="p-8">
+                <div className="text-center mb-8">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                  <p className="text-gray-600 mb-4">{plan.description}</p>
+                  <div className="mb-4">
+                    <span className="text-4xl font-bold text-gray-900">${plan.price}</span>
+                    <span className="text-gray-600">/{plan.interval}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  {plan.features.map((feature, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                      <span className="text-sm text-gray-700">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  className={`w-full py-3 px-6 rounded-lg font-medium transition-colors ${
+                    plan.popular 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                  } ${processingPlan === plan.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => handleSubscribe(plan)}
+                  disabled={processingPlan === plan.id}
+                >
+                  {processingPlan === plan.id ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                      Processing...
+                    </div>
+                  ) : plan.id === 'free' ? (
+                    'Get Started Free'
+                  ) : user ? (
+                    'Subscribe Now'
+                  ) : (
+                    'Sign Up to Subscribe'
+                  )}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* FAQ Section */}
-        <div className="mt-24">
-          <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
-          <div className="max-w-3xl mx-auto space-y-8">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">What happens when I exceed my conversation minutes?</h3>
-              <p className="text-white/70">Your voice agents will be temporarily disabled until the next billing cycle or you can upgrade to a higher plan.</p>
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Can I cancel my subscription anytime?</h3>
-              <p className="text-white/70">Yes, you can cancel your subscription at any time. You'll continue to have access to your plan features until the end of your billing period.</p>
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Do you offer refunds?</h3>
-              <p className="text-white/70">We offer a 30-day money-back guarantee for all paid plans. Contact our support team for assistance.</p>
-            </div>
-          </div>
+        <div className="text-center mt-16">
+          <p className="text-gray-600 mb-4">
+            All plans include a 14-day free trial. No credit card required for the free plan.
+          </p>
+          <p className="text-sm text-gray-500">
+            Need a custom solution? <a href="mailto:support@voiceagent.com" className="text-blue-600 hover:underline">Contact us</a>
+          </p>
         </div>
-      </main>
+      </div>
     </div>
   );
 } 

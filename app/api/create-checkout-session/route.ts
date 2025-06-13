@@ -1,15 +1,10 @@
+import { supabaseServiceRole } from '@/lib/database/auth';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,62 +12,51 @@ export async function POST(request: NextRequest) {
 
     if (!priceId || !userId) {
       return NextResponse.json(
-        { error: 'Missing required parameters: priceId and userId' },
+        { error: 'Price ID and User ID are required' },
         { status: 400 }
       );
     }
 
-    // Get the app URL from the request origin or fallback to localhost
-    const origin = request.headers.get('origin') || 'http://localhost:3000';
-    let appUrl: string;
-    
-    if (process.env.NODE_ENV === 'production') {
-      // Ensure production URLs have proper scheme
-      if (origin.startsWith('http://') || origin.startsWith('https://')) {
-        appUrl = origin;
-      } else {
-        appUrl = `https://${origin}`;
-      }
-    } else {
-      appUrl = 'http://localhost:3000';
-    }
+    console.log('🛒 Creating checkout session for:', { priceId, userId });
 
-    // Verify user exists
-    const { data: user, error: userError } = await supabase.auth.admin.getUserById(userId);
+    // Get user details from database
+    const { data: userData, error: userError } = await supabaseServiceRole.auth.admin.getUserById(userId);
     
-    if (userError || !user) {
+    if (userError || !userData.user) {
+      console.error('❌ Error fetching user:', userError);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // Create or retrieve Stripe customer
-    let customerId: string;
-    
-    // Check if user already has a Stripe customer ID
-    const { data: existingPlan } = await supabase
-      .from('user_plans')
-      .select('stripe_customer_id')
-      .eq('user_id', userId)
-      .single();
+    const userEmail = userData.user.email;
+    console.log('👤 User email:', userEmail);
 
-    if (existingPlan?.stripe_customer_id) {
-      customerId = existingPlan.stripe_customer_id;
+    // Construct the app URL based on the request origin
+    let appUrl: string;
+    const origin = request.headers.get('origin');
+    
+    if (process.env.NODE_ENV === 'production') {
+      // In production, ensure we have https
+      if (origin && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+        appUrl = origin;
+      } else if (origin) {
+        appUrl = `https://${origin}`;
+      } else {
+        // Fallback to your production domain
+        appUrl = 'https://your-production-domain.com';
+      }
     } else {
-      // Create new Stripe customer
-      const customer = await stripe.customers.create({
-        email: user.user.email,
-        metadata: {
-          user_id: userId,
-        },
-      });
-      customerId = customer.id;
+      // Development fallback
+      appUrl = origin || 'http://localhost:3000';
     }
 
-    // Create checkout session
+    console.log('🌐 App URL:', appUrl);
+
+    // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
-      customer: customerId,
+      customer_email: userEmail,
       payment_method_types: ['card'],
       line_items: [
         {
@@ -81,23 +65,16 @@ export async function POST(request: NextRequest) {
         },
       ],
       mode: 'subscription',
-      success_url: `${appUrl}/dashboard?success=true`,
-      cancel_url: `${appUrl}/pricing?canceled=true`,
+      success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/pricing`,
       metadata: {
         user_id: userId,
       },
-      subscription_data: {
-        metadata: {
-          user_id: userId,
-        },
-      },
     });
 
-    return NextResponse.json({ 
-      sessionId: session.id,
-      url: session.url 
-    });
+    console.log('✅ Checkout session created:', session.id);
 
+    return NextResponse.json({ sessionId: session.id });
   } catch (error: any) {
     console.error('❌ Error creating checkout session:', error);
     return NextResponse.json(

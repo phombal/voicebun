@@ -558,15 +558,7 @@ export class DatabaseService {
     try {
       const userId = await this.getCurrentUserId();
       
-      // First, check and update expired subscriptions
-      const { checkAndUpdateExpiredSubscription } = await import('./subscription-utils');
-      const updatedPlan = await checkAndUpdateExpiredSubscription(userId);
-      
-      if (updatedPlan) {
-        return updatedPlan;
-      }
-
-      // Fallback to regular query if utility function fails
+      // Get user plan from database
       const { data, error } = await this.supabase
         .from('user_plans')
         .select('*')
