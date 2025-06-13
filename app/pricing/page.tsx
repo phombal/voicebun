@@ -34,9 +34,6 @@ const plans: PricingPlan[] = [
     callMinutes: '5 minutes/month',
     features: [
       'Voice agent creation',
-      'Community access',
-      'Web dashboard',
-      'Analytics dashboard',
       'Phone number provisioning'
     ],
     stripePriceId: '',
@@ -120,7 +117,7 @@ export default function PricingPage() {
 
     if (!user) {
       // Redirect to sign up
-      window.location.href = '/auth/signup';
+      window.location.href = '/auth?mode=signup';
       return;
     }
 
