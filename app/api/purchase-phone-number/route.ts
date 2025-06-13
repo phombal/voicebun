@@ -270,14 +270,26 @@ export async function POST(request: NextRequest) {
     // Store the phone number in the database
     const phoneNumberRecord = await db.createPhoneNumber({
       phone_number: phoneNumber,
+      country_code: null, // Will be populated when number details are fetched
+      phone_number_type: null, // Will be populated when number details are fetched
+      locality: null, // Will be populated when number details are fetched
       project_id: null, // Don't auto-assign to project
       user_id: userId, // Will be overridden by the service method with the authenticated user ID
       telnyx_order_id: orderData.data.id,
       telnyx_phone_number_id: orderData.data.phone_numbers[0]?.id || null,
+      connection_id: null, // Will be set when assigned to project
+      messaging_profile_id: null, // Will be set when assigned to project
+      billing_group_id: null, // Optional Telnyx billing group
+      customer_reference: null, // Optional customer reference
+      dispatch_rule_id: null, // Will be set when assigned to project
       status: orderData.data.status || 'pending',
       is_active: true,
       voice_agent_enabled: false,
-      dispatch_rule_id: null,
+      inbound_enabled: true, // Default to enabled
+      outbound_enabled: false, // Default to disabled
+      recording_enabled: true, // Default to enabled
+      purchased_at: new Date().toISOString(),
+      activated_at: null, // Will be set when number is activated
     });
 
     console.log('📝 Phone number record stored in database:', phoneNumberRecord);
