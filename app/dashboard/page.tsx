@@ -249,13 +249,13 @@ function DashboardContent() {
     try {
       console.log('🤖 Generating system prompt with ChatGPT 4o...');
       
-      // Call the FastAPI backend directly to generate a detailed system prompt
+      // Call the local API to generate a detailed system prompt
       let generatedSystemPrompt = prompt.trim();
       let systemPromptGenerated = false;
       
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_SYSTEM_PROMPT_BACKEND_URL || 'http://localhost:8001';
-        const response = await fetch(`${backendUrl}/generate-system-prompt`, {
+        // Use local API route instead of external backend
+        const response = await fetch('/api/generate-system-prompt', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -268,17 +268,23 @@ function DashboardContent() {
           }),
         });
 
+        console.log('📡 Response status:', response.status);
+        console.log('📡 Response ok:', response.ok);
+
         if (response.ok) {
           const result = await response.json();
           generatedSystemPrompt = result.system_prompt;
           systemPromptGenerated = true;
-          console.log('✅ Generated system prompt with ChatGPT 4o:', result.metadata);
+          console.log('✅ Generated system prompt with local API:', result.metadata);
         } else {
-          console.warn('❌ Backend service error:', response.status, response.statusText);
+          const errorText = await response.text();
+          console.warn('❌ Local API error:', response.status, response.statusText);
+          console.warn('❌ Error details:', errorText);
           console.log('📝 Using enhanced fallback system prompt');
         }
       } catch (apiError) {
-        console.warn('❌ Backend service unavailable:', apiError instanceof Error ? apiError.message : String(apiError));
+        console.warn('❌ Local API unavailable:', apiError instanceof Error ? apiError.message : String(apiError));
+        console.warn('❌ Full error:', apiError);
         console.log('📝 Using enhanced fallback system prompt');
       }
       
