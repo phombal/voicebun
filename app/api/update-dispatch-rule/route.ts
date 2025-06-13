@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/service';
+import { supabaseServiceRole } from '@/lib/database/auth';
 import { SipClient } from 'livekit-server-sdk';
 import type { SipDispatchRuleIndividual } from 'livekit-server-sdk';
 import { RoomAgentDispatch, RoomConfiguration } from '@livekit/protocol';
@@ -7,6 +8,7 @@ import { RoomAgentDispatch, RoomConfiguration } from '@livekit/protocol';
 interface UpdateDispatchRuleRequest {
   phoneNumberId: string;
   projectId: string;
+  userId: string;
   agentConfig: {
     prompt: string;
   };
@@ -39,11 +41,15 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Starting dispatch rule metadata update...');
     
     const body: UpdateDispatchRuleRequest = await request.json();
-    console.log('📝 Request body:', body);
+    console.log('📝 Request body:', {
+      phoneNumberId: body.phoneNumberId,
+      projectId: body.projectId,
+      userId: body.userId
+    });
 
-    if (!body.phoneNumberId || !body.projectId) {
+    if (!body.phoneNumberId || !body.projectId || !body.userId) {
       return NextResponse.json(
-        { error: 'Missing required fields: phoneNumberId and projectId' },
+        { error: 'Missing required fields: phoneNumberId, projectId, and userId' },
         { status: 400 }
       );
     }
@@ -55,9 +61,16 @@ export async function POST(request: NextRequest) {
       process.env.LIVEKIT_API_SECRET!
     );
 
-    // Get phone number details to get the dispatch rule ID
-    const phoneNumber = await db.getPhoneNumber(body.phoneNumberId);
-    if (!phoneNumber) {
+    // Get phone number details using service role to bypass RLS
+    const { data: phoneNumber, error: phoneError } = await supabaseServiceRole
+      .from('phone_numbers')
+      .select('*')
+      .eq('id', body.phoneNumberId)
+      .eq('user_id', body.userId)
+      .single();
+
+    if (phoneError || !phoneNumber) {
+      console.error('❌ Phone number not found:', phoneError);
       return NextResponse.json(
         { error: 'Phone number not found' },
         { status: 404 }
@@ -166,8 +179,17 @@ export async function POST(request: NextRequest) {
         console.log('✅ Dispatch rule recreated successfully:', newDispatchRule.sipDispatchRuleId);
 
         // Update the phone number record with the new dispatch rule ID
-        await db.updatePhoneNumberDispatchRuleWithServiceRole(body.phoneNumberId, newDispatchRule.sipDispatchRuleId);
-        console.log('✅ Updated phone number record with new dispatch rule ID');
+        const { error: updateError1 } = await supabaseServiceRole
+          .from('phone_numbers')
+          .update({ dispatch_rule_id: newDispatchRule.sipDispatchRuleId })
+          .eq('id', body.phoneNumberId)
+          .eq('user_id', body.userId);
+
+        if (updateError1) {
+          console.error('❌ Failed to update phone number with dispatch rule ID:', updateError1);
+        } else {
+          console.log('✅ Updated phone number record with new dispatch rule ID');
+        }
 
         return NextResponse.json({
           success: true,
@@ -225,8 +247,17 @@ export async function POST(request: NextRequest) {
         console.log('✅ New dispatch rule created successfully:', newDispatchRule.sipDispatchRuleId);
 
         // Update the phone number record with the new dispatch rule ID
-        await db.updatePhoneNumberDispatchRuleWithServiceRole(body.phoneNumberId, newDispatchRule.sipDispatchRuleId);
-        console.log('✅ Updated phone number record with new dispatch rule ID');
+        const { error: updateError2 } = await supabaseServiceRole
+          .from('phone_numbers')
+          .update({ dispatch_rule_id: newDispatchRule.sipDispatchRuleId })
+          .eq('id', body.phoneNumberId)
+          .eq('user_id', body.userId);
+
+        if (updateError2) {
+          console.error('❌ Failed to update phone number with dispatch rule ID:', updateError2);
+        } else {
+          console.log('✅ Updated phone number record with new dispatch rule ID');
+        }
 
         return NextResponse.json({
           success: true,
@@ -289,8 +320,17 @@ export async function POST(request: NextRequest) {
           console.log('✅ Fallback dispatch rule created successfully:', fallbackDispatchRule.sipDispatchRuleId);
 
           // Update the phone number record with the new dispatch rule ID
-          await db.updatePhoneNumberDispatchRuleWithServiceRole(body.phoneNumberId, fallbackDispatchRule.sipDispatchRuleId);
-          console.log('✅ Updated phone number record with fallback dispatch rule ID');
+          const { error: updateError3 } = await supabaseServiceRole
+            .from('phone_numbers')
+            .update({ dispatch_rule_id: fallbackDispatchRule.sipDispatchRuleId })
+            .eq('id', body.phoneNumberId)
+            .eq('user_id', body.userId);
+
+          if (updateError3) {
+            console.error('❌ Failed to update phone number with fallback dispatch rule ID:', updateError3);
+          } else {
+            console.log('✅ Updated phone number record with fallback dispatch rule ID');
+          }
 
           return NextResponse.json({
             success: true,

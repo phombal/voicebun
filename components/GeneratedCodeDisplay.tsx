@@ -448,7 +448,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         console.log('✅ Updated project configuration in database');
         // Show success notification
         const notification = document.createElement('div');
-        notification.textContent = 'Configuration saved successfully!';
+        notification.textContent = 'Changes saved successfully!';
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
@@ -464,7 +464,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         
         // Show success notification
         const notification = document.createElement('div');
-        notification.textContent = 'Configuration saved successfully!';
+        notification.textContent = 'Changes saved successfully!';
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
@@ -489,7 +489,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       
       // Show error notification
       const notification = document.createElement('div');
-      notification.textContent = 'Failed to save configuration: ' + (error instanceof Error ? error.message : 'Unknown error');
+      notification.textContent = 'Failed to save changes. Please try again.';
       notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
@@ -586,12 +586,11 @@ Just tell me what you want your voice agent to do or any issues you're experienc
 
   const copyToClipboard = async () => {
     try {
-      // Get the current code content
-      const content = currentCode || '';
-      await navigator.clipboard.writeText(content);
-      // Create a temporary notification instead of alert
+      await navigator.clipboard.writeText(currentCode);
+      
+      // Show success notification
       const notification = document.createElement('div');
-      notification.textContent = 'Code copied to clipboard!';
+      notification.textContent = 'Copied to clipboard!';
       notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
@@ -599,28 +598,26 @@ Just tell me what you want your voice agent to do or any issues you're experienc
           document.body.removeChild(notification);
         }
       }, 2000);
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
-      // Fallback notification
+    } catch (error) {
+      // Show error notification
       const notification = document.createElement('div');
-      notification.textContent = 'Failed to copy to clipboard';
+      notification.textContent = 'Failed to copy. Please try again.';
       notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
           document.body.removeChild(notification);
         }
-      }, 2000);
+      }, 3000);
     }
   };
 
   const handlePublish = async () => {
-    if (!currentProject && !project) {
-      console.log('❌ No project available for publishing');
-      // Show error notification
+    const projectToUse = project || currentProject;
+    if (!projectToUse) {
       const notification = document.createElement('div');
-      notification.textContent = 'No project selected for publishing';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.textContent = 'Please select a project first.';
+      notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -633,38 +630,29 @@ Just tell me what you want your voice agent to do or any issues you're experienc
     setIsPublishing(true);
     
     try {
-      const projectToUse = project || currentProject;
-      console.log('🚀 Publishing configuration for project:', projectToUse?.id);
+      // Get phone numbers for the current project
+      const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
       
-      // First save the current configuration
-      await saveProjectConfiguration();
-      
-      // Get all phone numbers for this project
-      console.log('📱 Getting all phone numbers for project...');
-      const phoneNumbers = await getProjectPhoneNumbers(projectToUse!.id);
-      console.log('📱 Found phone numbers:', phoneNumbers.length);
-      
-      if (phoneNumbers.length === 0) {
-        throw new Error('No phone numbers assigned to this project. Please assign a phone number first.');
+      if (!phoneNumbers || phoneNumbers.length === 0) {
+        throw new Error('No phone numbers found for this project');
       }
+
+      console.log(`📞 Found ${phoneNumbers.length} phone number(s) to update`);
+
+      const updateResults: Array<{
+        phoneNumber: string;
+        phoneNumberId: string;
+        success: boolean;
+        result?: any;
+        error?: string;
+      }> = [];
       
-      // Show progress notification
-      const progressNotification = document.createElement('div');
-      progressNotification.textContent = `Updating ${phoneNumbers.length} phone number(s)...`;
-      progressNotification.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      document.body.appendChild(progressNotification);
-      
-      // Update dispatch rules for all phone numbers
-      const updateResults = [];
       let successCount = 0;
       let errorCount = 0;
       
       for (let i = 0; i < phoneNumbers.length; i++) {
         const phoneNumber = phoneNumbers[i];
         console.log(`🔄 Updating phone number ${i + 1}/${phoneNumbers.length}: ${phoneNumber.phone_number}`);
-        
-        // Update progress notification
-        progressNotification.textContent = `Updating ${phoneNumber.phone_number} (${i + 1}/${phoneNumbers.length})...`;
         
         try {
           const response = await fetch('/api/update-dispatch-rule', {
@@ -674,7 +662,8 @@ Just tell me what you want your voice agent to do or any issues you're experienc
             },
             body: JSON.stringify({
               phoneNumberId: phoneNumber.id,
-              projectId: projectToUse?.id,
+              projectId: projectToUse.id,
+              userId: user?.id, // Add userId from authenticated user
             }),
           });
           
@@ -706,21 +695,16 @@ Just tell me what you want your voice agent to do or any issues you're experienc
         }
       }
       
-      // Remove progress notification
-      if (document.body.contains(progressNotification)) {
-        document.body.removeChild(progressNotification);
-      }
-      
       // Show summary notification
       const notification = document.createElement('div');
       if (errorCount === 0) {
-        notification.textContent = `🎉 Configuration published successfully for all ${successCount} phone numbers!`;
+        notification.textContent = `Settings updated successfully!`;
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       } else if (successCount > 0) {
-        notification.textContent = `⚠️ Partially successful: Updated ${successCount} phone numbers, ${errorCount} failed. Check console for details.`;
+        notification.textContent = `Settings partially updated. Some changes may not have been applied.`;
         notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
       } else {
-        throw new Error(`Failed to update any phone numbers (${errorCount} failures)`);
+        throw new Error(`Failed to update settings`);
       }
       
       document.body.appendChild(notification);
@@ -742,7 +726,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       
       // Show error notification
       const notification = document.createElement('div');
-      notification.textContent = `Failed to publish: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      notification.textContent = `Failed to update settings. Please try again.`;
       notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
@@ -769,7 +753,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       console.error('Error fetching phone numbers:', error);
       // Show error notification
       const notification = document.createElement('div');
-      notification.textContent = 'Failed to load available phone numbers. Please try again.';
+      notification.textContent = 'Failed to load phone numbers. Please try again.';
       notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
@@ -800,7 +784,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       
       // Show success notification
       const notification = document.createElement('div');
-      notification.textContent = `Phone number ${selectedNumber.number} assigned successfully!`;
+      notification.textContent = `Phone number assigned successfully!`;
       notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
@@ -1537,7 +1521,7 @@ For now, you can still manually configure your voice agent using the tabs above.
         console.error('❌ Failed to enable microphone:', micError);
         // Show user-friendly error
         const notification = document.createElement('div');
-        notification.textContent = 'Failed to access microphone. Please check permissions and try again.';
+        notification.textContent = 'Microphone access error. Please check your permissions.';
         notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
@@ -1549,7 +1533,7 @@ For now, you can still manually configure your voice agent using the tabs above.
       }
       
       console.log('🎉 Voice conversation setup complete!');
-      console.log('   • Project ID:', projectToUse.id);
+      console.log('   • Project ID:', currentProject?.id);
       console.log('   • Room state:', room.state);
       console.log('   • isInConversation:', true);
       

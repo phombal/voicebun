@@ -212,14 +212,26 @@ export interface ProjectCollaborator {
 export interface PhoneNumber {
   id: string;
   phone_number: string;
+  country_code: string | null;
+  phone_number_type: string | null;
+  locality: string | null;
   user_id: string;
   project_id: string | null; // Allow null for unassigned numbers
   telnyx_order_id: string | null;
   telnyx_phone_number_id: string | null;
+  connection_id: string | null;
+  messaging_profile_id: string | null;
+  billing_group_id: string | null;
+  customer_reference: string | null;
   dispatch_rule_id: string | null; // LiveKit SIP dispatch rule ID
   status: string;
   is_active: boolean;
   voice_agent_enabled: boolean;
+  inbound_enabled: boolean;
+  outbound_enabled: boolean;
+  recording_enabled: boolean;
+  purchased_at: string | null;
+  activated_at: string | null;
   created_at: string;
   updated_at: string;
 }

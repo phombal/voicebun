@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/service';
+import { supabaseServiceRole } from '@/lib/database/auth';
 import { SipClient } from 'livekit-server-sdk';
 import { RoomAgentDispatch, RoomConfiguration } from '@livekit/protocol';
 import type { SipDispatchRuleIndividual } from 'livekit-server-sdk';
@@ -22,9 +23,16 @@ export async function POST(request: NextRequest) {
       sipHost: body.sipHost
     });
 
-    // Step 1: Get the phone number from our database to get the actual phone number
-    const phoneNumber = await db.getPhoneNumber(body.phoneNumberId);
-    if (!phoneNumber) {
+    // Step 1: Get the phone number from our database using service role to bypass RLS
+    const { data: phoneNumber, error: phoneError } = await supabaseServiceRole
+      .from('phone_numbers')
+      .select('*')
+      .eq('id', body.phoneNumberId)
+      .eq('user_id', body.userId) // Ensure user owns the phone number
+      .single();
+
+    if (phoneError || !phoneNumber) {
+      console.error('❌ Phone number not found:', phoneError);
       return NextResponse.json({
         success: false,
         error: 'Phone number not found',
@@ -34,7 +42,24 @@ export async function POST(request: NextRequest) {
 
     console.log('📱 Found phone number:', phoneNumber.phone_number);
 
-    // Step 2: Create FQDN connection in Telnyx
+    // Step 2: Verify the project belongs to the user
+    const { data: project, error: projectError } = await supabaseServiceRole
+      .from('projects')
+      .select('*')
+      .eq('id', body.projectId)
+      .eq('user_id', body.userId)
+      .single();
+
+    if (projectError || !project) {
+      console.error('❌ Project not found or unauthorized:', projectError);
+      return NextResponse.json({
+        success: false,
+        error: 'Project not found or unauthorized',
+        details: 'The specified project was not found or you do not have access to it'
+      }, { status: 404 });
+    }
+
+    // Step 3: Create FQDN connection in Telnyx
     console.log('🔗 Step 1: Creating FQDN connection...');
     
     // Create a unique connection name to avoid conflicts
@@ -74,7 +99,7 @@ export async function POST(request: NextRequest) {
     const connectionId = fqdnConnectionData.data.id;
     console.log('✅ FQDN connection created:', connectionId);
 
-    // Step 3: Create FQDN with SIP URI
+    // Step 4: Create FQDN with SIP URI
     console.log('🌐 Step 2: Creating FQDN with SIP URI...');
     
     const fqdnResponse = await fetch('https://api.telnyx.com/v2/fqdns', {
@@ -105,7 +130,7 @@ export async function POST(request: NextRequest) {
     const fqdnData = await fqdnResponse.json();
     console.log('✅ FQDN created:', fqdnData.data.fqdn);
 
-    // Step 4: Get the Telnyx phone number ID using the phone number
+    // Step 5: Get the Telnyx phone number ID using the phone number
     console.log('🔍 Step 3: Getting Telnyx phone number ID...');
     
     const phoneNumberSearchResponse = await fetch(
@@ -141,7 +166,7 @@ export async function POST(request: NextRequest) {
     const telnyxPhoneNumberId = phoneNumberSearchData.data[0].id;
     console.log('✅ Found Telnyx phone number ID:', telnyxPhoneNumberId);
 
-    // Step 5: Associate the phone number with the FQDN connection
+    // Step 6: Associate the phone number with the FQDN connection
     console.log('🔗 Step 4: Associating phone number with FQDN connection...');
     
     const associateResponse = await fetch(`https://api.telnyx.com/v2/phone_numbers/${telnyxPhoneNumberId}`, {
@@ -170,7 +195,7 @@ export async function POST(request: NextRequest) {
     const associateData = await associateResponse.json();
     console.log('✅ Phone number associated with connection');
 
-    // Step 6: Setup LiveKit inbound trunk with latest configuration
+    // Step 7: Setup LiveKit inbound trunk with latest configuration
     console.log('🎯 Step 5: Setting up LiveKit inbound trunk with latest project configuration...');
     
     try {
@@ -203,7 +228,7 @@ export async function POST(request: NextRequest) {
       let trunkId: string | null = null;
       let dispatchRuleId: string | null = null;
 
-      // Step 6a: Create or find inbound trunk
+      // Step 7a: Create or find inbound trunk
       try {
         console.log('📞 Setting up LiveKit inbound trunk...');
         
@@ -233,7 +258,7 @@ export async function POST(request: NextRequest) {
         throw new Error(`Inbound trunk setup failed: ${trunkError.message}`);
       }
 
-      // Step 6b: Create dispatch rule with latest project configuration
+      // Step 7b: Create dispatch rule with latest project configuration
       if (trunkId) {
         try {
           console.log('🎯 Creating dispatch rule for phone number...');
@@ -329,17 +354,27 @@ export async function POST(request: NextRequest) {
       // Don't fail the request - Telnyx setup was successful
     }
 
-    // Step 6: Update our database with assignment status
+    // Step 8: Update our database with assignment status
     console.log('💾 Step 6: Updating database with assignment status...');
     
     try {
-      await db.updatePhoneNumber(body.phoneNumberId, {
-        status: 'assigned',
-        project_id: body.projectId, // Set the project ID to mark as assigned
-        voice_agent_enabled: true,
-        updated_at: new Date().toISOString()
-      });
-      console.log('✅ Database updated successfully');
+      const { error: updateError } = await supabaseServiceRole
+        .from('phone_numbers')
+        .update({
+          status: 'assigned',
+          project_id: body.projectId, // Set the project ID to mark as assigned
+          voice_agent_enabled: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', body.phoneNumberId)
+        .eq('user_id', body.userId); // Ensure user owns the phone number
+
+      if (updateError) {
+        console.error('❌ Database update failed:', updateError);
+        // Don't fail the request if DB update fails, the Telnyx setup was successful
+      } else {
+        console.log('✅ Database updated successfully');
+      }
     } catch (dbError) {
       console.error('❌ Database update failed:', dbError);
       // Don't fail the request if DB update fails, the Telnyx setup was successful

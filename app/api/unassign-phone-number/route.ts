@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/service';
+import { supabaseServiceRole } from '@/lib/database/auth';
 import { SipClient } from 'livekit-server-sdk';
 
 interface UnassignPhoneNumberRequest {
@@ -17,9 +18,16 @@ export async function POST(request: NextRequest) {
       userId: body.userId
     });
 
-    // Get the phone number details first
-    const phoneNumber = await db.getPhoneNumber(body.phoneNumberId);
-    if (!phoneNumber) {
+    // Get the phone number details using service role to bypass RLS
+    const { data: phoneNumber, error: phoneError } = await supabaseServiceRole
+      .from('phone_numbers')
+      .select('*')
+      .eq('id', body.phoneNumberId)
+      .eq('user_id', body.userId) // Ensure user owns the phone number
+      .single();
+
+    if (phoneError || !phoneNumber) {
+      console.error('❌ Phone number not found:', phoneError);
       return NextResponse.json({
         success: false,
         error: 'Phone Number Not Found',
@@ -28,15 +36,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📱 Found phone number:', phoneNumber.phone_number);
-
-    // Verify ownership
-    if (phoneNumber.user_id !== body.userId) {
-      return NextResponse.json({
-        success: false,
-        error: 'Unauthorized',
-        details: 'You do not have permission to unassign this phone number'
-      }, { status: 403 });
-    }
 
     // Check if phone number is already unassigned (and no cleanup needed)
     if (!phoneNumber.project_id && phoneNumber.status === 'active') {
@@ -62,16 +61,29 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Update database to unassign the phone number
+    // Update database to unassign the phone number using service role
     console.log('💾 Updating database to unassign phone number...');
     
     try {
-      await db.updatePhoneNumber(body.phoneNumberId, {
-        status: 'active',
-        project_id: null, // Remove project association
-        voice_agent_enabled: false, // Disable voice agent
-        updated_at: new Date().toISOString()
-      });
+      const { error: updateError } = await supabaseServiceRole
+        .from('phone_numbers')
+        .update({
+          status: 'active',
+          project_id: null, // Remove project association
+          voice_agent_enabled: false, // Disable voice agent
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', body.phoneNumberId)
+        .eq('user_id', body.userId); // Ensure user owns the phone number
+
+      if (updateError) {
+        console.error('❌ Database update failed:', updateError);
+        return NextResponse.json({
+          success: false,
+          error: 'Database Update Failed',
+          details: 'Failed to update phone number status in database'
+        }, { status: 500 });
+      }
       console.log('✅ Database updated successfully');
     } catch (dbError) {
       console.error('❌ Database update failed:', dbError);

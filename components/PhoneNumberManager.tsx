@@ -203,12 +203,11 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
             </svg>
           </div>
           <div>
-            <div class="font-medium">Phone Number Unassigned!</div>
-            <div class="text-sm opacity-90">${phoneNumber.phone_number} has been successfully disconnected from this project.</div>
+            <div class="font-medium">Phone number unassigned successfully!</div>
           </div>
         </div>
       `;
-      notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {

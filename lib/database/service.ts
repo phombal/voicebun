@@ -306,32 +306,21 @@ export class DatabaseService {
     return data && data.length > 0 ? data[0] : null;
   }
 
-  // Service role version that bypasses RLS policies
-  async getProjectDataWithServiceRole(projectId: string): Promise<ProjectData | null> {
-    console.log('🔍 Getting project data for project with service role:', projectId);
-    
-    try {
-      const { data, error } = await supabaseServiceRole
-        .from('project_data')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('is_active', true)
-        .limit(1);
-      
-      if (error) {
-        console.error('❌ Error getting project data with service role:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
-        throw error;
-      }
-      
-      console.log('✅ Project data query result with service role:', data);
-      console.log('✅ Number of results found:', data ? data.length : 0);
-      
-      return data && data.length > 0 ? data[0] : null;
-    } catch (err) {
-      console.error('❌ Exception in getProjectDataWithServiceRole:', err);
-      throw err;
+  // Get project data using service role (for server-side operations)
+  async getProjectDataWithServiceRole(projectId: string) {
+    const { data, error } = await supabaseServiceRole
+      .from('project_data')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('is_active', true)
+      .single();
+
+    if (error) {
+      console.error('Error fetching project data with service role:', error);
+      return null;
     }
+
+    return data;
   }
 
   // Service role version to get project info (for debugging)
@@ -490,6 +479,20 @@ export class DatabaseService {
     return data || [];
   }
 
+  // Get unassigned phone numbers for the current user
+  async getUnassignedPhoneNumbers(): Promise<PhoneNumber[]> {
+    const { data, error } = await this.supabase
+      .from('phone_numbers')
+      .select('*')
+      .is('project_id', null)
+      .eq('is_active', true)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  }
+
   async getProjectPhoneNumbers(projectId: string): Promise<PhoneNumber[]> {
     const { data, error } = await this.supabase
       .from('phone_numbers')
@@ -500,6 +503,52 @@ export class DatabaseService {
     
     if (error) throw error;
     return data || [];
+  }
+
+  // Assign a phone number to a project
+  async assignPhoneNumberToProject(phoneNumberId: string, projectId: string): Promise<PhoneNumber> {
+    // First verify the project belongs to the current user
+    const project = await this.getProject(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    
+    const userId = await this.getCurrentUserId();
+    if (project.user_id !== userId) {
+      throw new Error('Unauthorized: Project does not belong to current user');
+    }
+
+    const { data, error } = await this.supabase
+      .from('phone_numbers')
+      .update({ 
+        project_id: projectId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', phoneNumberId)
+      .eq('user_id', userId) // Ensure user owns the phone number
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Unassign a phone number from its project
+  async unassignPhoneNumberFromProject(phoneNumberId: string): Promise<PhoneNumber> {
+    const { data, error } = await this.supabase
+      .from('phone_numbers')
+      .update({ 
+        project_id: null,
+        voice_agent_enabled: false,
+        dispatch_rule_id: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', phoneNumberId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 
   async updatePhoneNumber(phoneNumberId: string, updates: Partial<Omit<PhoneNumber, 'id' | 'created_at'>>): Promise<PhoneNumber> {
