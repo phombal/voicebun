@@ -428,7 +428,7 @@ export class DatabaseService {
   async createPhoneNumberServerSide(phoneNumberData: Omit<PhoneNumber, 'id' | 'created_at' | 'updated_at'>): Promise<PhoneNumber> {
     console.log('💾 Creating phone number with simplified data:', phoneNumberData);
     
-    const { data, error } = await this.supabase
+    const { data, error } = await supabaseServiceRole
       .from('phone_numbers')
       .insert(phoneNumberData)
       .select()

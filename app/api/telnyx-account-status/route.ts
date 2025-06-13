@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const TELNYX_API_KEY = 'KEY01976106909F3A83248E3224B59F5E7A_Rgqv8pzX6B1hHUlVRdZdjp';
+// Get Telnyx API key from environment variables
+const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
+
+if (!TELNYX_API_KEY) {
+  throw new Error('TELNYX_API_KEY environment variable is required');
+}
 
 export async function GET(request: NextRequest) {
   try {

@@ -3,11 +3,26 @@ import { headers } from 'next/headers';
 import { db } from '@/lib/database/service';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+// Force dynamic rendering since we use request body and headers
+export const dynamic = 'force-dynamic';
+
+// Validate required environment variables
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+
+if (!STRIPE_SECRET_KEY) {
+  throw new Error('STRIPE_SECRET_KEY environment variable is required');
+}
+
+if (!STRIPE_WEBHOOK_SECRET) {
+  throw new Error('STRIPE_WEBHOOK_SECRET environment variable is required');
+}
+
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: '2025-05-28.basil',
 });
 
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const endpointSecret = STRIPE_WEBHOOK_SECRET;
 
 export async function POST(request: NextRequest) {
   try {
@@ -310,4 +325,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}
