@@ -22,6 +22,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get the app URL from the request origin or fallback to localhost
+    const origin = request.headers.get('origin') || 'http://localhost:3000';
+    let appUrl: string;
+    
+    if (process.env.NODE_ENV === 'production') {
+      // Ensure production URLs have proper scheme
+      if (origin.startsWith('http://') || origin.startsWith('https://')) {
+        appUrl = origin;
+      } else {
+        appUrl = `https://${origin}`;
+      }
+    } else {
+      appUrl = 'http://localhost:3000';
+    }
+
     // Verify user exists
     const { data: user, error: userError } = await supabase.auth.admin.getUserById(userId);
     
@@ -54,9 +69,6 @@ export async function POST(request: NextRequest) {
       });
       customerId = customer.id;
     }
-
-    // Get the app URL with fallback for local development
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
