@@ -634,7 +634,24 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
       
       if (!phoneNumbers || phoneNumbers.length === 0) {
-        throw new Error('No phone numbers found for this project');
+        // Show helpful message about purchasing a phone number
+        const notification = document.createElement('div');
+        notification.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>To publish your voice agent, you need to purchase a phone number first.</span>
+          </div>
+        `;
+        notification.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 6000);
+        return;
       }
 
       console.log(`📞 Found ${phoneNumbers.length} phone number(s) to update`);
