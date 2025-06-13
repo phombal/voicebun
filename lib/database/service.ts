@@ -8,7 +8,8 @@ import {
   CreateProjectRequest,
   ProjectFilters,
   PaginationParams,
-  PhoneNumber
+  PhoneNumber,
+  UserPlan
 } from './types';
 
 export class DatabaseService {
@@ -121,6 +122,124 @@ export class DatabaseService {
       .eq('id', projectId);
     
     if (error) throw error;
+  }
+
+  // Hard delete project and all related data
+  async hardDeleteProject(projectId: string): Promise<void> {
+    const userId = await this.getCurrentUserId();
+    
+    // First verify the project belongs to the current user
+    const project = await this.getProject(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+    if (project.user_id !== userId) {
+      throw new Error('Unauthorized: You can only delete your own projects');
+    }
+
+    // Get all phone numbers assigned to this project and unassign them
+    const projectPhoneNumbers = await this.getProjectPhoneNumbers(projectId);
+    
+    // Unassign all phone numbers from this project (database only)
+    for (const phoneNumber of projectPhoneNumbers) {
+      try {
+        console.log(`📞 Unassigning phone number ${phoneNumber.phone_number} from project ${projectId}`);
+        
+        await this.updatePhoneNumber(phoneNumber.id, {
+          status: 'active',
+          project_id: null,
+          voice_agent_enabled: false,
+          updated_at: new Date().toISOString()
+        });
+        
+        console.log(`✅ Successfully unassigned phone number ${phoneNumber.phone_number} from database`);
+      } catch (error) {
+        console.error(`⚠️ Error unassigning phone number ${phoneNumber.phone_number}:`, error);
+        // Continue with other phone numbers even if one fails
+      }
+    }
+
+    // Delete all project_data entries for this project
+    const { error: projectDataError } = await this.supabase
+      .from('project_data')
+      .delete()
+      .eq('project_id', projectId);
+    
+    if (projectDataError) throw projectDataError;
+
+    // Delete the project itself
+    const { error: projectError } = await this.supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+    
+    if (projectError) throw projectError;
+  }
+
+  // Server-side method for complete project deletion with LiveKit cleanup
+  async hardDeleteProjectWithCleanup(projectId: string, userId: string): Promise<void> {
+    // First verify the project belongs to the user
+    const project = await supabaseServiceRole
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (!project.data) {
+      throw new Error('Project not found or unauthorized');
+    }
+
+    // Get all phone numbers assigned to this project
+    const { data: projectPhoneNumbers } = await supabaseServiceRole
+      .from('phone_numbers')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('is_active', true);
+    
+    // Unassign all phone numbers and clean up LiveKit resources
+    if (projectPhoneNumbers && projectPhoneNumbers.length > 0) {
+      for (const phoneNumber of projectPhoneNumbers) {
+        try {
+          console.log(`📞 Unassigning and cleaning up phone number ${phoneNumber.phone_number}`);
+          
+          // Update database to unassign
+          await supabaseServiceRole
+            .from('phone_numbers')
+            .update({
+              status: 'active',
+              project_id: null,
+              voice_agent_enabled: false,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', phoneNumber.id);
+
+          // TODO: Add LiveKit cleanup logic here if needed
+          // This would involve cleaning up dispatch rules and trunks
+          // similar to the unassign-phone-number route
+          
+          console.log(`✅ Successfully unassigned phone number ${phoneNumber.phone_number}`);
+        } catch (error) {
+          console.error(`⚠️ Error unassigning phone number ${phoneNumber.phone_number}:`, error);
+        }
+      }
+    }
+
+    // Delete all project_data entries for this project
+    const { error: projectDataError } = await supabaseServiceRole
+      .from('project_data')
+      .delete()
+      .eq('project_id', projectId);
+    
+    if (projectDataError) throw projectDataError;
+
+    // Delete the project itself
+    const { error: projectError } = await supabaseServiceRole
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+    
+    if (projectError) throw projectError;
   }
 
   // Project Data Management
@@ -427,6 +546,109 @@ export class DatabaseService {
       .from('phone_numbers')
       .update({ dispatch_rule_id: dispatchRuleId })
       .eq('id', phoneNumberId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // User Plan Management
+  async getUserPlan(userId?: string): Promise<UserPlan | null> {
+    const targetUserId = userId || await this.getCurrentUserId();
+    
+    const { data, error } = await this.supabase
+      .from('user_plans')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  }
+
+  async createUserPlan(userId: string, planData: Partial<UserPlan>): Promise<UserPlan> {
+    const { data, error } = await this.supabase
+      .from('user_plans')
+      .insert({
+        user_id: userId,
+        plan_name: 'free',
+        subscription_status: 'active',
+        conversation_minutes_used: 0,
+        conversation_minutes_limit: 5,
+        cancel_at_period_end: false,
+        ...planData
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  async updateUserPlan(userId: string, updates: Partial<UserPlan>): Promise<UserPlan> {
+    const { data, error } = await this.supabase
+      .from('user_plans')
+      .update(updates)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  async updateConversationMinutes(userId: string, minutesUsed: number): Promise<UserPlan> {
+    const { data, error } = await this.supabase
+      .from('user_plans')
+      .update({ 
+        conversation_minutes_used: minutesUsed,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Server-side methods for user plans (for API routes)
+  async getUserPlanWithServiceRole(userId: string): Promise<UserPlan | null> {
+    const { data, error } = await supabaseServiceRole
+      .from('user_plans')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  }
+
+  async createUserPlanWithServiceRole(userId: string, planData: Partial<UserPlan>): Promise<UserPlan> {
+    const { data, error } = await supabaseServiceRole
+      .from('user_plans')
+      .insert({
+        user_id: userId,
+        plan_name: 'free',
+        subscription_status: 'active',
+        conversation_minutes_used: 0,
+        conversation_minutes_limit: 5,
+        cancel_at_period_end: false,
+        ...planData
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  async updateUserPlanWithServiceRole(userId: string, updates: Partial<UserPlan>): Promise<UserPlan> {
+    const { data, error } = await supabaseServiceRole
+      .from('user_plans')
+      .update(updates)
+      .eq('user_id', userId)
       .select()
       .single();
     

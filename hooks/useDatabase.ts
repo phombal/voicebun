@@ -164,6 +164,51 @@ export function useDatabase() {
     return await dbInstance.getProjectPhoneNumbers(projectId);
   }, [user]);
 
+  const getUserPhoneNumbers = useCallback(async () => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.getUserPhoneNumbers();
+  }, [user]);
+
+  const getUserPlan = useCallback(async () => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.getUserPlan();
+  }, [user]);
+
+  const updateUserPlan = useCallback(async (updates: any) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.updateUserPlan(user.id, updates);
+  }, [user]);
+
+  const updateConversationMinutes = useCallback(async (minutesUsed: number) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.updateConversationMinutes(user.id, minutesUsed);
+  }, [user]);
+
+  const deleteProject = async (projectId: string) => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const response = await fetch('/api/delete-project', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        projectId,
+        userId: user.id
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to delete project');
+    }
+
+    return result;
+  };
+
   return {
     createProject,
     startChatSession,
@@ -174,6 +219,11 @@ export function useDatabase() {
     updateProjectData,
     getProjectDataHistory,
     getProjectPhoneNumbers,
+    getUserPhoneNumbers,
+    getUserPlan,
+    updateUserPlan,
+    updateConversationMinutes,
+    deleteProject,
     currentProject,
     currentSession,
     setCurrentProject,

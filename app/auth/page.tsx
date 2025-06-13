@@ -4,7 +4,47 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import AuthForm from '@/components/auth/AuthForm'
-import { Sparkles, Code, MessageSquare } from 'lucide-react'
+import { motion } from 'framer-motion'
+
+// Cute quotes component
+function CuteQuotes() {
+  const [currentQuote, setCurrentQuote] = useState(0);
+  
+  const quotes = [
+    "Welcome to VoiceBun! 🥟",
+    "Ready to create some voice magic? ✨",
+    "Let's build amazing voice agents together! 🤖",
+    "Your voice journey starts here! 🎤",
+    "Time to make some AI friends! 👋",
+    "Welcome to the future of voice! 🚀",
+    "Let's get this voice party started! 🎉",
+    "Ready to chat with AI? Let's go! 💬",
+    "Your voice agent adventure begins! 🌟",
+    "Welcome to the VoiceBun family! 💕"
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentQuote((prev) => (prev + 1) % quotes.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [quotes.length]);
+
+  return (
+    <motion.div
+      key={currentQuote}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.5 }}
+      className="text-center"
+    >
+      <p className="text-white text-xl font-medium">
+        {quotes[currentQuote]}
+      </p>
+    </motion.div>
+  );
+}
 
 function AuthPageContent() {
   const router = useRouter()
@@ -23,18 +63,17 @@ function AuthPageContent() {
   // Redirect if already authenticated
   useEffect(() => {
     if (user && !loading) {
-      router.push('/')
+      router.push('/dashboard')
     }
   }, [user, loading, router])
 
   const handleAuthSuccess = () => {
-    router.push('/')
+    router.push('/dashboard')
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ 
-        background: 'linear-gradient(to bottom, rgb(24, 0, 121), rgb(255, 106, 0))',
+      <div className="min-h-screen flex items-center justify-center bg-black" style={{ 
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}>
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -47,44 +86,37 @@ function AuthPageContent() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ 
-      background: 'linear-gradient(to bottom, rgb(24, 0, 121), rgb(255, 106, 0))',
+    <div className="min-h-screen flex bg-black" style={{ 
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     }}>
       {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 p-12 flex-col justify-center">
-        <div className="max-w-md">
+      <div className="hidden lg:flex lg:w-1/2 p-12 flex-col justify-center items-center">
+        <div className="max-w-md text-center">
           <div className="flex items-center justify-center mb-8">
             <img 
-              src="/VoiceBun-White.png" 
-              alt="VoiceBun Logo" 
-              className="h-20 w-auto"
+              src="/VoiceBun-BunOnly.png" 
+              alt="VoiceBun Mascot" 
+              className="h-32 w-auto"
             />
           </div>
           
-          <h2 className="text-4xl font-bold text-white mb-6 text-center" style={{ 
-            fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' 
-          }}>
-            Welcome to the VoiceBun Community
-          </h2>
-          
-          
+          <CuteQuotes />
         </div>
       </div>
 
       {/* Right side - Auth Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-lg">
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-8">
             <div className="flex items-center justify-center mb-4">
               <img 
-                src="/VoiceBun-White.png" 
-                alt="VoiceBun Logo" 
-                className="h-16 w-auto"
+                src="/VoiceBun-BunOnly.png" 
+                alt="VoiceBun Mascot" 
+                className="h-24 w-auto"
               />
             </div>
-            <p className="text-white/80 text-lg">Build powerful voice agents with AI</p>
+            <CuteQuotes />
           </div>
 
           <AuthForm 
@@ -100,8 +132,7 @@ function AuthPageContent() {
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ 
-      background: 'linear-gradient(to bottom, rgb(24, 0, 121), rgb(255, 106, 0))',
+    <div className="min-h-screen flex items-center justify-center bg-black" style={{ 
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     }}>
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>

@@ -3,12 +3,15 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
-import { User, LogOut, Settings, ChevronDown } from 'lucide-react'
+import { User, LogOut, Settings, ChevronDown, CreditCard } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function UserProfile() {
   const { user, signOut } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
+  const [upgrading, setUpgrading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -25,6 +28,43 @@ export default function UserProfile() {
     await signOut()
     setIsOpen(false)
   }
+
+  const handleUpgrade = async () => {
+    if (!user) return;
+    
+    try {
+      setUpgrading(true);
+      setIsOpen(false);
+      
+      // Create checkout session
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: 'price_1RZMYS4Jw5GVEzp6EVGIuH2F', // User's actual price ID for $20/month
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      // Redirect to Stripe checkout
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Error upgrading:', error);
+      alert('Failed to start upgrade process. Please try again.');
+    } finally {
+      setUpgrading(false);
+    }
+  };
 
   if (!user) return null
 
@@ -62,34 +102,38 @@ export default function UserProfile() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-gray-800 rounded-lg shadow-xl border border-gray-700 py-2 z-50">
-          <div className="px-4 py-3 border-b border-gray-700">
-            <p className="text-white font-medium">{displayName}</p>
-            <p className="text-gray-400 text-sm">{user.email}</p>
+        <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+          <div className="px-4 py-3 border-b border-gray-200">
+            <p className="text-gray-900 font-medium">{displayName}</p>
+            <p className="text-gray-500 text-sm">{user.email}</p>
           </div>
           
           <div className="py-2">
             <button
-              onClick={() => setIsOpen(false)}
-              className="w-full flex items-center px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              onClick={() => {
+                router.push('/profile')
+                setIsOpen(false)
+              }}
+              className="w-full flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
             >
               <User className="w-4 h-4 mr-3" />
-              Profile
+              Profile Settings
             </button>
             
             <button
-              onClick={() => setIsOpen(false)}
-              className="w-full flex items-center px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              onClick={handleUpgrade}
+              disabled={upgrading}
+              className="w-full flex items-center px-4 py-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Settings className="w-4 h-4 mr-3" />
-              Settings
+              <CreditCard className="w-4 h-4 mr-3" />
+              {upgrading ? 'Processing...' : 'Upgrade Plan'}
             </button>
           </div>
           
-          <div className="border-t border-gray-700 pt-2">
+          <div className="border-t border-gray-200 pt-2">
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center px-4 py-2 text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+              className="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
             >
               <LogOut className="w-4 h-4 mr-3" />
               Sign Out

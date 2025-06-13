@@ -1799,9 +1799,9 @@ For now, you can still manually configure your voice agent using the tabs above.
     <RoomContext.Provider value={room}>
       <div className="w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
         {/* Left side - Chat conversation */}
-        <div className="w-1/4 bg-gradient-to-b from-gray-800/90 to-gray-900/90 backdrop-blur-sm border-r border-gray-700/50 flex flex-col">
+        <div className="w-1/4 bg-gray-800 border-r border-gray-700 flex flex-col">
           {/* Header with logo */}
-          <div className="p-3 border-b border-gray-700/30 bg-gray-800/50">
+          <div className="p-3 border-b border-gray-700 bg-gray-800">
             <div className="flex items-center justify-between">
               <button
                 onClick={onBackToHome}
@@ -1814,20 +1814,21 @@ For now, you can still manually configure your voice agent using the tabs above.
                   className="w-10 h-10"
                 />
               </button>
-              <div className="flex items-center space-x-2 text-xs text-gray-400">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span>Configuration Assistant</span>
-              </div>
             </div>
           </div>
 
           {/* Messages area */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
             {messages.map((message) => (
-              <div key={message.id} className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div key={message.id} className="flex flex-col items-start">
                 {message.role === 'assistant' && (
                   <div className="mb-2">
                     <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>Bun</p>
+                  </div>
+                )}
+                {message.role === 'user' && (
+                  <div className="mb-2">
+                    <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>You</p>
                   </div>
                 )}
                 <div className="max-w-[95%]">
@@ -1836,22 +1837,6 @@ For now, you can still manually configure your voice agent using the tabs above.
                     <p className="text-xs opacity-70 text-gray-400">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
-                    {message.checkpoint && message.role === 'assistant' && message.filesSnapshot && (
-                      <button
-                        onClick={() => {
-                          if (confirm(`Restore to this checkpoint? This will undo all changes made after ${message.timestamp.toLocaleString()}`)) {
-                            rollbackToCheckpoint(message);
-                          }
-                        }}
-                        className="ml-2 px-2 py-1 bg-white hover:bg-gray-100 text-gray-900 text-xs rounded-lg transition-all duration-200 flex items-center shadow-lg"
-                        title="Restore to this checkpoint"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                        Restore
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1864,7 +1849,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 <div className="max-w-[95%]">
                   <div className="flex items-center space-x-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent"></div>
-                    <span className="text-sm text-gray-100">Thinking...</span>
+                    <span className="text-sm text-gray-200">Thinking...</span>
                   </div>
                 </div>
               </div>
@@ -1874,11 +1859,11 @@ For now, you can still manually configure your voice agent using the tabs above.
           </div>
 
           {/* Message input */}
-          <div className="p-6 border-t border-gray-700/30 bg-gray-800/30">
-            <div className="relative bg-gray-800/90 rounded-3xl p-4">
+          <div className="p-6 border-t border-gray-700 bg-gray-800">
+            <div className="relative bg-gray-700 rounded-3xl p-4">
               <div className="flex items-center space-x-3">
-                <button className="w-8 h-8 bg-gray-600 hover:bg-gray-500 rounded-full flex items-center justify-center transition-colors">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button className="w-8 h-8 bg-white hover:bg-gray-100 rounded-full flex items-center justify-center transition-colors">
+                  <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                 </button>
@@ -1911,9 +1896,9 @@ For now, you can still manually configure your voice agent using the tabs above.
                 <button
                   onClick={sendMessage}
                   disabled={!inputMessage.trim() || isGenerating}
-                  className="w-8 h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors"
+                  className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors"
                 >
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                   </svg>
                 </button>
@@ -1923,7 +1908,7 @@ For now, you can still manually configure your voice agent using the tabs above.
         </div>
 
         {/* Right side - Code/Test view */}
-        <div className="w-3/4 bg-gray-900 flex flex-col">
+        <div className="w-3/4 bg-black flex flex-col">
           {/* Header with toggle and actions */}
           <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
             <div className="flex items-center space-x-6">
@@ -1931,65 +1916,65 @@ For now, you can still manually configure your voice agent using the tabs above.
                 onClick={() => setActiveMenu('instructions')}
                 className={`text-base font-bold transition-colors relative ${
                   activeMenu === 'instructions' 
-                    ? 'text-orange-400' 
-                    : 'text-gray-300 hover:text-white'
+                    ? 'text-white' 
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 Instructions
                 {activeMenu === 'instructions' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
                 )}
                 </button>
                 <button
                 onClick={() => setActiveMenu('models')}
                 className={`text-base font-bold transition-colors relative ${
                   activeMenu === 'models' 
-                    ? 'text-orange-400' 
-                    : 'text-gray-300 hover:text-white'
+                    ? 'text-white' 
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 Models
                 {activeMenu === 'models' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
                 )}
                 </button>
                 <button
                 onClick={() => setActiveMenu('functions')}
                 className={`text-base font-bold transition-colors relative ${
                   activeMenu === 'functions' 
-                    ? 'text-orange-400' 
-                    : 'text-gray-300 hover:text-white'
+                    ? 'text-white' 
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 Functions
                 {activeMenu === 'functions' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
                 )}
                 </button>
                   <button
                 onClick={() => setActiveMenu('phone')}
                 className={`text-base font-bold transition-colors relative ${
                   activeMenu === 'phone' 
-                    ? 'text-orange-400' 
-                    : 'text-gray-300 hover:text-white'
+                    ? 'text-white' 
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 Phone Numbers
                 {activeMenu === 'phone' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
                 )}
                 </button>
                   <button
                 onClick={() => setActiveMenu('other')}
                 className={`text-base font-bold transition-colors relative ${
                   activeMenu === 'other' 
-                    ? 'text-orange-400' 
-                    : 'text-gray-300 hover:text-white'
+                    ? 'text-white' 
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 Other
                 {activeMenu === 'other' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
                 )}
                 </button>
                 <button
@@ -1999,13 +1984,13 @@ For now, you can still manually configure your voice agent using the tabs above.
                 }}
                 className={`text-base font-bold transition-colors relative ${
                   activeMenu === 'test' 
-                    ? 'text-orange-400' 
-                    : 'text-gray-300 hover:text-white'
+                    ? 'text-white' 
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 Test
                 {activeMenu === 'test' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-orange-400"></div>
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
                 )}
                         </button>
                       </div>
@@ -2013,11 +1998,11 @@ For now, you can still manually configure your voice agent using the tabs above.
                       <button
                         onClick={saveProjectConfiguration}
                         disabled={isSavingConfig}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                        className="px-4 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
               >
                         {isSavingConfig ? (
                           <>
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-black"></div>
                             <span>Saving...</span>
                           </>
                         ) : (
@@ -2028,7 +2013,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                       <button 
                         onClick={handlePublish}
                         disabled={isPublishing}
-                        className="px-4 py-1.5 bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 disabled:from-orange-300 disabled:to-orange-400 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center space-x-2"
+                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
                       >
                         {isPublishing ? (
                           <>
@@ -2107,7 +2092,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </div>
               </div>
             ) : activeMenu === 'instructions' ? (
-              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
+              <div className="h-full bg-black p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
                   {/* System Prompt Section */}
                   <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
@@ -2120,10 +2105,10 @@ For now, you can still manually configure your voice agent using the tabs above.
                     
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <label className="block text-sm font-medium text-gray-300">
+                        <label className="block text-sm font-medium text-gray-200">
                           Define your agent's behavior and personality
                         </label>
-                        <button className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white text-sm font-medium rounded-lg transition-all duration-200">
+                        <button className="flex items-center space-x-2 px-3 py-1.5 bg-white hover:bg-gray-100 text-black text-sm font-medium rounded-lg transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                           </svg>
@@ -2151,7 +2136,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </h3>
                     
                     <div className="space-y-6">
-                      <p className="text-gray-400">
+                      <p className="text-gray-300">
                         Upload files to give your agent access to specific knowledge and data. Supported formats: PDF, TXT, DOCX, CSV, JSON.
                       </p>
                       
@@ -2159,7 +2144,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                       <div className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-gray-500 transition-colors">
                         <div className="space-y-4">
                           <div className="mx-auto w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center">
-                            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                             </svg>
                           </div>
@@ -2176,7 +2161,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                           />
                           <label
                             htmlFor="file-upload"
-                            className="inline-flex items-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg cursor-pointer transition-colors"
+                            className="inline-flex items-center px-4 py-2 bg-white hover:bg-gray-100 text-black font-medium rounded-lg cursor-pointer transition-colors"
                           >
                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2199,12 +2184,12 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </div>
               </div>
             ) : activeMenu === 'models' ? (
-              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
+              <div className="h-full bg-black p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
                   {/* Base Model Configuration */}
                   <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
                     <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-6 h-6 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
                       Base Model
@@ -2571,24 +2556,12 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </h3>
                     
                     <div className="space-y-6">
-                      <p className="text-gray-400">
+                      <p className="text-gray-300">
                         Configure phone numbers for your voice agent to handle inbound and outbound calls.
                       </p>
                       
                       {/* Phone Number Manager */}
                       <div className="bg-gray-700 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <button
-                            onClick={() => setShowTelnyxNumbersModal(true)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            <span>Purchase Number</span>
-                          </button>
-                        </div>
-                        
                         <PhoneNumberManager
                           key={phoneNumberRefreshKey}
                           projectId={project?.id || currentProject?.id}
@@ -2598,6 +2571,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                             // Update project config with the assigned phone number
                             setProjectConfig(prev => ({ ...prev, phoneNumber }));
                           }}
+                          onPurchaseNumber={() => setShowTelnyxNumbersModal(true)}
                         />
                       </div>
                       

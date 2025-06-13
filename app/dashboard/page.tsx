@@ -24,6 +24,83 @@ interface Project {
   };
 }
 
+// Audio bars visualization component
+function AudioBars() {
+  return (
+    <div className="flex items-end justify-center space-x-1 mt-8 mb-12 h-12">
+      {[...Array(12)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="bg-white/60 rounded-full"
+          style={{ width: '4px' }}
+          animate={{
+            height: [8, 24, 12, 32, 16, 28, 8, 20, 36, 14, 26, 18],
+            opacity: [0.4, 1, 0.6, 1, 0.8, 1, 0.5, 0.9, 1, 0.7, 1, 0.8]
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            delay: i * 0.2,
+            ease: "easeInOut"
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Typewriter effect component
+function TypewriterEffect() {
+  const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
+  const [currentText, setCurrentText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  const roles = [
+    'Teacher',
+    'Sales Rep', 
+    'Prank Caller',
+    'Therapist',
+    'Assistant',
+    'Tutor',
+    'Receptionist',
+    'Coach'
+  ];
+  
+  useEffect(() => {
+    const currentRole = roles[currentRoleIndex];
+    const fullText = `Your Next ${currentRole}`;
+    
+    const timer = setTimeout(() => {
+      if (!isDeleting) {
+        // Typing
+        if (currentText.length < fullText.length) {
+          setCurrentText(fullText.slice(0, currentText.length + 1));
+        } else {
+          // Pause before deleting
+          setTimeout(() => setIsDeleting(true), 2000);
+        }
+      } else {
+        // Deleting
+        if (currentText.length > 10) { // Keep "Your Next "
+          setCurrentText(currentText.slice(0, -1));
+        } else {
+          setIsDeleting(false);
+          setCurrentRoleIndex((prev) => (prev + 1) % roles.length);
+        }
+      }
+    }, isDeleting ? 50 : 100);
+    
+    return () => clearTimeout(timer);
+  }, [currentText, isDeleting, currentRoleIndex, roles]);
+  
+  return (
+    <span>
+      {currentText}
+      <span className="animate-pulse">|</span>
+    </span>
+  );
+}
+
 // Loading page component with animated logo and tips
 function LoadingPage() {
   const [currentTip, setCurrentTip] = useState(0);
@@ -52,7 +129,7 @@ function LoadingPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen flex flex-col items-center justify-center bg-gray-800"
+      className="min-h-screen flex flex-col items-center justify-center bg-black"
       style={{ 
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}
@@ -372,7 +449,7 @@ if __name__ == "__main__":
     }
   }, [searchParams, user, isGenerating, generateAgent]);
 
-  if (loading || (user && loadingProjects)) {
+  if (loading || (user && loadingProjects) || isGenerating) {
     return <LoadingPage />;
   }
 
@@ -385,14 +462,13 @@ if __name__ == "__main__":
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen"
+      className="min-h-screen bg-black"
       style={{ 
-        background: 'linear-gradient(to bottom, rgb(24, 0, 121) 0%, rgb(255, 106, 0) 40%, rgb(255, 255, 255) 70%)',
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' 
       }}
     >
       {/* Header */}
-      <header className="border-b border-white/10">
+      <header className="">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -403,6 +479,12 @@ if __name__ == "__main__":
             />
           </div>
           <div className="flex items-center space-x-4">
+            <a
+              href="/projects"
+              className="text-white/70 hover:text-white transition-colors"
+            >
+              Projects
+            </a>
             <UserProfile />
           </div>
         </div>
@@ -415,10 +497,10 @@ if __name__ == "__main__":
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-4xl md:text-5xl font-bold text-white mb-6"
+            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
             style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
           >
-            Build Voice Agents in Minutes
+            <TypewriterEffect />
           </motion.h1>
           
           <motion.p
@@ -436,7 +518,7 @@ if __name__ == "__main__":
             transition={{ delay: 0.3 }}
             className="relative max-w-4xl mx-auto mb-8"
           >
-            <div className="bg-gray-900/95 backdrop-blur-md rounded-3xl p-4 shadow-2xl shadow-black/40">
+            <div className="bg-white rounded-3xl p-4 shadow-2xl shadow-white/10">
               <div className="flex items-center gap-4">
                 <div className="flex-1 relative">
                   <textarea
@@ -444,7 +526,7 @@ if __name__ == "__main__":
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Describe the voice agent you want to create..."
-                    className="w-full h-16 p-4 bg-transparent text-white placeholder-white/60 focus:outline-none resize-none text-lg text-left"
+                    className="w-full h-16 p-4 bg-transparent text-black placeholder-gray-500 focus:outline-none resize-none text-lg text-left"
                     disabled={isGenerating}
                   />
                 </div>
@@ -452,12 +534,12 @@ if __name__ == "__main__":
                 <button
                   onClick={generateAgent}
                   disabled={!prompt.trim() || isGenerating}
-                  className="w-10 h-10 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
+                  className="w-10 h-10 bg-black hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
                 >
                   {isGenerating ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   ) : (
-                    <svg className="w-5 h-5 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                     </svg>
                   )}
@@ -489,7 +571,7 @@ if __name__ == "__main__":
                 <button
                   key={index}
                   onClick={() => setPrompt(example)}
-                  className="bg-gray-800 rounded-lg px-4 py-2 hover:bg-gray-700/50 transition-colors cursor-pointer text-gray-300 hover:text-white text-sm"
+                  className="bg-white rounded-lg px-4 py-2 hover:bg-gray-100 transition-colors cursor-pointer text-black hover:text-gray-800 text-sm"
                   disabled={isGenerating}
                 >
                   {example}
@@ -497,57 +579,65 @@ if __name__ == "__main__":
               ))}
             </div>
           </motion.div>
+
+          {/* Audio Bars */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+          >
+            <AudioBars />
+          </motion.div>
         </div>
       </section>
 
       {/* Recent Projects Section */}
       {projects.length > 0 && (
-        <section className="max-w-7xl mx-auto px-6 py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold text-black">Your Projects</h2>
-              <button 
-                onClick={() => router.push('/projects')}
-                className="text-blue-400 hover:text-blue-300 text-sm font-medium"
-              >
-                View All
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.slice(0, 6).map((project, index) => (
-                <motion.div
-                  key={project.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 + index * 0.1 }}
-                  className="bg-gray-800/30 border border-gray-700 rounded-xl overflow-hidden hover:border-gray-600 transition-all duration-200 cursor-pointer group"
-                  onClick={() => router.push(`/projects/${project.id}`)}
+        <section className="bg-white">
+          <div className="max-w-7xl mx-auto px-6 py-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-bold text-black">Your Projects</h2>
+                <button 
+                  onClick={() => router.push('/projects')}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                 >
-                  <div className="aspect-video bg-gradient-to-br from-blue-500 to-purple-600 relative">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-4xl">🤖</div>
+                  View All
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {projects.slice(0, 6).map((project, index) => (
+                  <motion.div
+                    key={project.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 + index * 0.1 }}
+                    className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-lg transition-all duration-200 cursor-pointer group"
+                    onClick={() => router.push(`/projects/${project.id}`)}
+                  >
+                    <div className="aspect-video bg-gradient-to-br from-blue-500 to-purple-600 relative">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-4xl">🤖</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-black font-medium text-sm group-hover:text-blue-400 transition-colors mb-1">
-                      {project.name}
-                    </h3>
-                    <p className="text-gray-600 text-xs mb-2">
-                      {project.description}
-                    </p>
-                    <p className="text-gray-500 text-xs">
-                      Created {new Date(project.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
+                    <div className="p-4">
+                      <h3 className="text-black font-medium text-sm group-hover:text-blue-600 transition-colors mb-1">
+                        {project.name}
+                      </h3>
+                      <p className="text-gray-500 text-xs">
+                        Created {new Date(project.created_at).toLocaleDateString()} at {new Date(project.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
         </section>
       )}
     </motion.div>

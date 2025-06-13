@@ -17,6 +17,11 @@ export interface Database {
         Insert: Omit<PhoneNumber, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<PhoneNumber, 'id' | 'created_at'>>;
       };
+      user_plans: {
+        Row: UserPlan;
+        Insert: Omit<UserPlan, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<UserPlan, 'id' | 'created_at'>>;
+      };
     };
     Views: {
       // No views currently
@@ -30,6 +35,23 @@ export interface UserProfile {
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserPlan {
+  id: string;
+  user_id: string;
+  plan_name: 'free' | 'professional' | 'enterprise';
+  subscription_status: 'active' | 'inactive' | 'cancelled' | 'past_due' | 'trialing';
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_price_id: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  conversation_minutes_used: number;
+  conversation_minutes_limit: number;
   created_at: string;
   updated_at: string;
 }

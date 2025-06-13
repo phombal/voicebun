@@ -232,8 +232,14 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           // If not JSON, use the error message directly
           errorMessage = error.message;
           
+          // Check for credit/payment related errors
+          if (error.message.includes('credit') || error.message.includes('funds') || error.message.includes('insufficient')) {
+            errorTitle = 'Purchase Failed';
+            errorMessage = 'There was an issue processing your purchase. Please contact support for assistance.';
+            showUpgradeAction = false;
+          }
           // Check for account limit related errors
-          if (error.message.includes('verification') || error.message.includes('account level') || error.message.includes('limit')) {
+          else if (error.message.includes('verification') || error.message.includes('account level') || error.message.includes('limit')) {
             errorTitle = 'Account Verification Required';
             showUpgradeAction = true;
           }
@@ -252,7 +258,7 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           <div class="flex-1">
             <div class="font-medium">${errorTitle}</div>
             <div class="text-sm opacity-90">${errorMessage}</div>
-            ${showUpgradeAction ? '<div class="text-xs opacity-75 mt-1">Please upgrade your Telnyx account verification or contact support.</div>' : ''}
+            ${showUpgradeAction ? '<div class="text-xs opacity-75 mt-1">Please contact support for assistance with account verification.</div>' : ''}
           </div>
         </div>
       `;
@@ -327,7 +333,6 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
             
             <div className="text-sm text-gray-400 mb-4">
               Found {telnyxNumbers.length} available phone number{telnyxNumbers.length !== 1 ? 's' : ''} 
-              <span className="text-green-400 ml-2">• Live from Telnyx • Just refreshed</span>
             </div>
             
             {telnyxNumbers.map((number, index) => (
