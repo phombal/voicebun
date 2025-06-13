@@ -1642,23 +1642,27 @@ For now, you can still manually configure your voice agent using the tabs above.
               transition={{ duration: 0.3, ease: [0.09, 1.04, 0.245, 1.055] }}
               className="grid items-center justify-center h-full"
             >
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-lg"
-                onClick={() => startConversation()}
-                disabled={isConnecting}
-              >
-                {isConnecting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2 inline-block"></div>
-                    Creating Agent Session...
-                  </>
-                ) : (
-                  'Start Conversation'
-                )}
-              </motion.button>
+              {isConnecting ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3, delay: 0.1 }}
+                  className="flex items-center justify-center text-white text-lg"
+                >
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Creating Agent Session...
+                </motion.div>
+              ) : (
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3, delay: 0.1 }}
+                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-lg"
+                  onClick={() => startConversation()}
+                >
+                  Start Conversation
+                </motion.button>
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -2116,12 +2120,6 @@ For now, you can still manually configure your voice agent using the tabs above.
                         <label className="block text-sm font-medium text-gray-200">
                           Define your agent's behavior and personality
                         </label>
-                        <button className="flex items-center space-x-2 px-3 py-1.5 bg-white hover:bg-gray-100 text-black text-sm font-medium rounded-lg transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                          <span>AI Assistant</span>
-                        </button>
                       </div>
                       
                       <textarea 
@@ -2131,62 +2129,6 @@ For now, you can still manually configure your voice agent using the tabs above.
                         className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                         placeholder="Enter your system prompt here. For example: 'You are a helpful customer service representative for an e-commerce company. You should be friendly, professional, and knowledgeable about products and policies. Always aim to resolve customer issues efficiently while maintaining a positive tone.'"
                       />
-                    </div>
-                  </div>
-
-                  {/* RAG Data Upload Section */}
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
-                                             Knowledge Base
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      <p className="text-gray-300">
-                        Upload files to give your agent access to specific knowledge and data. Supported formats: PDF, TXT, DOCX, CSV, JSON.
-                      </p>
-                      
-                      {/* File Upload Area */}
-                      <div className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-gray-500 transition-colors">
-                        <div className="space-y-4">
-                          <div className="mx-auto w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center">
-                            <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                          </div>
-                          <div>
-                            <p className="text-white font-medium">Drop files here or click to browse</p>
-                            <p className="text-gray-400 text-sm">Maximum file size: 10MB per file</p>
-                          </div>
-                          <input
-                            type="file"
-                            multiple
-                            accept=".pdf,.txt,.docx,.csv,.json"
-                            className="hidden"
-                            id="file-upload"
-                          />
-                          <label
-                            htmlFor="file-upload"
-                            className="inline-flex items-center px-4 py-2 bg-white hover:bg-gray-100 text-black font-medium rounded-lg cursor-pointer transition-colors"
-                          >
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Choose Files
-                          </label>
-                        </div>
-                      </div>
-                      
-                                             {/* Uploaded Files List */}
-                       <div className="space-y-3">
-                         <h4 className="text-lg font-medium text-white">Uploaded Files</h4>
-                         <div className="text-center py-8">
-                           <p className="text-gray-400">No files uploaded yet</p>
-                           <p className="text-gray-500 text-sm mt-1">Upload files to enhance your agent's knowledge</p>
-                         </div>
-                       </div>
                     </div>
                   </div>
                 </div>
@@ -2528,30 +2470,6 @@ For now, you can still manually configure your voice agent using the tabs above.
 
                 </div>
               </div>
-            ) : activeMenu === 'functions' ? (
-              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-8">
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                      Functions & Tools
-                    </h3>
-                      
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        </div>
-                      <h4 className="text-xl font-semibold text-white mb-2">Functions & Tools</h4>
-                      <p className="text-gray-400">Configure custom functions and integrations for your voice agent.</p>
-                      <p className="text-gray-500 text-sm mt-2">Coming soon...</p>
-                      </div>
-                    </div>
-                </div>
-              </div>
             ) : activeMenu === 'phone' ? (
               <div className="h-full bg-gray-900 p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
@@ -2622,42 +2540,14 @@ For now, you can still manually configure your voice agent using the tabs above.
                           </div>
                         </div>
                         </div>
-                        
-
-
-
                         </div>
                         </div>
-                </div>
-              </div>
-            ) : activeMenu === 'other' ? (
-              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-8">
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-                      </svg>
-                      Other Settings
-                    </h3>
-                    
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-                        </svg>
-                        </div>
-                      <h4 className="text-xl font-semibold text-white mb-2">Other Settings</h4>
-                      <p className="text-gray-400">Additional configuration options and advanced settings.</p>
-                      <p className="text-gray-500 text-sm mt-2">Coming soon...</p>
-                      </div>
-                    </div>
                 </div>
               </div>
             ) : (
               <div className="h-full flex items-center justify-center bg-gray-900">
                 <div className="text-center">
-                  <p className="text-gray-400">Select a configuration section above or click Test to test your voice agent</p>
+                  <p className="text-gray-400">Coming Soon.</p>
                 </div>
               </div>
             )}

@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       ],
       mode: 'subscription',
       success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/pricing`,
+      cancel_url: `${appUrl}/dashboard`,
       metadata: {
         user_id: userId,
       },
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Checkout session created:', session.id);
 
-    return NextResponse.json({ sessionId: session.id });
+    return NextResponse.json({ url: session.url, sessionId: session.id });
   } catch (error: any) {
     console.error('❌ Error creating checkout session:', error);
     return NextResponse.json(

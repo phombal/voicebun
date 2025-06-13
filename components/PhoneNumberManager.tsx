@@ -263,7 +263,18 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
           </svg>
         </div>
         <p className="text-gray-400">No phone numbers purchased yet</p>
-        <p className="text-gray-500 text-sm mt-1">Purchase a phone number first to assign it to your project</p>
+        <p className="text-gray-500 text-sm mt-1 mb-4">Purchase a phone number first to assign it to your project</p>
+        {onPurchaseNumber && (
+          <button
+            onClick={onPurchaseNumber}
+            className="px-6 py-3 bg-white hover:bg-gray-100 text-black font-medium rounded-lg transition-colors flex items-center space-x-2 mx-auto"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Purchase Phone Number</span>
+          </button>
+        )}
       </div>
     );
   }
