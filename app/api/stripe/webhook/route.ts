@@ -237,26 +237,45 @@ export async function POST(request: NextRequest) {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log('❌ Subscription cancelled:', subscription.id);
+        console.log('❌ Subscription deleted:', subscription.id);
+        console.log('📊 Deleted subscription data:', {
+          id: subscription.id,
+          status: subscription.status,
+          cancel_at_period_end: subscription.cancel_at_period_end,
+          ended_at: subscription.ended_at,
+          canceled_at: subscription.canceled_at,
+          metadata: subscription.metadata
+        });
         
         // Find user by stripe subscription ID and downgrade to free plan
-        const userPlan = await db.getUserPlanWithServiceRole(subscription.metadata?.user_id || '');
+        const userId = subscription.metadata?.user_id;
+        console.log('🆔 User ID from subscription metadata:', userId);
         
-        if (userPlan) {
-          const updates = {
-            plan_name: 'free' as const,
-            subscription_status: 'inactive' as const,
-            stripe_subscription_id: null,
-            stripe_price_id: null,
-            current_period_start: null,
-            current_period_end: null,
-            cancel_at_period_end: false,
-            conversation_minutes_limit: 5, // Free plan limit
-            conversation_minutes_used: Math.min(userPlan.conversation_minutes_used, 5), // Cap at free limit
-          };
+        if (userId) {
+          const userPlan = await db.getUserPlanWithServiceRole(userId);
+          console.log('👤 Found user plan:', !!userPlan);
           
-          await db.updateUserPlanWithServiceRole(userPlan.user_id, updates);
-          console.log('✅ Downgraded user to free plan:', userPlan.user_id);
+          if (userPlan) {
+            console.log('🔄 Subscription deleted, downgrading to free plan');
+            const updates = {
+              plan_name: 'free' as const,
+              subscription_status: 'inactive' as const,
+              stripe_subscription_id: null,
+              stripe_price_id: null,
+              current_period_start: null,
+              current_period_end: null,
+              cancel_at_period_end: false,
+              conversation_minutes_limit: 5, // Free plan limit
+              conversation_minutes_used: Math.min(userPlan.conversation_minutes_used, 5), // Cap at free limit
+            };
+            
+            await db.updateUserPlanWithServiceRole(userPlan.user_id, updates);
+            console.log('✅ Downgraded user to free plan:', userPlan.user_id);
+          } else {
+            console.error('❌ No user plan found for user:', userId);
+          }
+        } else {
+          console.error('❌ No user ID found in subscription metadata');
         }
         break;
       }

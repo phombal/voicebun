@@ -554,17 +554,44 @@ export class DatabaseService {
   }
 
   // User Plan Management
-  async getUserPlan(userId?: string): Promise<UserPlan | null> {
-    const targetUserId = userId || await this.getCurrentUserId();
-    
-    const { data, error } = await this.supabase
-      .from('user_plans')
-      .select('*')
-      .eq('user_id', targetUserId)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') throw error;
-    return data;
+  async getUserPlan(): Promise<UserPlan | null> {
+    try {
+      const userId = await this.getCurrentUserId();
+      
+      // First, check and update expired subscriptions
+      const { checkAndUpdateExpiredSubscription } = await import('./subscription-utils');
+      const updatedPlan = await checkAndUpdateExpiredSubscription(userId);
+      
+      if (updatedPlan) {
+        return updatedPlan;
+      }
+
+      // Fallback to regular query if utility function fails
+      const { data, error } = await this.supabase
+        .from('user_plans')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No plan found, create default free plan
+          return await this.createUserPlan(userId, {
+            plan_name: 'free',
+            subscription_status: 'inactive',
+            conversation_minutes_used: 0,
+            conversation_minutes_limit: 5,
+            cancel_at_period_end: false,
+          });
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error getting user plan:', error);
+      throw error;
+    }
   }
 
   async createUserPlan(userId: string, planData: Partial<UserPlan>): Promise<UserPlan> {
