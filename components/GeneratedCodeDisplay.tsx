@@ -613,65 +613,64 @@ Just tell me what you want your voice agent to do or any issues you're experienc
   };
 
   const handlePublish = async () => {
+    console.log('🚀 Publishing voice agent...');
+    
     const projectToUse = project || currentProject;
     if (!projectToUse) {
+      console.error('❌ No project selected for publishing');
+      
+      // Show error notification
       const notification = document.createElement('div');
-      notification.textContent = 'Please select a project first.';
-      notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.textContent = 'Please select a project to publish.';
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
           document.body.removeChild(notification);
         }
-      }, 3000);
+      }, 5000);
       return;
     }
 
     setIsPublishing(true);
     
     try {
-      // Get phone numbers for the current project
+      // First, automatically save the configuration
+      console.log('💾 Auto-saving configuration before publishing...');
+      await saveProjectConfiguration();
+      console.log('✅ Configuration saved successfully');
+      
+      // Get phone numbers for this project
+      console.log('📞 Fetching phone numbers for project:', projectToUse.id);
       const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
+      console.log('📞 Found phone numbers:', phoneNumbers?.length || 0);
       
       if (!phoneNumbers || phoneNumbers.length === 0) {
-        // Show helpful message about purchasing a phone number
+        console.log('⚠️ No phone numbers found for project');
+        
+        // Show notification to purchase phone number
         const notification = document.createElement('div');
         notification.innerHTML = `
-          <div class="flex items-center space-x-2">
-            <svg class="w-5 h-5 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <span>To publish your voice agent, you need to purchase a phone number first.</span>
+          <div>
+            <strong>No phone number assigned</strong><br>
+            Please purchase a phone number first to publish your voice agent.
           </div>
         `;
-        notification.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm';
+        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
             document.body.removeChild(notification);
           }
-        }, 6000);
+        }, 7000);
         return;
       }
 
-      console.log(`📞 Found ${phoneNumbers.length} phone number(s) to update`);
-
-      const updateResults: Array<{
-        phoneNumber: string;
-        phoneNumberId: string;
-        success: boolean;
-        result?: any;
-        error?: string;
-      }> = [];
-      
-      let successCount = 0;
-      let errorCount = 0;
-      
-      for (let i = 0; i < phoneNumbers.length; i++) {
-        const phoneNumber = phoneNumbers[i];
-        console.log(`🔄 Updating phone number ${i + 1}/${phoneNumbers.length}: ${phoneNumber.phone_number}`);
-        
+      // Update dispatch rules for each phone number
+      const updatePromises = phoneNumbers.map(async (phoneNumber: any) => {
         try {
+          console.log('🔄 Updating dispatch rules for:', phoneNumber.phone_number);
+          
           const response = await fetch('/api/update-dispatch-rule', {
             method: 'POST',
             headers: {
@@ -680,7 +679,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
             body: JSON.stringify({
               phoneNumberId: phoneNumber.id,
               projectId: projectToUse.id,
-              userId: user?.id, // Add userId from authenticated user
+              userId: user?.id,
             }),
           });
           
@@ -690,61 +689,82 @@ Just tell me what you want your voice agent to do or any issues you're experienc
           }
           
           const result = await response.json();
-          
-          updateResults.push({
-            phoneNumber: phoneNumber.phone_number,
-            phoneNumberId: phoneNumber.id,
-            success: true,
-            result: result
-          });
-          successCount++;
-          console.log(`✅ Updated ${phoneNumber.phone_number} successfully`);
-          
+          console.log('✅ Successfully updated dispatch rules for:', phoneNumber.phone_number);
+          return { success: true, phoneNumber: phoneNumber.phone_number, result };
         } catch (error) {
-          console.error(`❌ Failed to update ${phoneNumber.phone_number}:`, error);
-          updateResults.push({
-            phoneNumber: phoneNumber.phone_number,
-            phoneNumberId: phoneNumber.id,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-          errorCount++;
+          console.error('❌ Failed to update dispatch rules for:', phoneNumber.phone_number, error);
+          return { success: false, phoneNumber: phoneNumber.phone_number, error };
         }
-      }
-      
-      // Show summary notification
-      const notification = document.createElement('div');
-      if (errorCount === 0) {
-        notification.textContent = `Settings updated successfully!`;
-        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      } else if (successCount > 0) {
-        notification.textContent = `Settings partially updated. Some changes may not have been applied.`;
-        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
-      } else {
-        throw new Error(`Failed to update settings`);
-      }
-      
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 5000);
-      
-      console.log('📊 Update Summary:', {
-        total: phoneNumbers.length,
-        successful: successCount,
-        failed: errorCount,
-        details: updateResults
       });
-      
+
+      const results = await Promise.all(updatePromises);
+      const successful = results.filter((r: any) => r.success);
+      const failed = results.filter((r: any) => !r.success);
+
+      console.log('📊 Publishing results:', {
+        total: results.length,
+        successful: successful.length,
+        failed: failed.length
+      });
+
+      // Show summary notification
+      if (failed.length === 0) {
+        // All successful
+        const notification = document.createElement('div');
+        notification.innerHTML = `
+          <div>
+            <strong>🎉 Voice agent published successfully!</strong><br>
+            Updated ${successful.length} phone number${successful.length > 1 ? 's' : ''}
+          </div>
+        `;
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 5000);
+      } else if (successful.length > 0) {
+        // Partial success
+        const notification = document.createElement('div');
+        notification.innerHTML = `
+          <div>
+            <strong>⚠️ Partially published</strong><br>
+            ${successful.length} successful, ${failed.length} failed
+          </div>
+        `;
+        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 7000);
+      } else {
+        // All failed
+        const notification = document.createElement('div');
+        notification.innerHTML = `
+          <div>
+            <strong>❌ Publishing failed</strong><br>
+            Could not update any phone numbers
+          </div>
+        `;
+        notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 7000);
+      }
+
     } catch (error) {
-      console.error('❌ Failed to publish configuration:', error);
+      console.error('❌ Publishing failed:', error);
       
       // Show error notification
       const notification = document.createElement('div');
-      notification.textContent = `Failed to update settings. Please try again.`;
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.textContent = 'Publishing failed. Please try again.';
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -1701,28 +1721,15 @@ For now, you can still manually configure your voice agent using the tabs above.
               animate={{ opacity: 1, top: 0 }}
               exit={{ opacity: 0, top: "-10px" }}
               transition={{ duration: 0.4, ease: [0.09, 1.04, 0.245, 1.055] }}
-              className="flex h-8 absolute left-1/2 -translate-x-1/2 justify-center items-center space-x-4"
+              className="flex h-8 absolute left-1/2 -translate-x-1/2 justify-center"
               style={{
-                '--lk-button-disconnect-bg': 'white',
-                '--lk-button-disconnect-bg-hover': 'white',
-                '--lk-button-bg': 'white',
-                '--lk-button-bg-hover': 'white',
-                '--lk-fg': 'black',
-                '--lk-fg-contrast': 'white',
-                '--lk-mic-button-bg': 'white',
-                '--lk-mic-button-bg-hover': 'white',
-                '--lk-control-bg': 'white',
-                '--lk-control-bg-hover': 'white'
+                '--lk-va-bar-width': '72px',
+                '--lk-control-bar-height': 'unset'
               } as React.CSSProperties}
             >
               <VoiceAssistantControlBar controls={{ leave: false }} />
               <DisconnectButton 
                 onClick={endConversation}
-                style={{ 
-                  backgroundColor: 'white',
-                  borderColor: 'white'
-                }}
-                className="!bg-red-600 hover:!bg-red-700 !border-red-600 hover:!border-red-700"
               >
                 <CloseIcon />
               </DisconnectButton>
@@ -1798,7 +1805,7 @@ For now, you can still manually configure your voice agent using the tabs above.
 
   return (
     <RoomContext.Provider value={room}>
-      <div className="w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
+      <div data-lk-theme="default" className="w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
         {/* Left side - Chat conversation */}
         <div className="w-1/4 bg-gray-800 border-r border-gray-700 flex flex-col">
           {/* Header with logo */}
@@ -2093,7 +2100,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </div>
               </div>
             ) : activeMenu === 'instructions' ? (
-              <div className="h-full bg-black p-6 overflow-y-auto">
+              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
                   {/* System Prompt Section */}
                   <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
@@ -2185,7 +2192,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </div>
               </div>
             ) : activeMenu === 'models' ? (
-              <div className="h-full bg-black p-6 overflow-y-auto">
+              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
                   {/* Base Model Configuration */}
                   <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">

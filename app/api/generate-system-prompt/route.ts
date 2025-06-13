@@ -36,7 +36,9 @@ Context: ${context}
 Tone: ${tone}
 Domain: ${domain}
 
-Return a detailed system prompt that will make the voice agent excellent at their specific role. The prompt should be between 800-1500 characters and ready to use directly in a voice agent system.`;
+IMPORTANT: Return ONLY the system prompt content without any headers, markers, or formatting like "[System Prompt Start]", "[System Prompt End]", "**System Prompt**:", or similar. The response should be ready to use directly as instructions for the voice agent.
+
+The prompt should be between 800-1500 characters and ready to use directly in a voice agent system.`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -60,15 +62,24 @@ Return a detailed system prompt that will make the voice agent excellent at thei
       throw new Error('Failed to generate system prompt');
     }
 
+    // Clean up the generated system prompt by removing unwanted formatting
+    const cleanedSystemPrompt = generatedSystemPrompt
+      .replace(/\[System Prompt Start\]/gi, '')
+      .replace(/\[System Prompt End\]/gi, '')
+      .replace(/\[System Prompt for.*?\]/gi, '')
+      .replace(/^\*\*System Prompt\*\*:?\s*/gi, '')
+      .replace(/^\*\*Role:\*\*.*?\n/gi, '')
+      .trim();
+
     const response = {
-      system_prompt: generatedSystemPrompt,
+      system_prompt: cleanedSystemPrompt,
       original_prompt: user_prompt,
       metadata: {
         tone,
         domain,
         context,
         model_used: 'gpt-4o',
-        prompt_length: generatedSystemPrompt.length,
+        prompt_length: cleanedSystemPrompt.length,
         tokens_used: completion.usage?.total_tokens || 0
       }
     };
