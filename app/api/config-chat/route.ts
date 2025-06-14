@@ -84,8 +84,8 @@ CONFIGURATION FIELDS AND OPTIONS:
 - systemPrompt: Free text for agent behavior and personality
 - agentInstructions: Additional instructions for the agent
 - firstMessageMode: "wait" | "speak_first" | "speak_first_with_model_generated_message"
-- llmProvider: "openai" | "anthropic"
-- llmModel: For OpenAI: "gpt-4o-mini" | "gpt-4o" | "gpt-4.1" | "gpt-4.1-mini" | "gpt-4.1-nano", For Anthropic: "claude-opus-4" | "claude-sonnet-4" | "claude-3-5-haiku"
+- llmProvider: "openai" | "anthropic" | "xai"
+- llmModel: For OpenAI: "gpt-4o-mini" | "gpt-4o" | "gpt-4.1" | "gpt-4.1-mini" | "gpt-4.1-nano", For Anthropic: "claude-opus-4" | "claude-sonnet-4" | "claude-3-5-haiku", For xAI: "grok-2"
 - llmTemperature: 0.0 to 2.0 (0 = conservative, 1 = balanced, 2 = creative)
 - llmMaxResponseLength: 150 | 300 | 500 | 1000 (tokens)
 - sttProvider: "deepgram" (only option)

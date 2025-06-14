@@ -129,7 +129,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     systemPrompt: '', // Will be loaded from database by loadProjectConfiguration
     agentInstructions: '',
     firstMessageMode: 'wait' as 'wait' | 'speak_first' | 'speak_first_with_model_generated_message',
-    llmProvider: 'openai' as 'openai' | 'anthropic' | 'google' | 'azure',
+    llmProvider: 'openai' as 'openai' | 'anthropic' | 'google' | 'azure' | 'xai',
     llmModel: 'gpt-4o-mini',
     llmTemperature: 0.7,
     llmMaxResponseLength: 300 as 150 | 300 | 500 | 1000,
@@ -1771,12 +1771,14 @@ For now, you can still manually configure your voice agent using the tabs above.
     'gpt-4.1-nano': 'openai',
     'claude-opus-4': 'anthropic',
     'claude-sonnet-4': 'anthropic',
-    'claude-3-5-haiku': 'anthropic'
+    'claude-3-5-haiku': 'anthropic',
+    'grok-2': 'xai'
   };
 
   const providers = [
     { value: 'openai', label: 'OpenAI' },
-    { value: 'anthropic', label: 'Anthropic' }
+    { value: 'anthropic', label: 'Anthropic' },
+    { value: 'xai', label: 'xAI' }
   ];
 
   const modelsByProvider: { [key: string]: { value: string; label: string }[] } = {
@@ -1791,6 +1793,9 @@ For now, you can still manually configure your voice agent using the tabs above.
       { value: 'claude-opus-4', label: 'Claude Opus 4' },
       { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
       { value: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' }
+    ],
+    xai: [
+      { value: 'grok-2', label: 'Grok-2' }
     ]
   };
 
@@ -2160,8 +2165,18 @@ For now, you can still manually configure your voice agent using the tabs above.
                             <select 
                               value={projectConfig.llmProvider}
                               onChange={(e) => {
-                                setProjectConfig(prev => ({ ...prev, llmProvider: e.target.value as any }));
-                                setSelectedProvider(e.target.value);
+                                const newProvider = e.target.value;
+                                // Get the first available model for the new provider
+                                const firstModel = modelsByProvider[newProvider]?.[0]?.value;
+                                setProjectConfig(prev => ({ 
+                                  ...prev, 
+                                  llmProvider: newProvider as any,
+                                  llmModel: firstModel || prev.llmModel
+                                }));
+                                setSelectedProvider(newProvider);
+                                if (firstModel) {
+                                  handleModelChange(firstModel);
+                                }
                               }}
                               className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
                             >

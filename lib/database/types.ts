@@ -309,7 +309,7 @@ export interface ProjectData {
   first_message_mode: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
   
   // Base Model Configuration
-  llm_provider: 'openai' | 'anthropic' | 'google' | 'azure';
+  llm_provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'xai';
   llm_model: string;
   llm_temperature: number;
   llm_max_response_length: 150 | 300 | 500 | 1000;
@@ -368,7 +368,7 @@ export interface ProjectDataConfig {
   system_prompt: string;
   agent_instructions?: string;
   first_message_mode?: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
-  llm_provider?: 'openai' | 'anthropic' | 'google' | 'azure';
+  llm_provider?: 'openai' | 'anthropic' | 'google' | 'azure' | 'xai';
   llm_model?: string;
   llm_temperature?: number;
   llm_max_response_length?: 150 | 300 | 500 | 1000;
