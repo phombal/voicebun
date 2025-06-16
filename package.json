@@ -16,6 +16,7 @@
     "@livekit/components-styles": "^1.1.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/rest": "^21.1.1",
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
     "@types/jsonwebtoken": "^9.0.9",
     "framer-motion": "^11.18.0",

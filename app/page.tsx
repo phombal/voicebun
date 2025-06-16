@@ -60,7 +60,6 @@ function TypewriterEffect() {
   const roles = [
     'Teacher',
     'Sales Rep', 
-    'Prank Caller',
     'Therapist',
     'Assistant',
     'Tutor',
@@ -406,28 +405,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="bg-white py-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-3 gap-8">
-            <FeatureCard
-              icon="🎤"
-              title="Natural Conversations"
-              description="Advanced speech recognition and synthesis for human-like interactions"
-            />
-            <FeatureCard
-              icon="🧠"
-              title="Smart Responses"
-              description="Powered by state-of-the-art language models for intelligent replies"
-            />
-            <FeatureCard
-              icon="⚡"
-              title="Deploy Instantly"
-              description="Get your voice agent running in minutes, not hours"
-            />
-          </div>
-        </div>
-      </section>
     </div>
 
       {/* Auth Prompt Modal */}
@@ -442,20 +419,6 @@ export default function LandingPage() {
         />
       )}
     </>
-  );
-}
-
-function FeatureCard({ icon, title, description }: { icon: string; title: string; description: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="text-center"
-    >
-      <div className="text-4xl mb-4">{icon}</div>
-      <h3 className="text-xl font-bold text-black mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
-    </motion.div>
   );
 }
 

@@ -56,14 +56,14 @@ function TypewriterEffect() {
   const [isDeleting, setIsDeleting] = useState(false);
   
   const roles = [
-    'Teacher',
-    'Sales Rep', 
-    'Prank Caller',
+    'Customer Support',
+    'Sales Rep',
     'Therapist',
-    'Assistant',
-    'Tutor',
+    'Personal Assistant',
     'Receptionist',
-    'Coach'
+    'Teacher',
+    'Fitness Coach',
+    'Travel Agent'
   ];
   
   useEffect(() => {

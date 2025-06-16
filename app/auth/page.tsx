@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import AuthForm from '@/components/auth/AuthForm'
 import { motion } from 'framer-motion'
+import { AlertCircle } from 'lucide-react'
 
 // Cute quotes component
 function CuteQuotes() {
@@ -51,12 +52,36 @@ function AuthPageContent() {
   const searchParams = useSearchParams()
   const { user, loading } = useAuth()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [oauthError, setOauthError] = useState<string | null>(null)
 
-  // Check URL params for initial mode
+  // Check URL params for initial mode and OAuth errors
   useEffect(() => {
     const modeParam = searchParams.get('mode')
+    const errorParam = searchParams.get('error')
+    
     if (modeParam === 'signup') {
       setMode('signup')
+    }
+    
+    if (errorParam) {
+      switch (errorParam) {
+        case 'oauth_error':
+          setOauthError('OAuth authentication failed. Please try again.')
+          break
+        case 'exchange_failed':
+          setOauthError('Failed to complete Google sign in. Please try again.')
+          break
+        case 'access_denied':
+          setOauthError('Google sign in was cancelled.')
+          break
+        default:
+          setOauthError('Authentication error occurred. Please try again.')
+      }
+      
+      // Clear the error from URL after showing it
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('error')
+      window.history.replaceState({}, '', newUrl.toString())
     }
   }, [searchParams])
 
@@ -118,6 +143,20 @@ function AuthPageContent() {
             </div>
             <CuteQuotes />
           </div>
+
+          {/* OAuth Error Display */}
+          {oauthError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+              <p className="text-red-700 text-sm">{oauthError}</p>
+              <button 
+                onClick={() => setOauthError(null)}
+                className="ml-auto text-red-500 hover:text-red-700"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           <AuthForm 
             mode={mode} 
