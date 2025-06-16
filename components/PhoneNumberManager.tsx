@@ -452,7 +452,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
                 </div>
                 
                 <div>
-                  <p className="text-black font-medium">{formatPhoneNumber(phoneNumber.phone_number)}</p>
+                  <p className="text-white font-medium">{formatPhoneNumber(phoneNumber.phone_number)}</p>
                   <div className="flex items-center space-x-3 text-sm">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       isConnectedToCurrentProject

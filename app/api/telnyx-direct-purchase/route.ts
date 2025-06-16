@@ -26,6 +26,29 @@ export async function POST(request: NextRequest) {
       const body: DirectPurchaseRequest = await request.json();
       console.log('🔄 SDK-based purchase request for:', body.phoneNumber);
 
+      // Check phone number limit before purchasing
+      console.log('📊 Checking phone number limit for user:', body.userId);
+      try {
+        const limitCheck = await db.checkPhoneNumberLimitWithServiceRole(body.userId);
+        console.log('📊 Phone number limit check result:', limitCheck);
+        
+        if (!limitCheck.canPurchase) {
+          return NextResponse.json({
+            error: 'Phone number limit exceeded',
+            details: `You have reached your phone number limit (${limitCheck.currentCount}/${limitCheck.limit}). Please upgrade your plan to purchase more phone numbers.`,
+            currentCount: limitCheck.currentCount,
+            limit: limitCheck.limit,
+            upgradeRequired: true
+          }, { status: 403 });
+        }
+      } catch (error) {
+        console.error('❌ Error checking phone number limit:', error);
+        return NextResponse.json({
+          error: 'Failed to check phone number limit',
+          details: 'Unable to verify your phone number purchase limit. Please try again.'
+        }, { status: 500 });
+      }
+
       // REAL PURCHASE: Call Telnyx SDK
       console.log('💰 Purchasing phone number using Telnyx SDK...');
       

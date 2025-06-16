@@ -726,7 +726,7 @@ export class DatabaseService {
 
   async incrementPhoneNumberCount(userId: string): Promise<UserPlan> {
     const { data, error } = await this.supabase
-      .rpc('increment_phone_number_count', { user_id: userId });
+      .rpc('increment_phone_number_count', { input_user_id: userId });
     
     if (error) throw error;
     
@@ -741,7 +741,7 @@ export class DatabaseService {
   // Server-side version for API routes
   async incrementPhoneNumberCountWithServiceRole(userId: string): Promise<UserPlan> {
     const { data, error } = await supabaseServiceRole
-      .rpc('increment_phone_number_count', { user_id: userId });
+      .rpc('increment_phone_number_count', { input_user_id: userId });
     
     if (error) throw error;
     
@@ -755,7 +755,7 @@ export class DatabaseService {
 
   async decrementPhoneNumberCount(userId: string): Promise<UserPlan> {
     const { data, error } = await this.supabase
-      .rpc('decrement_phone_number_count', { user_id: userId });
+      .rpc('decrement_phone_number_count', { input_user_id: userId });
     
     if (error) throw error;
     
