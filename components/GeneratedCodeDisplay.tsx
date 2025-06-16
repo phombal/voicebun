@@ -393,7 +393,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'No project found to save configuration to. Please refresh the page.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -452,7 +452,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         // Show success notification
         const notification = document.createElement('div');
         notification.textContent = 'Changes saved successfully!';
-        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -468,7 +468,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
         // Show success notification
         const notification = document.createElement('div');
         notification.textContent = 'Changes saved successfully!';
-        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -493,7 +493,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'Failed to save changes. Please try again.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -592,7 +592,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       // Show success notification
       const notification = document.createElement('div');
       notification.textContent = 'Copied to clipboard!';
-      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -603,7 +603,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'Failed to copy. Please try again.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -623,7 +623,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'Please select a project to publish.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -657,7 +657,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
             Please purchase a phone number first to publish your voice agent.
           </div>
         `;
-        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        notification.className = 'fixed bottom-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -718,7 +718,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
             Updated ${successful.length} phone number${successful.length > 1 ? 's' : ''}
           </div>
         `;
-        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -734,7 +734,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
             ${successful.length} successful, ${failed.length} failed
           </div>
         `;
-        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        notification.className = 'fixed bottom-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -750,7 +750,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
             Could not update any phone numbers
           </div>
         `;
-        notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -765,7 +765,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'Publishing failed. Please try again.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -792,7 +792,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'Failed to load phone numbers. Please try again.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -823,7 +823,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       // Show success notification
       const notification = document.createElement('div');
       notification.textContent = `Phone number assigned successfully!`;
-      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -837,7 +837,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'Failed to assign phone number. Please try again.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -1042,7 +1042,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
                         </div>
                       </div>
                     `;
-                    notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+                    notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
                     document.body.appendChild(notification);
                     setTimeout(() => {
                       if (document.body.contains(notification)) {
@@ -1293,7 +1293,7 @@ For now, you can still manually configure your voice agent using the tabs above.
         // Show user-friendly error
         const notification = document.createElement('div');
         notification.textContent = 'Microphone access error. Please check your permissions.';
-        notification.className = 'fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        notification.className = 'fixed bottom-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
         document.body.appendChild(notification);
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -1320,7 +1320,7 @@ For now, you can still manually configure your voice agent using the tabs above.
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = `Failed to start conversation: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -1344,7 +1344,7 @@ For now, you can still manually configure your voice agent using the tabs above.
       console.error('Device failure:', error);
       const notification = document.createElement('div');
       notification.textContent = 'Error accessing microphone. Please check permissions and reload.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -1557,6 +1557,23 @@ For now, you can still manually configure your voice agent using the tabs above.
         }
         .lk-audio-visualizer {
           background-color: #000000 !important;
+        }
+        /* Hide any text in the voice assistant control bar */
+        .lk-voice-assistant-control-bar span,
+        .lk-voice-assistant-control-bar p,
+        .lk-voice-assistant-control-bar div:not([class*="button"]):not([class*="control"]) {
+          display: none !important;
+        }
+        /* Hide text content in LiveKit control elements */
+        [data-lk-theme] .lk-voice-assistant-control-bar .lk-button-group span,
+        [data-lk-theme] .lk-voice-assistant-control-bar .lk-button-group p,
+        [data-lk-theme] .lk-voice-assistant-control-bar .lk-button-group div:not([class*="button"]):not([class*="icon"]) {
+          display: none !important;
+        }
+        /* More specific targeting for LiveKit text elements */
+        [data-lk-theme] .lk-voice-assistant-control-bar *:not(button):not(svg):not(path) {
+          font-size: 0 !important;
+          text-indent: -9999px !important;
         }
       `}</style>
       <div data-lk-theme="default" className="w-full h-screen bg-black flex relative" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>

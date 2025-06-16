@@ -183,7 +183,7 @@ export default function ConversationPage() {
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = `Failed to start conversation: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -215,7 +215,7 @@ export default function ConversationPage() {
       console.error('Device failure:', error);
       const notification = document.createElement('div');
       notification.textContent = 'Error accessing microphone. Please check permissions and reload.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {

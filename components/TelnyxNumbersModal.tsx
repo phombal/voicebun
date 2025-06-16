@@ -60,7 +60,7 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'Failed to load Telnyx phone numbers. Please try again.';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -122,7 +122,7 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           </div>
         </div>
       `;
-      notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-lg';
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-lg';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -148,7 +148,7 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           </div>
         </div>
       `;
-      notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -165,7 +165,7 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
       // Show error notification
       const notification = document.createElement('div');
       notification.textContent = 'User ID and Project ID are required to purchase a phone number';
-      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -221,7 +221,7 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           </div>
         </div>
       `;
-      notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -279,7 +279,7 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           </div>
         </div>
       `;
-      notification.className = 'fixed top-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md';
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
