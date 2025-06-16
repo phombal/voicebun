@@ -52,6 +52,8 @@ export interface UserPlan {
   cancel_at_period_end: boolean;
   conversation_minutes_used: number;
   conversation_minutes_limit: number;
+  phone_number_count: number;
+  phone_number_limit: number;
   created_at: string;
   updated_at: string;
 }

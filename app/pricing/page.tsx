@@ -31,7 +31,8 @@ const plans: PricingPlan[] = [
     callMinutes: '5 minutes/month',
     features: [
       'Voice agent creation',
-      'Phone number provisioning'
+      'Provision 1 phone number',
+      'Access to community support'
     ],
     stripePriceId: '',
     buttonText: 'Get Started for Free',
@@ -46,7 +47,8 @@ const plans: PricingPlan[] = [
     callMinutes: '400 minutes/month',
     features: [
       'Everything in Free, plus',
-      'Unlimited voice agent projects'
+      'Provision 5 phone numbers',
+      'Access to dedicated support'
     ],
     popular: true,
     stripePriceId: 'price_1QdVJhRuWKCS4zq4oGJvhzpF',
@@ -62,11 +64,10 @@ const plans: PricingPlan[] = [
     callMinutes: 'Unlimited minutes',
     features: [
       'Everything in Professional, plus',
+      'Unlimited phone numbers',
       'White-label solution',
-      'Dedicated account manager',
       '24/7 phone support',
       'SLA guarantee',
-      'On-premise deployment',
       'Custom voice models'
     ],
     stripePriceId: 'price_enterprise_monthly',

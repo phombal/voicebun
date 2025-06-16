@@ -166,6 +166,7 @@ export async function POST(request: NextRequest) {
                 cancel_at_period_end: subscription.cancel_at_period_end || false,
                 conversation_minutes_used: 0,
                 conversation_minutes_limit: 400, // Professional plan limit
+                phone_number_limit: 5, // Professional plan phone number limit
               };
 
               console.log('📝 Plan data to save:', JSON.stringify(planData, null, 2));
@@ -236,6 +237,17 @@ export async function POST(request: NextRequest) {
             // Check if subscription has actually ended (status is 'canceled' and period has ended)
             if (subscription.status === 'canceled') {
               console.log('🔄 Subscription has ended, downgrading to free plan');
+              
+              // Get current phone number count to ensure it doesn't exceed free plan limit
+              const currentPhoneCount = userPlan.phone_number_count;
+              const freePhoneLimit = 1;
+              
+              console.log('📱 Phone number check during downgrade:', {
+                currentCount: currentPhoneCount,
+                freeLimit: freePhoneLimit,
+                willExceed: currentPhoneCount > freePhoneLimit
+              });
+              
               const updates = {
                 plan_name: 'free' as const,
                 subscription_status: 'inactive' as const,
@@ -246,10 +258,23 @@ export async function POST(request: NextRequest) {
                 cancel_at_period_end: false,
                 conversation_minutes_limit: 5, // Free plan limit
                 conversation_minutes_used: Math.min(userPlan.conversation_minutes_used, 5), // Cap at free limit
+                phone_number_limit: freePhoneLimit, // Free plan phone number limit
+                // Note: We don't modify phone_number_count here - user keeps their purchased numbers
+                // but can't purchase new ones until they upgrade again
               };
               
               await db.updateUserPlanWithServiceRole(userPlan.user_id, updates);
               console.log('✅ Downgraded user to free plan:', userPlan.user_id);
+              
+              // Log warning if user has more phone numbers than free plan allows
+              if (currentPhoneCount > freePhoneLimit) {
+                console.log('⚠️ User has more phone numbers than free plan allows:', {
+                  userId: userPlan.user_id,
+                  currentCount: currentPhoneCount,
+                  freeLimit: freePhoneLimit,
+                  note: 'User keeps existing numbers but cannot purchase new ones'
+                });
+              }
             } else {
               // Regular subscription update (still active but may be scheduled for cancellation)
               const updates = {
@@ -295,6 +320,17 @@ export async function POST(request: NextRequest) {
           
           if (userPlan) {
             console.log('🔄 Subscription deleted, downgrading to free plan');
+            
+            // Get current phone number count to ensure it doesn't exceed free plan limit
+            const currentPhoneCount = userPlan.phone_number_count;
+            const freePhoneLimit = 1;
+            
+            console.log('📱 Phone number check during downgrade:', {
+              currentCount: currentPhoneCount,
+              freeLimit: freePhoneLimit,
+              willExceed: currentPhoneCount > freePhoneLimit
+            });
+            
             const updates = {
               plan_name: 'free' as const,
               subscription_status: 'inactive' as const,
@@ -305,10 +341,23 @@ export async function POST(request: NextRequest) {
               cancel_at_period_end: false,
               conversation_minutes_limit: 5, // Free plan limit
               conversation_minutes_used: Math.min(userPlan.conversation_minutes_used, 5), // Cap at free limit
+              phone_number_limit: freePhoneLimit, // Free plan phone number limit
+              // Note: We don't modify phone_number_count here - user keeps their purchased numbers
+              // but can't purchase new ones until they upgrade again
             };
             
             await db.updateUserPlanWithServiceRole(userPlan.user_id, updates);
             console.log('✅ Downgraded user to free plan:', userPlan.user_id);
+            
+            // Log warning if user has more phone numbers than free plan allows
+            if (currentPhoneCount > freePhoneLimit) {
+              console.log('⚠️ User has more phone numbers than free plan allows:', {
+                userId: userPlan.user_id,
+                currentCount: currentPhoneCount,
+                freeLimit: freePhoneLimit,
+                note: 'User keeps existing numbers but cannot purchase new ones'
+              });
+            }
           } else {
             console.error('❌ No user plan found for user:', userId);
           }

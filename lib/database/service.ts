@@ -622,6 +622,8 @@ export class DatabaseService {
             subscription_status: 'inactive',
             conversation_minutes_used: 0,
             conversation_minutes_limit: 5,
+            phone_number_count: 0,
+            phone_number_limit: 1,
             cancel_at_period_end: false,
           });
         }
@@ -644,6 +646,8 @@ export class DatabaseService {
         subscription_status: 'active',
         conversation_minutes_used: 0,
         conversation_minutes_limit: 5,
+        phone_number_count: 0,
+        phone_number_limit: 1,
         cancel_at_period_end: false,
         ...planData
       })
@@ -681,6 +685,70 @@ export class DatabaseService {
     return data;
   }
 
+  // Phone number limit management
+  async checkPhoneNumberLimit(userId: string): Promise<{ canPurchase: boolean; currentCount: number; limit: number }> {
+    try {
+      const userPlan = await this.getUserPlan();
+      if (!userPlan) {
+        throw new Error('User plan not found');
+      }
+
+      return {
+        canPurchase: userPlan.phone_number_count < userPlan.phone_number_limit,
+        currentCount: userPlan.phone_number_count,
+        limit: userPlan.phone_number_limit
+      };
+    } catch (error) {
+      console.error('Error checking phone number limit:', error);
+      throw error;
+    }
+  }
+
+  async incrementPhoneNumberCount(userId: string): Promise<UserPlan> {
+    const { data, error } = await this.supabase
+      .rpc('increment_phone_number_count', { user_id: userId });
+    
+    if (error) throw error;
+    
+    // Return updated user plan
+    const userPlan = await this.getUserPlan();
+    if (!userPlan) {
+      throw new Error('User plan not found after incrementing phone number count');
+    }
+    return userPlan;
+  }
+
+  async decrementPhoneNumberCount(userId: string): Promise<UserPlan> {
+    const { data, error } = await this.supabase
+      .rpc('decrement_phone_number_count', { user_id: userId });
+    
+    if (error) throw error;
+    
+    // Return updated user plan
+    const userPlan = await this.getUserPlan();
+    if (!userPlan) {
+      throw new Error('User plan not found after decrementing phone number count');
+    }
+    return userPlan;
+  }
+
+  async updatePhoneNumberLimitForPlan(userId: string, planName: 'free' | 'professional' | 'enterprise'): Promise<UserPlan> {
+    const phoneNumberLimit = planName === 'professional' ? 5 : planName === 'enterprise' ? 999 : 1;
+    
+    const { data, error } = await this.supabase
+      .from('user_plans')
+      .update({ 
+        phone_number_limit: phoneNumberLimit,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
   // Server-side methods for user plans (for API routes)
   async getUserPlanWithServiceRole(userId: string): Promise<UserPlan | null> {
     const { data, error } = await supabaseServiceRole
@@ -702,6 +770,8 @@ export class DatabaseService {
         subscription_status: 'active',
         conversation_minutes_used: 0,
         conversation_minutes_limit: 5,
+        phone_number_count: 0,
+        phone_number_limit: 1,
         cancel_at_period_end: false,
         ...planData
       })

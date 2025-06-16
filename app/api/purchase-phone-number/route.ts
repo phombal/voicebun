@@ -69,6 +69,29 @@ export async function POST(request: NextRequest) {
 
       console.log('📱 Purchasing phone number:', phoneNumber, 'for user:', userId, 'project:', projectId);
 
+      // Check phone number limit before purchasing
+      console.log('📊 Checking phone number limit for user:', userId);
+      try {
+        const limitCheck = await db.checkPhoneNumberLimit(userId);
+        console.log('📊 Phone number limit check result:', limitCheck);
+        
+        if (!limitCheck.canPurchase) {
+          return NextResponse.json({
+            error: 'Phone number limit exceeded',
+            details: `You have reached your phone number limit (${limitCheck.currentCount}/${limitCheck.limit}). Please upgrade your plan to purchase more phone numbers.`,
+            currentCount: limitCheck.currentCount,
+            limit: limitCheck.limit,
+            upgradeRequired: true
+          }, { status: 403 });
+        }
+      } catch (error) {
+        console.error('❌ Error checking phone number limit:', error);
+        return NextResponse.json({
+          error: 'Failed to check phone number limit',
+          details: 'Unable to verify your phone number purchase limit. Please try again.'
+        }, { status: 500 });
+      }
+
       // First, search for the number to ensure it's available and get its details
       console.log('🔍 Searching for phone number availability...');
       const searchResponse = await fetch(`https://api.telnyx.com/v2/available_phone_numbers?filter[phone_number]=${encodeURIComponent(phoneNumber)}`, {
@@ -313,6 +336,15 @@ export async function POST(request: NextRequest) {
       });
 
       console.log('📝 Phone number record stored in database:', phoneNumberRecord);
+
+      // Increment phone number count for the user
+      try {
+        await db.incrementPhoneNumberCount(userId);
+        console.log('✅ Incremented phone number count for user:', userId);
+      } catch (error) {
+        console.error('⚠️ Warning: Failed to increment phone number count:', error);
+        // Don't fail the request since the phone number was purchased successfully
+      }
 
       return NextResponse.json({
         success: true,
