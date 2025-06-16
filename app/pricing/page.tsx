@@ -5,22 +5,20 @@ import { supabase } from '@/lib/database/auth';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 interface PricingPlan {
   id: string;
   name: string;
   description: string;
   price: number | string;
-  annualPrice?: number | string;
-  originalPrice?: number;
   interval: string;
   features: string[];
   popular?: boolean;
   stripePriceId: string;
-  annualStripePriceId?: string;
-  callMinutes: string;
   buttonText: string;
   buttonStyle: 'primary' | 'secondary' | 'outline';
+  callMinutes: string;
 }
 
 const plans: PricingPlan[] = [
@@ -29,7 +27,6 @@ const plans: PricingPlan[] = [
     name: 'Free',
     description: 'For individuals who want to try out the most advanced AI voice agent',
     price: 0,
-    annualPrice: 0,
     interval: 'month',
     callMinutes: '5 minutes/month',
     features: [
@@ -45,17 +42,14 @@ const plans: PricingPlan[] = [
     name: 'Professional',
     description: 'For businesses creating premium voice agents for their customers',
     price: 20,
-    annualPrice: 16, // 20% discount for annual
-    originalPrice: 20,
     interval: 'month',
-    callMinutes: '300 minutes/month',
+    callMinutes: '400 minutes/month',
     features: [
       'Everything in Free, plus',
       'Unlimited voice agent projects'
     ],
     popular: true,
     stripePriceId: 'price_1QdVJhRuWKCS4zq4oGJvhzpF',
-    annualStripePriceId: 'price_annual_professional',
     buttonText: 'Get Started',
     buttonStyle: 'primary'
   },
@@ -64,7 +58,6 @@ const plans: PricingPlan[] = [
     name: 'Enterprise',
     description: 'For large organizations with custom voice agent needs',
     price: 'Custom',
-    annualPrice: 'Custom',
     interval: '',
     callMinutes: 'Unlimited minutes',
     features: [
@@ -77,7 +70,6 @@ const plans: PricingPlan[] = [
       'Custom voice models'
     ],
     stripePriceId: 'price_enterprise_monthly',
-    annualStripePriceId: 'price_enterprise_annual',
     buttonText: 'Contact Sales',
     buttonStyle: 'outline'
   },
@@ -87,7 +79,7 @@ export default function PricingPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
-  const [isAnnual, setIsAnnual] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     // Get initial user
@@ -109,27 +101,28 @@ export default function PricingPage() {
   }, []);
 
   const handleSubscribe = async (plan: PricingPlan) => {
-    if (plan.id === 'enterprise') {
-      // Redirect to contact form or email
-      window.location.href = 'mailto:sales@voiceagent.com?subject=Enterprise Plan Inquiry';
-      return;
-    }
-
     if (!user) {
-      // Redirect to sign up
-      window.location.href = '/auth?mode=signup';
+      router.push('/auth?mode=signup');
       return;
     }
 
+    // Skip processing for free plan
     if (plan.id === 'free') {
-      // Free plan - no payment needed
       return;
     }
 
     setProcessingPlan(plan.id);
 
     try {
-      const priceId = isAnnual && plan.annualStripePriceId ? plan.annualStripePriceId : plan.stripePriceId;
+      // For the specific plan that should redirect to the Stripe buy link
+      if (plan.id === 'professional') {
+        // Redirect directly to the specified Stripe buy link
+        window.location.href = 'https://buy.stripe.com/9B600ka5h6698qwgLcbsc01';
+        return;
+      }
+
+      // For other plans, use the existing API flow
+      const priceId = plan.stripePriceId;
       
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
@@ -163,7 +156,7 @@ export default function PricingPage() {
 
   const getCurrentPrice = (plan: PricingPlan) => {
     if (typeof plan.price === 'string') return plan.price;
-    return isAnnual && plan.annualPrice ? plan.annualPrice : plan.price;
+    return plan.price;
   };
 
   if (loading) {
@@ -222,28 +215,6 @@ export default function PricingPage() {
           <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-10">
             Create and deploy voice agents with flexible pricing for every need
           </p>
-          
-          {/* Billing Toggle */}
-          <div className="flex items-center justify-center gap-4 mb-10">
-            <span className={`text-sm font-medium ${!isAnnual ? 'text-white' : 'text-gray-500'}`}>
-              Monthly
-            </span>
-            <button
-              onClick={() => setIsAnnual(!isAnnual)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                isAnnual ? 'bg-white' : 'bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-                  isAnnual ? 'translate-x-6 bg-black' : 'translate-x-1 bg-white'
-                }`}
-              />
-            </button>
-            <span className={`text-sm font-medium ${isAnnual ? 'text-white' : 'text-gray-500'}`}>
-              Annual
-            </span>
-          </div>
         </div>
 
         {/* Pricing Cards */}
@@ -280,11 +251,6 @@ export default function PricingPage() {
                 
                 {/* Price */}
                 <div className="mb-6">
-                  {isAnnual && plan.originalPrice && typeof plan.annualPrice === 'number' && plan.annualPrice < plan.originalPrice && (
-                    <div className="text-sm text-gray-500 line-through mb-1">
-                      ${plan.originalPrice}/month
-                    </div>
-                  )}
                   <div className="flex items-baseline mb-2">
                     <span className="text-4xl font-bold text-white">
                       {typeof getCurrentPrice(plan) === 'number' ? `$${getCurrentPrice(plan)}` : getCurrentPrice(plan)}
@@ -295,11 +261,6 @@ export default function PricingPage() {
                       </span>
                     )}
                   </div>
-                  {isAnnual && typeof plan.annualPrice === 'number' && plan.annualPrice > 0 && (
-                    <div className="text-sm text-gray-400">
-                      Billed annually (${plan.annualPrice * 12}/year)
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -338,9 +299,6 @@ export default function PricingPage() {
 
         {/* Footer */}
         <div className="text-center mt-12">
-          <p className="text-gray-500 text-sm">
-            All plans include a 14-day free trial.
-          </p>
         </div>
       </div>
     </div>

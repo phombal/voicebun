@@ -18,6 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const signOut = async () => {
+    console.log('Signing out user')
     await auth.signOut()
     setUser(null)
     setSession(null)
@@ -26,22 +27,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { session } = await auth.getSession()
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+      try {
+        const { session, error } = await auth.getSession()
+        if (error) {
+          console.error('Error getting initial session:', error)
+        } else {
+          console.log('Initial session:', session ? 'found' : 'not found')
+          setSession(session)
+          setUser(session?.user ?? null)
+        }
+      } catch (err) {
+        console.error('Exception getting initial session:', err)
+      } finally {
+        setLoading(false)
+      }
     }
 
     getInitialSession()
 
     // Listen for auth changes
     const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session ? 'session exists' : 'no session')
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      console.log('Unsubscribing from auth state changes')
+      subscription.unsubscribe()
+    }
   }, [])
 
   const value = {

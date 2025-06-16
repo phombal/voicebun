@@ -10,13 +10,13 @@ const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Safari-compatible settings
+    // Implicit flow settings
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     storageKey: 'sb-auth-token',
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce'
+    detectSessionInUrl: true, // Enable automatic session detection from URL
+    flowType: 'implicit' // Use implicit flow instead of PKCE
   }
 })
 
@@ -53,30 +53,11 @@ export const auth = {
     return { data, error }
   },
 
-  // Sign in with Google
+  // Sign in with Google (implicit flow)
   async signInWithGoogle() {
-    // Get the correct base URL for redirects
-    const getBaseUrl = () => {
-      // In production, use environment variable if available
-      if (process.env.NEXT_PUBLIC_SITE_URL) {
-        return process.env.NEXT_PUBLIC_SITE_URL
-      }
-      
-      // Fallback to window.location.origin if available (client-side)
-      if (typeof window !== 'undefined') {
-        return window.location.origin
-      }
-      
-      // Server-side fallback
-      return 'http://localhost:3000'
-    }
-
-    const baseUrl = getBaseUrl()
-    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${baseUrl}/auth/callback`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -84,6 +65,11 @@ export const auth = {
         skipBrowserRedirect: false,
       }
     })
+    
+    if (error) {
+      console.error('Google OAuth initiation error:', error)
+    }
+    
     return { data, error }
   },
 

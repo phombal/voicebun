@@ -53,38 +53,14 @@ export default function UserProfile() {
   }
 
   const handleUpgrade = async () => {
-    if (!user) return;
+    setUpgrading(true);
     
     try {
-      setUpgrading(true);
-      setIsOpen(false);
-      
-      // Create checkout session
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priceId: 'price_1RZMYS4Jw5GVEzp6EVGIuH2F', // User's actual price ID for $20/month
-          userId: user.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create checkout session');
-      }
-
-      // Redirect to Stripe checkout
-      if (data.url) {
-        window.location.href = data.url;
-      }
+      // Redirect directly to the specified Stripe buy link
+      window.location.href = 'https://buy.stripe.com/9B600ka5h6698qwgLcbsc01';
     } catch (error) {
       console.error('Error upgrading:', error);
       alert('Failed to start upgrade process. Please try again.');
-    } finally {
       setUpgrading(false);
     }
   };

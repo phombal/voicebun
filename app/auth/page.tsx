@@ -59,39 +59,9 @@ function AuthPageContent() {
   useEffect(() => {
     const modeParam = searchParams.get('mode')
     const errorParam = searchParams.get('error')
-    const codeParam = searchParams.get('code')
     
     if (modeParam === 'signup') {
       setMode('signup')
-    }
-    
-    // Handle OAuth code from callback (for PKCE flow)
-    if (codeParam && !user) {
-      console.log('Handling OAuth code on client side for PKCE flow')
-      // The Supabase client will automatically handle the PKCE code exchange
-      // We just need to check for the session
-      const checkSession = async () => {
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession()
-          if (session) {
-            console.log('PKCE session found, redirecting to dashboard')
-            router.push('/dashboard')
-          } else if (error) {
-            console.error('PKCE session error:', error)
-            setOauthError('Failed to complete Google sign in. Please try again.')
-          }
-        } catch (err) {
-          console.error('PKCE error:', err)
-          setOauthError('Authentication failed. Please try again.')
-        }
-        
-        // Clear the code from URL
-        const newUrl = new URL(window.location.href)
-        newUrl.searchParams.delete('code')
-        window.history.replaceState({}, '', newUrl.toString())
-      }
-      
-      checkSession()
     }
     
     if (errorParam) {
@@ -117,16 +87,18 @@ function AuthPageContent() {
       newUrl.searchParams.delete('error')
       window.history.replaceState({}, '', newUrl.toString())
     }
-  }, [searchParams, user, router])
+  }, [searchParams])
 
   // Redirect if already authenticated
   useEffect(() => {
     if (user && !loading) {
+      console.log('User authenticated, redirecting to dashboard')
       router.push('/dashboard')
     }
   }, [user, loading, router])
 
   const handleAuthSuccess = () => {
+    console.log('Auth success, redirecting to dashboard')
     router.push('/dashboard')
   }
 
@@ -135,7 +107,10 @@ function AuthPageContent() {
       <div className="min-h-screen flex items-center justify-center bg-black" style={{ 
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}>
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-sm">Loading...</p>
+        </div>
       </div>
     )
   }

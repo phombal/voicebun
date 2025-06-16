@@ -288,7 +288,7 @@ export default function LandingPage() {
               Sign In
             </a>
             <a
-                href="/auth"
+                href="/auth?mode=signup"
                 className="bg-white text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors font-medium"
             >
               Get Started for Free

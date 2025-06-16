@@ -28,15 +28,38 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
     const headersList = headers();
-    const sig = headersList.get('stripe-signature')!;
+    const sig = headersList.get('stripe-signature');
+
+    console.log('🔍 Webhook debugging info:', {
+      hasBody: !!body,
+      bodyLength: body.length,
+      hasSignature: !!sig,
+      signaturePreview: sig ? sig.substring(0, 50) + '...' : 'None',
+      webhookSecret: STRIPE_WEBHOOK_SECRET ? 'Present (whsec_...)' : 'Missing',
+      contentType: headersList.get('content-type'),
+    });
+
+    if (!sig) {
+      console.error('❌ No stripe-signature header found');
+      return NextResponse.json({ error: 'No signature header' }, { status: 400 });
+    }
 
     let event: Stripe.Event;
 
     try {
       event = stripe.webhooks.constructEvent(body, sig, endpointSecret);
+      console.log('✅ Webhook signature verified successfully');
     } catch (err: any) {
-      console.error('⚠️ Webhook signature verification failed:', err.message);
-      return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });
+      console.error('⚠️ Webhook signature verification failed:', {
+        error: err.message,
+        signature: sig,
+        bodyPreview: body.substring(0, 200),
+        secretUsed: endpointSecret ? 'whsec_...' + endpointSecret.slice(-8) : 'None'
+      });
+      return NextResponse.json({ 
+        error: 'Webhook signature verification failed',
+        details: err.message 
+      }, { status: 400 });
     }
 
     console.log('🎯 Stripe webhook event received:', event.type);
