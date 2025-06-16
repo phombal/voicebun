@@ -2014,47 +2014,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                             </div>
                       </div>
                     </div>
-
-
                     </div>
-
-                      {/* Advanced Transcription Settings */}
-                      <div className="space-y-4">
-                        <h4 className="text-lg font-medium text-white">Advanced Settings</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
-                            <div>
-                              <span className="text-white font-medium">Noise Suppression</span>
-                              <p className="text-white/70 text-sm">Reduce background noise</p>
-                            </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              className="sr-only peer" 
-                              checked={projectConfig.sttNoiseSuppression}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, sttNoiseSuppression: e.target.checked }))}
-                            />
-                            <div className="w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/30 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/30"></div>
-                          </label>
-                        </div>
-                        
-                          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
-                            <div>
-                              <span className="text-white font-medium">Punctuation</span>
-                              <p className="text-white/70 text-sm">Auto-add punctuation</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                className="sr-only peer" 
-                                checked={projectConfig.sttAutoPunctuation}
-                                onChange={(e) => setProjectConfig(prev => ({ ...prev, sttAutoPunctuation: e.target.checked }))}
-                              />
-                              <div className="w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/30 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/30"></div>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
 
