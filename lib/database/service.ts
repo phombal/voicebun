@@ -704,6 +704,26 @@ export class DatabaseService {
     }
   }
 
+  // Server-side version for API routes
+  async checkPhoneNumberLimitWithServiceRole(userId: string): Promise<{ canPurchase: boolean; currentCount: number; limit: number }> {
+    try {
+      let userPlan = await this.getUserPlanWithServiceRole(userId);
+      if (!userPlan) {
+        // Create a default user plan if none exists
+        userPlan = await this.createUserPlanWithServiceRole(userId, {});
+      }
+
+      return {
+        canPurchase: userPlan.phone_number_count < userPlan.phone_number_limit,
+        currentCount: userPlan.phone_number_count,
+        limit: userPlan.phone_number_limit
+      };
+    } catch (error) {
+      console.error('Error checking phone number limit with service role:', error);
+      throw error;
+    }
+  }
+
   async incrementPhoneNumberCount(userId: string): Promise<UserPlan> {
     const { data, error } = await this.supabase
       .rpc('increment_phone_number_count', { user_id: userId });
@@ -712,6 +732,21 @@ export class DatabaseService {
     
     // Return updated user plan
     const userPlan = await this.getUserPlan();
+    if (!userPlan) {
+      throw new Error('User plan not found after incrementing phone number count');
+    }
+    return userPlan;
+  }
+
+  // Server-side version for API routes
+  async incrementPhoneNumberCountWithServiceRole(userId: string): Promise<UserPlan> {
+    const { data, error } = await supabaseServiceRole
+      .rpc('increment_phone_number_count', { user_id: userId });
+    
+    if (error) throw error;
+    
+    // Return updated user plan
+    const userPlan = await this.getUserPlanWithServiceRole(userId);
     if (!userPlan) {
       throw new Error('User plan not found after incrementing phone number count');
     }

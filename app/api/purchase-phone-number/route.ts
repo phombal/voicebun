@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       // Check phone number limit before purchasing
       console.log('📊 Checking phone number limit for user:', userId);
       try {
-        const limitCheck = await db.checkPhoneNumberLimit(userId);
+        const limitCheck = await db.checkPhoneNumberLimitWithServiceRole(userId);
         console.log('📊 Phone number limit check result:', limitCheck);
         
         if (!limitCheck.canPurchase) {
@@ -339,7 +339,7 @@ export async function POST(request: NextRequest) {
 
       // Increment phone number count for the user
       try {
-        await db.incrementPhoneNumberCount(userId);
+        await db.incrementPhoneNumberCountWithServiceRole(userId);
         console.log('✅ Incremented phone number count for user:', userId);
       } catch (error) {
         console.error('⚠️ Warning: Failed to increment phone number count:', error);

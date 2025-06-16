@@ -111,6 +111,19 @@ export async function POST(request: NextRequest) {
         headers: error.headers
       });
 
+      // Enhanced error logging for Telnyx errors
+      if (error.raw?.errors) {
+        console.error('🔍 Telnyx error details:', error.raw.errors);
+        error.raw.errors.forEach((telnyxError: any, index: number) => {
+          console.error(`❌ Telnyx Error ${index + 1}:`, {
+            code: telnyxError.code,
+            title: telnyxError.title,
+            detail: telnyxError.detail,
+            source: telnyxError.source
+          });
+        });
+      }
+
       // Try to extract the actual error message from Telnyx response
       let errorMessage = 'Unknown error occurred';
       let errorCode = 'unknown';
@@ -119,6 +132,26 @@ export async function POST(request: NextRequest) {
         const telnyxError = error.raw.errors[0];
         errorMessage = telnyxError.detail || telnyxError.title || telnyxError.message || errorMessage;
         errorCode = telnyxError.code || 'unknown';
+        
+        // Handle specific 402 error codes
+        if (error.statusCode === 402) {
+          switch (errorCode) {
+            case '20100':
+              errorMessage = 'Insufficient funds in your Telnyx account. Please add funds to your account.';
+              break;
+            case '10038':
+              errorMessage = 'Account verification required. Your account level does not permit phone number purchases.';
+              break;
+            case '10039':
+              errorMessage = 'Account limit reached. You have reached the phone number limit for your account level.';
+              break;
+            case '20012':
+              errorMessage = 'Account inactive, possibly due to insufficient funds. Please check your account balance.';
+              break;
+            default:
+              errorMessage = `Payment required: ${errorMessage}`;
+          }
+        }
       }
 
       return NextResponse.json({
