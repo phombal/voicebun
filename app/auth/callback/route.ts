@@ -10,10 +10,25 @@ export async function GET(request: NextRequest) {
 
   console.log('OAuth callback received:', { code: !!code, error, errorDescription })
 
+  // Get the correct base URL for redirects
+  const getBaseUrl = () => {
+    // In production, use NEXT_PUBLIC_SITE_URL or construct from headers
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+      return process.env.NEXT_PUBLIC_SITE_URL
+    }
+    
+    // Fallback to constructing from request headers
+    const protocol = requestUrl.protocol
+    const host = requestUrl.host
+    return `${protocol}//${host}`
+  }
+
+  const baseUrl = getBaseUrl()
+
   // If there's an error from the OAuth provider
   if (error) {
     console.error('OAuth provider error:', error, errorDescription)
-    return NextResponse.redirect(new URL(`/auth?error=${error}`, request.url))
+    return NextResponse.redirect(new URL(`/auth?error=${error}`, baseUrl))
   }
 
   if (code) {
@@ -43,12 +58,12 @@ export async function GET(request: NextRequest) {
       
       if (exchangeError) {
         console.error('Code exchange error:', exchangeError)
-        return NextResponse.redirect(new URL('/auth?error=exchange_failed', request.url))
+        return NextResponse.redirect(new URL('/auth?error=exchange_failed', baseUrl))
       }
 
       if (data.session) {
         console.log('OAuth login successful, redirecting to dashboard')
-        return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL('/dashboard', baseUrl))
       }
       
       console.error('No session returned after code exchange')
@@ -58,5 +73,5 @@ export async function GET(request: NextRequest) {
   }
 
   console.log('OAuth callback failed, redirecting to auth with error')
-  return NextResponse.redirect(new URL('/auth?error=oauth_error', request.url))
+  return NextResponse.redirect(new URL('/auth?error=oauth_error', baseUrl))
 } 
