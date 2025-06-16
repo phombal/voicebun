@@ -45,10 +45,32 @@ export const auth = {
 
   // Sign in with Google
   async signInWithGoogle() {
+    // Get the correct base URL for redirects
+    const getBaseUrl = () => {
+      // In production, use environment variable if available
+      if (process.env.NEXT_PUBLIC_SITE_URL) {
+        return process.env.NEXT_PUBLIC_SITE_URL
+      }
+      
+      // Fallback to window.location.origin if available (client-side)
+      if (typeof window !== 'undefined') {
+        return window.location.origin
+      }
+      
+      // Server-side fallback
+      return 'http://localhost:3000'
+    }
+
+    const baseUrl = getBaseUrl()
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${baseUrl}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
       }
     })
     return { data, error }
