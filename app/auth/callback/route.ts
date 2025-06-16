@@ -80,22 +80,31 @@ export async function GET(request: NextRequest) {
     )
 
     try {
-      console.log('Attempting to exchange code for session...')
-      const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+      console.log('Attempting to get session from URL...')
       
-      if (exchangeError) {
-        console.error('Code exchange error:', exchangeError)
-        return NextResponse.redirect(new URL('/auth?error=exchange_failed', baseUrl))
+      // For PKCE flow, we need to get the session from the URL
+      // The client-side will handle the code exchange
+      const { data, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        // Redirect to auth page to let client-side handle the PKCE flow
+        return NextResponse.redirect(new URL(`/auth?code=${code}`, baseUrl))
       }
 
       if (data.session) {
-        console.log('OAuth login successful, redirecting to dashboard')
+        console.log('Session found, redirecting to dashboard')
         return NextResponse.redirect(new URL('/dashboard', baseUrl))
       }
       
-      console.error('No session returned after code exchange')
+      console.log('No session found, redirecting to auth to handle client-side')
+      // Redirect back to auth page with the code so client-side can handle PKCE
+      return NextResponse.redirect(new URL(`/auth?code=${code}`, baseUrl))
+      
     } catch (err) {
       console.error('OAuth callback exception:', err)
+      // Redirect to auth page to let client-side handle the PKCE flow
+      return NextResponse.redirect(new URL(`/auth?code=${code}`, baseUrl))
     }
   }
 

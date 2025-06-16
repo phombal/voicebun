@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import AuthForm from '@/components/auth/AuthForm'
 import { motion } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
+import { supabase } from '@/lib/database/auth'
 
 // Cute quotes component
 function CuteQuotes() {
@@ -58,9 +59,39 @@ function AuthPageContent() {
   useEffect(() => {
     const modeParam = searchParams.get('mode')
     const errorParam = searchParams.get('error')
+    const codeParam = searchParams.get('code')
     
     if (modeParam === 'signup') {
       setMode('signup')
+    }
+    
+    // Handle OAuth code from callback (for PKCE flow)
+    if (codeParam && !user) {
+      console.log('Handling OAuth code on client side for PKCE flow')
+      // The Supabase client will automatically handle the PKCE code exchange
+      // We just need to check for the session
+      const checkSession = async () => {
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession()
+          if (session) {
+            console.log('PKCE session found, redirecting to dashboard')
+            router.push('/dashboard')
+          } else if (error) {
+            console.error('PKCE session error:', error)
+            setOauthError('Failed to complete Google sign in. Please try again.')
+          }
+        } catch (err) {
+          console.error('PKCE error:', err)
+          setOauthError('Authentication failed. Please try again.')
+        }
+        
+        // Clear the code from URL
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('code')
+        window.history.replaceState({}, '', newUrl.toString())
+      }
+      
+      checkSession()
     }
     
     if (errorParam) {
@@ -86,7 +117,7 @@ function AuthPageContent() {
       newUrl.searchParams.delete('error')
       window.history.replaceState({}, '', newUrl.toString())
     }
-  }, [searchParams])
+  }, [searchParams, user, router])
 
   // Redirect if already authenticated
   useEffect(() => {
