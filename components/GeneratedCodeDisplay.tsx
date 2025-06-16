@@ -1553,9 +1553,22 @@ For now, you can still manually configure your voice agent using the tabs above.
           background-color: #000000 !important;
         }
         .agent-visualizer .lk-audio-visualizer-bar.lk-audio-visualizer-bar-active {
-          background-color: #000000 !important;
+          background-color: rgba(255, 255, 255, 0.8) !important;
         }
         .lk-audio-visualizer {
+          background-color: #000000 !important;
+        }
+        .agent-visualizer {
+          background-color: #000000 !important;
+        }
+        .agent-visualizer > div {
+          background-color: #000000 !important;
+        }
+        /* Ensure all nested elements have black background */
+        .agent-visualizer * {
+          background-color: transparent !important;
+        }
+        .agent-visualizer .lk-audio-visualizer {
           background-color: #000000 !important;
         }
         /* Hide any text in the voice assistant control bar */
@@ -2326,7 +2339,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     
                     {/* Live Transcription */}
                     <div className="w-full">
-                      <div className="bg-black/40 rounded-lg p-2 sm:p-4 border border-white/20">
+                      <div className="bg-black rounded-lg p-2 sm:p-4 border border-white/20">
                         <h4 className="text-white font-medium mb-2 sm:mb-3 flex items-center justify-center text-xs sm:text-base">
                           <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
