@@ -1559,8 +1559,8 @@ For now, you can still manually configure your voice agent using the tabs above.
         }
       `}</style>
       <div data-lk-theme="default" className="w-full h-screen bg-black flex relative" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
-        {/* Left side - Chat conversation */}
-        <div className="w-1/4 bg-neutral-800 border-r border-white/20 flex flex-col">
+        {/* Left side - Chat conversation - Hidden on mobile */}
+        <div className="hidden md:flex md:w-1/4 bg-neutral-800 border-r border-white/20 flex-col">
           {/* Header with logo */}
           <div className="p-3 bg-neutral-800">
             <div className="flex items-center justify-between">
@@ -1667,14 +1667,28 @@ For now, you can still manually configure your voice agent using the tabs above.
           </div>
         </div>
 
-        {/* Right side - Code/Config view */}
-        <div className="w-3/4 bg-black flex flex-col">
+        {/* Right side - Code/Config view - Full width on mobile, 3/4 width on desktop */}
+        <div className="w-full md:w-3/4 bg-black flex flex-col">
           {/* Header with toggle and actions */}
           <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
-            <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
+            <div className="flex items-center space-x-4">
+              {/* Mobile logo - only show on mobile */}
+              <button
+                onClick={onBackToHome}
+                className="md:hidden hover:opacity-80 transition-opacity cursor-pointer"
+                title="Go to home page"
+              >
+                <img 
+                  src="/VoiceBun-BunOnly.png" 
+                  alt="VoiceBun" 
+                  className="w-8 h-8"
+                />
+              </button>
+              
+              <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
                 <button
                 onClick={() => setActiveMenu('instructions')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
                   activeMenu === 'instructions' 
                     ? 'bg-white text-black' 
                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -1684,7 +1698,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </button>
                 <button
                 onClick={() => setActiveMenu('models')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
                   activeMenu === 'models' 
                     ? 'bg-white text-black' 
                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -1694,25 +1708,27 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </button>
                 <button
                 onClick={() => setActiveMenu('phone')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
                   activeMenu === 'phone' 
                     ? 'bg-white text-black' 
                     : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
-                Phone Numbers
+                <span className="hidden sm:inline">Phone Numbers</span>
+                <span className="sm:hidden">Phone</span>
                 </button>
-                      </div>
-                    <div className="flex items-center space-x-3">
+              </div>
+            </div>
+                    <div className="flex items-center space-x-2 md:space-x-3">
                       <button
                         onClick={saveProjectConfiguration}
                         disabled={isSavingConfig}
-                        className="px-4 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                        className="px-3 md:px-4 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
                       >
                         {isSavingConfig ? (
                           <>
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-black"></div>
-                            <span>Saving...</span>
+                            <span className="hidden sm:inline">Saving...</span>
                           </>
                         ) : (
                           <span>Save</span>
@@ -1722,12 +1738,12 @@ For now, you can still manually configure your voice agent using the tabs above.
                       <button 
                         onClick={handlePublish}
                         disabled={isPublishing}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                        className="px-3 md:px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
                       >
                         {isPublishing ? (
                           <>
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                            <span>Publishing...</span>
+                            <span className="hidden sm:inline">Publishing...</span>
                           </>
                         ) : (
                           <span>Publish</span>
@@ -1742,31 +1758,33 @@ For now, you can still manually configure your voice agent using the tabs above.
                             });
                           }}
                           disabled={isConnecting}
-                          className="px-4 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                          className="px-3 md:px-4 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
                         >
                           {isConnecting ? (
                             <>
                               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                              <span>Connecting...</span>
+                              <span className="hidden sm:inline">Connecting...</span>
                             </>
                           ) : (
                             <>
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                               </svg>
-                              <span>Test Agent</span>
+                              <span className="hidden sm:inline">Test Agent</span>
+                              <span className="sm:hidden">Test</span>
                             </>
                           )}
                         </button>
                       ) : (
                         <button
                           onClick={endConversation}
-                          className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                          className="px-3 md:px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
-                          <span>End Call</span>
+                          <span className="hidden sm:inline">End Call</span>
+                          <span className="sm:hidden">End</span>
                         </button>
                       )}
                     </div>
