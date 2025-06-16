@@ -111,6 +111,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     console.log('🔄 STATE CHANGE - activeTab:', activeTab);
   }, [activeTab]);
   const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'other'>('instructions');
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
 
@@ -1672,23 +1673,36 @@ For now, you can still manually configure your voice agent using the tabs above.
           {/* Header with toggle and actions */}
           <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
             <div className="flex items-center space-x-4">
-              {/* Mobile logo - only show on mobile */}
-              <button
-                onClick={onBackToHome}
-                className="md:hidden hover:opacity-80 transition-opacity cursor-pointer"
-                title="Go to home page"
-              >
-                <img 
-                  src="/VoiceBun-BunOnly.png" 
-                  alt="VoiceBun" 
-                  className="w-8 h-8"
-                />
-              </button>
+              {/* Mobile logo and hamburger menu */}
+              <div className="md:hidden flex items-center space-x-3">
+                <button
+                  onClick={onBackToHome}
+                  className="hover:opacity-80 transition-opacity cursor-pointer"
+                  title="Go to home page"
+                >
+                  <img 
+                    src="/VoiceBun-BunOnly.png" 
+                    alt="VoiceBun" 
+                    className="w-8 h-8"
+                  />
+                </button>
+                
+                <button
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  title="Menu"
+                >
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              </div>
               
-              <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
+              {/* Desktop tab buttons */}
+              <div className="hidden md:flex space-x-1 bg-white/10 rounded-lg p-1">
                 <button
                 onClick={() => setActiveMenu('instructions')}
-                className={`flex items-center px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeMenu === 'instructions' 
                     ? 'bg-white text-black' 
                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -1698,7 +1712,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </button>
                 <button
                 onClick={() => setActiveMenu('models')}
-                className={`flex items-center px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeMenu === 'models' 
                     ? 'bg-white text-black' 
                     : 'text-white/70 hover:text-white hover:bg-white/5'
@@ -1708,87 +1722,168 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </button>
                 <button
                 onClick={() => setActiveMenu('phone')}
-                className={`flex items-center px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors ${
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeMenu === 'phone' 
                     ? 'bg-white text-black' 
                     : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <span className="hidden sm:inline">Phone Numbers</span>
-                <span className="sm:hidden">Phone</span>
+                Phone Numbers
                 </button>
               </div>
             </div>
-                    <div className="flex items-center space-x-2 md:space-x-3">
-                      <button
-                        onClick={saveProjectConfiguration}
-                        disabled={isSavingConfig}
-                        className="px-3 md:px-4 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
-                      >
-                        {isSavingConfig ? (
-                          <>
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-black"></div>
-                            <span className="hidden sm:inline">Saving...</span>
-                          </>
-                        ) : (
-                          <span>Save</span>
-                        )}
-                      </button>
+            
+            {/* Action buttons - reorganized for mobile */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={saveProjectConfiguration}
+                disabled={isSavingConfig}
+                className="px-3 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+              >
+                {isSavingConfig ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-black"></div>
+                    <span className="hidden sm:inline">Saving...</span>
+                  </>
+                ) : (
+                  <span>Save</span>
+                )}
+              </button>
 
-                      <button 
-                        onClick={handlePublish}
-                        disabled={isPublishing}
-                        className="px-3 md:px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
-                      >
-                        {isPublishing ? (
-                          <>
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                            <span className="hidden sm:inline">Publishing...</span>
-                          </>
-                        ) : (
-                          <span>Publish</span>
-                        )}
-                      </button>
+              <button 
+                onClick={handlePublish}
+                disabled={isPublishing}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+              >
+                {isPublishing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    <span className="hidden sm:inline">Publishing...</span>
+                  </>
+                ) : (
+                  <span>Publish</span>
+                )}
+              </button>
 
-                      {!isInConversation ? (
-                        <button
-                          onClick={() => {
-                            startConversation().catch((err) => {
-                              console.error('🔥 Unhandled error in startConversation:', err);
-                            });
-                          }}
-                          disabled={isConnecting}
-                          className="px-3 md:px-4 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
-                        >
-                          {isConnecting ? (
-                            <>
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                              <span className="hidden sm:inline">Connecting...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                              </svg>
-                              <span className="hidden sm:inline">Test Agent</span>
-                              <span className="sm:hidden">Test</span>
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={endConversation}
-                          className="px-3 md:px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center space-x-1 md:space-x-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          <span className="hidden sm:inline">End Call</span>
-                          <span className="sm:hidden">End</span>
-                        </button>
-                      )}
-                    </div>
+              {!isInConversation ? (
+                <button
+                  onClick={() => {
+                    startConversation().catch((err) => {
+                      console.error('🔥 Unhandled error in startConversation:', err);
+                    });
+                  }}
+                  disabled={isConnecting}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+                >
+                  {isConnecting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                      <span className="hidden sm:inline">Connecting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                      <span className="hidden sm:inline">Test Agent</span>
+                      <span className="sm:hidden">Test</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={endConversation}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span className="hidden sm:inline">End Call</span>
+                  <span className="sm:hidden">End</span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Mobile Menu Sidebar */}
+          {showMobileMenu && (
+            <div className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setShowMobileMenu(false)}>
+              <div className="absolute top-0 left-0 w-64 h-full bg-neutral-800 border-r border-white/20" onClick={(e) => e.stopPropagation()}>
+                <div className="p-4 border-b border-white/20">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">Menu</h3>
+                    <button
+                      onClick={() => setShowMobileMenu(false)}
+                      className="p-1 hover:bg-white/10 rounded transition-colors"
+                    >
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="p-4 space-y-2">
+                  <button
+                    onClick={() => {
+                      setActiveMenu('instructions');
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                      activeMenu === 'instructions' 
+                        ? 'bg-white text-black' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Instructions</span>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setActiveMenu('models');
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                      activeMenu === 'models' 
+                        ? 'bg-white text-black' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <span>Models</span>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setActiveMenu('phone');
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                      activeMenu === 'phone' 
+                        ? 'bg-white text-black' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <span>Phone Numbers</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Content area */}
           <div className="flex-1 overflow-hidden">
