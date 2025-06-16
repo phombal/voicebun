@@ -2197,25 +2197,6 @@ For now, you can still manually configure your voice agent using the tabs above.
 
 
                       </div>
-
-                      {/* Voice Preview */}
-                      <div className="bg-white/5 border border-white/20 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-lg font-medium text-white">Voice Preview</h4>
-                          <button className="px-4 py-2 bg-white hover:bg-gray-100 text-black font-medium rounded-lg transition-colors flex items-center space-x-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8m2 4H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span>Test Voice</span>
-                          </button>
-                        </div>
-                        <textarea
-                          rows={3}
-                          placeholder="Enter text to preview the voice..."
-                          defaultValue="Hello! I'm your AI voice assistant. How can I help you today?"
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
-                        />
-                      </div>
                     </div>
                   </div>
                 </div>
