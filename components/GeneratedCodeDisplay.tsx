@@ -110,7 +110,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   useEffect(() => {
     console.log('🔄 STATE CHANGE - activeTab:', activeTab);
   }, [activeTab]);
-  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'functions' | 'phone' | 'other' | 'test'>('instructions');
+  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'other'>('instructions');
 
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
 
@@ -183,6 +183,8 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   // Refs to store initial values and prevent re-creation
   const initialConfigRef = useRef(config);
   const initialCodeRef = useRef(code);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 
 
@@ -540,11 +542,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
 
   // Auto-end conversation when navigating away from test tab
   useEffect(() => {
-    if (activeMenu !== 'test' && isInConversation) {
-      console.log('🔄 User navigated away from test tab, ending conversation...');
-      endConversation();
-    }
-  }, [activeMenu, isInConversation]);
+    // Remove this effect since we no longer have a test tab
+    // The conversation can continue while user navigates between config tabs
+  }, []);
 
 
 
@@ -652,7 +652,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
         const notification = document.createElement('div');
         notification.innerHTML = `
           <div>
-            <strong>No phone number assigned</strong><br>
+            <strong>No phone number connected</strong><br>
             Please purchase a phone number first to publish your voice agent.
           </div>
         `;
@@ -873,6 +873,13 @@ Just tell me what you want your voice agent to do or any issues you're experienc
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
+    
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = '24px';
+    }
+    
     setIsGenerating(true);
 
     try {
@@ -1099,281 +1106,6 @@ For now, you can still manually configure your voice agent using the tabs above.
     }
   };
 
-  // Rollback to a specific checkpoint
-  const rollbackToCheckpoint = (checkpointMessage: ChatMessage) => {
-    if (!checkpointMessage.filesSnapshot) return;
-    
-    // Restore files from checkpoint
-    restoreFromCheckpoint(checkpointMessage.filesSnapshot);
-    
-    // Find the index of this checkpoint in messages
-    const checkpointIndex = messages.findIndex(msg => msg.id === checkpointMessage.id);
-    if (checkpointIndex !== -1) {
-      // Remove all messages after this checkpoint
-      const newMessages = messages.slice(0, checkpointIndex + 1);
-      setMessages(newMessages);
-      
-      // Update available checkpoints
-      const newCheckpoints = availableCheckpoints.filter(cp => 
-        newMessages.some(msg => msg.id === cp.id)
-      );
-      setAvailableCheckpoints(newCheckpoints);
-    }
-    
-    // showNotification(`Rolled back to checkpoint: ${checkpointMessage.timestamp.toLocaleString()}`, 'success');
-    setShowCheckpointModal(false);
-  };
-
-  // Parse file operations from AI response - SIMPLIFIED AND RELIABLE
-  const parseFileOperations = (content: string): Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> => {
-    console.log('=== PARSING FILE OPERATIONS ===');
-    console.log('Content length:', content.length);
-    
-    const operations: Array<{type: 'CREATE' | 'UPDATE', filename: string, content: string}> = [];
-    const lines = content.split('\n');
-    
-    // First, try the explicit format (CREATE_FILE:, UPDATE_FILE:)
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      // Look for explicit file operation markers
-      const createMatch = line.match(/^CREATE_FILE:\s*(.+)$/);
-      const updateMatch = line.match(/^UPDATE_FILE:\s*(.+)$/);
-      
-      if (createMatch || updateMatch) {
-        const type = createMatch ? 'CREATE' : 'UPDATE';
-        const filename = (createMatch || updateMatch)![1].trim();
-        
-        console.log(`Found ${type} operation for: ${filename}`);
-        
-        // Find the next code block
-        let codeBlockStart = -1;
-        let codeBlockEnd = -1;
-        
-        // Look for opening ```
-        for (let j = i + 1; j < lines.length; j++) {
-          if (lines[j].trim().startsWith('```')) {
-            codeBlockStart = j;
-            console.log(`Found code block start at line ${j}`);
-            break;
-          }
-        }
-        
-        if (codeBlockStart === -1) {
-          console.warn(`No code block found for ${type}:${filename}`);
-          continue;
-        }
-        
-        // Find the closing ```
-        for (let j = codeBlockStart + 1; j < lines.length; j++) {
-          if (lines[j].trim() === '```') {
-            codeBlockEnd = j;
-            console.log(`Found code block end at line ${j}`);
-            break;
-          }
-        }
-        
-        if (codeBlockEnd === -1) {
-          console.warn(`No closing code block found for ${type}:${filename}`);
-          continue;
-        }
-        
-        // Extract the code content
-        const codeLines = lines.slice(codeBlockStart + 1, codeBlockEnd);
-        const codeContent = codeLines.join('\n').trim();
-        
-        console.log(`Extracted code content: ${codeContent.length} characters`);
-        
-        // Validate content
-        if (codeContent.length < 5) {
-          console.warn(`Code content too short for ${filename}: ${codeContent.length} chars`);
-          continue;
-        }
-        
-        // Check for duplicates
-        const duplicate = operations.find(op => op.filename === filename);
-        if (duplicate) {
-          console.warn(`Duplicate filename found: ${filename}, skipping`);
-          continue;
-        }
-        
-        // Add the operation
-        operations.push({
-          type: type as 'CREATE' | 'UPDATE',
-          filename,
-          content: codeContent
-        });
-        
-        console.log(`✅ Successfully parsed ${type} operation for ${filename}`);
-        
-        // Skip ahead past the code block
-        i = codeBlockEnd;
-      }
-    }
-    
-    // If no explicit operations found, try fallback parsing
-    if (operations.length === 0) {
-      console.log('No explicit operations found, trying fallback parsing...');
-      
-      // Look for "Files modified:" or "**Files modified:**" section
-      let filesModifiedIndex = -1;
-      const modifiedFiles: string[] = [];
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.match(/\*?\*?Files? modified:?\*?\*?/i)) {
-          filesModifiedIndex = i;
-          console.log(`Found "Files modified" section at line ${i}`);
-          
-          // Parse the files listed after this
-          for (let j = i + 1; j < lines.length; j++) {
-            const fileLine = lines[j].trim();
-            if (!fileLine) break; // Stop at empty line
-            
-            // Look for patterns like "- Updated: filename" or "- filename"
-            const fileMatch = fileLine.match(/^-\s*(?:Updated?|Created?|Modified?)?\s*:?\s*(.+)$/i);
-            if (fileMatch) {
-              const filename = fileMatch[1].trim();
-              modifiedFiles.push(filename);
-              console.log(`Found modified file: ${filename}`);
-            }
-          }
-          break;
-        }
-      }
-      
-      // If we found modified files, try to match them with code blocks
-      if (modifiedFiles.length > 0) {
-        console.log(`Found ${modifiedFiles.length} modified files, looking for code blocks...`);
-        
-        // Find all code blocks in the content
-        const codeBlocks: Array<{start: number, end: number, language: string, content: string}> = [];
-        
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (line.startsWith('```')) {
-            const language = line.substring(3).trim();
-            let endIndex = -1;
-            
-            // Find closing ```
-            for (let j = i + 1; j < lines.length; j++) {
-              if (lines[j].trim() === '```') {
-                endIndex = j;
-                break;
-              }
-            }
-            
-            if (endIndex !== -1) {
-              const content = lines.slice(i + 1, endIndex).join('\n').trim();
-              codeBlocks.push({
-                start: i,
-                end: endIndex,
-                language,
-                content
-              });
-              console.log(`Found code block (${language}): ${content.length} chars`);
-            }
-          }
-        }
-        
-        // Try to match files with code blocks
-        for (const filename of modifiedFiles) {
-          const fileExt = filename.split('.').pop()?.toLowerCase() || '';
-          
-          // Find the best matching code block
-          let bestMatch = -1;
-          let bestScore = 0;
-          
-          for (let i = 0; i < codeBlocks.length; i++) {
-            const block = codeBlocks[i];
-            let score = 0;
-            
-            // Score based on language match
-            if (fileExt === 'py' && block.language === 'python') score += 10;
-            if (fileExt === 'js' && (block.language === 'javascript' || block.language === 'js')) score += 10;
-            if (fileExt === 'ts' && (block.language === 'typescript' || block.language === 'ts')) score += 10;
-            if (fileExt === 'tsx' && (block.language === 'tsx' || block.language === 'typescript')) score += 10;
-            
-            // Score based on proximity (closer to files modified section = higher score)
-            if (filesModifiedIndex !== -1) {
-              const distance = Math.abs(block.start - filesModifiedIndex);
-              score += Math.max(0, 100 - distance); // Closer = higher score
-            }
-            
-            // Score based on content size (reasonable size gets bonus)
-            if (block.content.length > 50 && block.content.length < 10000) {
-              score += 5;
-            }
-            
-            if (score > bestScore) {
-              bestScore = score;
-              bestMatch = i;
-            }
-          }
-          
-          if (bestMatch !== -1 && bestScore > 0) {
-            const block = codeBlocks[bestMatch];
-        operations.push({
-              type: 'UPDATE', // Default to UPDATE for fallback parsing
-          filename,
-              content: block.content
-            });
-            console.log(`✅ Matched ${filename} with code block (score: ${bestScore})`);
-            
-            // Remove the matched block to avoid double-matching
-            codeBlocks.splice(bestMatch, 1);
-          } else {
-            console.warn(`❌ Could not match ${filename} with any code block`);
-          }
-        }
-      }
-    }
-    
-    console.log('=== PARSING COMPLETE ===');
-    console.log(`Found ${operations.length} file operations:`);
-    operations.forEach(op => {
-      console.log(`  - ${op.type}: ${op.filename} (${op.content.length} chars)`);
-    });
-    
-    return operations;
-  };
-
-  // Function to save agent configuration to database (simplified - no longer using agent-config API)
-  const saveAgentConfiguration = async (projectToUse?: Project, userToUse?: { id: string }): Promise<string | null> => {
-    console.log('[DEBUG] ========= Starting saveAgentConfiguration =========');
-    console.log('[DEBUG] Config:', config);
-    console.log('[DEBUG] CurrentCode length:', currentCode?.length || 0);
-
-    const finalCode = currentCode || code;
-    const projectToSave = projectToUse || currentProject;
-    const userToSave = userToUse || user;
-
-    try {
-      const project = projectToSave;
-      const userForConfig = userToSave;
-
-      if (!project || !userForConfig) {
-        console.error('❌ Missing required data for saving agent configuration:', {
-          hasProject: !!project,
-          hasUser: !!userForConfig
-        });
-        return null;
-      }
-
-      console.log('💾 Agent configuration saved locally (API removed)');
-      
-      // Generate a mock configuration ID
-      const configId = `config_${Date.now()}`;
-        console.log('✅ Agent configuration saved successfully:', configId);
-        setCurrentConfigurationId(configId);
-        await loadAgentConfigurations();
-        return configId;
-    } catch (error) {
-      console.error('❌ Error saving agent configuration:', error);
-      return null;
-    }
-  };
-
   const startConversation = async () => {
     console.log('🔥 CLICKED START CONVERSATION BUTTON!');
     console.log('🔍 Initial state check:');
@@ -1461,7 +1193,7 @@ For now, you can still manually configure your voice agent using the tabs above.
       console.log('🤖 Creating explicit agent dispatch...');
       const agentMetadata = {
         projectId: projectToUse.id,
-        configurationId: currentConfigurationId,
+        userId: user?.id,
         agentConfig: {
           ...config,
           prompt: projectConfig.systemPrompt || config.prompt // Use AI-generated system prompt if available, fallback to original
@@ -1496,6 +1228,7 @@ For now, you can still manually configure your voice agent using the tabs above.
 
       console.log('📋 Agent dispatch metadata:');
       console.log('   • Project ID:', projectToUse.id);
+      console.log('   • User ID:', user?.id);
       console.log('   • Configuration ID:', currentConfigurationId);
       console.log('   • System Prompt Source:', projectConfig.systemPrompt ? 'AI-generated' : 'User input');
       console.log('   • System Prompt Length:', (projectConfig.systemPrompt || config.prompt).length, 'characters');
@@ -1657,7 +1390,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3, delay: 0.1 }}
-                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-lg"
+                  className="px-8 py-4 bg-black hover:bg-gray-900 text-white font-medium rounded-lg transition-colors text-lg border border-white/20"
                   onClick={() => startConversation()}
                 >
                   Start Conversation
@@ -1671,14 +1404,14 @@ For now, you can still manually configure your voice agent using the tabs above.
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3, ease: [0.09, 1.04, 0.245, 1.055] }}
-              className="flex flex-col items-center gap-4 h-full bg-gray-900"
-              style={{ '--lk-bg': '#111827' } as React.CSSProperties}
+              className="flex flex-col items-center gap-4 h-full bg-black"
+              style={{ '--lk-bg': '#000000' } as React.CSSProperties}
             >
         <AgentVisualizer />
-        <div className="flex-1 w-full bg-gray-900">
+        <div className="flex-1 w-full bg-black">
           <TranscriptionView />
         </div>
-        <div className="w-full bg-gray-900">
+        <div className="w-full bg-black">
           <ConversationControlBar />
         </div>
         <RoomAudioRenderer />
@@ -1695,13 +1428,13 @@ For now, you can still manually configure your voice agent using the tabs above.
 
     if (videoTrack) {
       return (
-        <div className="h-[512px] w-[512px] rounded-lg overflow-hidden bg-gray-900">
+        <div className="h-[512px] w-[512px] rounded-lg overflow-hidden bg-black">
           <VideoTrack trackRef={videoTrack} />
         </div>
       );
     }
     return (
-      <div className="h-[300px] w-full bg-gray-900">
+      <div className="h-[300px] w-full bg-black">
         <BarVisualizer
           state={agentState}
           barCount={5}
@@ -1814,11 +1547,22 @@ For now, you can still manually configure your voice agent using the tabs above.
 
   return (
     <RoomContext.Provider value={room}>
-      <div data-lk-theme="default" className="w-full h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
+      <style jsx global>{`
+        .agent-visualizer .lk-audio-visualizer-bar {
+          background-color: #000000 !important;
+        }
+        .agent-visualizer .lk-audio-visualizer-bar.lk-audio-visualizer-bar-active {
+          background-color: #000000 !important;
+        }
+        .lk-audio-visualizer {
+          background-color: #000000 !important;
+        }
+      `}</style>
+      <div data-lk-theme="default" className="w-full h-screen bg-black flex relative" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
         {/* Left side - Chat conversation */}
-        <div className="w-1/4 bg-gray-800 border-r border-gray-700 flex flex-col">
+        <div className="w-1/4 bg-neutral-800 border-r border-white/20 flex flex-col">
           {/* Header with logo */}
-          <div className="p-3 border-b border-gray-700 bg-gray-800">
+          <div className="p-3 bg-neutral-800">
             <div className="flex items-center justify-between">
               <button
                 onClick={onBackToHome}
@@ -1835,7 +1579,7 @@ For now, you can still manually configure your voice agent using the tabs above.
           </div>
 
           {/* Messages area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent bg-neutral-800">
             {messages.map((message) => (
               <div key={message.id} className="flex flex-col items-start">
                 {message.role === 'assistant' && (
@@ -1849,9 +1593,9 @@ For now, you can still manually configure your voice agent using the tabs above.
                   </div>
                 )}
                 <div className="max-w-[95%]">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-200">{message.content}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">{message.content}</p>
                   <div className="flex items-center justify-between mt-3">
-                    <p className="text-xs opacity-70 text-gray-400">
+                    <p className="text-xs opacity-70 text-white/70">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
@@ -1866,18 +1610,16 @@ For now, you can still manually configure your voice agent using the tabs above.
                 <div className="max-w-[95%]">
                   <div className="flex items-center space-x-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent"></div>
-                    <span className="text-sm text-gray-200">Thinking...</span>
+                    <span className="text-sm text-white/90">Thinking...</span>
                   </div>
                 </div>
               </div>
             )}
-
-
           </div>
 
           {/* Message input */}
-          <div className="p-6 border-t border-gray-700 bg-gray-800">
-            <div className="relative bg-gray-700 rounded-3xl p-4">
+          <div className="p-6 border-t border-white/20 bg-neutral-800">
+            <div className="relative bg-white/5 rounded-3xl p-4 border border-white/20">
               <div className="flex items-center space-x-3">
                 <button className="w-8 h-8 bg-white hover:bg-gray-100 rounded-full flex items-center justify-center transition-colors">
                   <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1888,11 +1630,12 @@ For now, you can still manually configure your voice agent using the tabs above.
                 
                 <div className="flex-1">
                   <textarea
+                    ref={textareaRef}
                     value={inputMessage}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDownInInput}
                     placeholder="Ask Bun"
-                    className="w-full bg-transparent text-white placeholder-gray-400 focus:outline-none resize-none text-base leading-relaxed"
+                    className="w-full bg-transparent text-white placeholder-white/50 focus:outline-none resize-none text-base leading-relaxed"
                     rows={1}
                     disabled={isGenerating}
                     style={{
@@ -1924,99 +1667,48 @@ For now, you can still manually configure your voice agent using the tabs above.
           </div>
         </div>
 
-        {/* Right side - Code/Test view */}
+        {/* Right side - Code/Config view */}
         <div className="w-3/4 bg-black flex flex-col">
           {/* Header with toggle and actions */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
-            <div className="flex items-center space-x-6">
+          <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
+            <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
                 <button
                 onClick={() => setActiveMenu('instructions')}
-                className={`text-base font-bold transition-colors relative ${
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeMenu === 'instructions' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
                 Instructions
-                {activeMenu === 'instructions' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
-                )}
                 </button>
                 <button
                 onClick={() => setActiveMenu('models')}
-                className={`text-base font-bold transition-colors relative ${
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeMenu === 'models' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
                 Models
-                {activeMenu === 'models' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
-                )}
                 </button>
                 <button
-                onClick={() => setActiveMenu('functions')}
-                className={`text-base font-bold transition-colors relative ${
-                  activeMenu === 'functions' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                Functions
-                {activeMenu === 'functions' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
-                )}
-                </button>
-                  <button
                 onClick={() => setActiveMenu('phone')}
-                className={`text-base font-bold transition-colors relative ${
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeMenu === 'phone' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
                 }`}
               >
                 Phone Numbers
-                {activeMenu === 'phone' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
-                )}
                 </button>
-                  <button
-                onClick={() => setActiveMenu('other')}
-                className={`text-base font-bold transition-colors relative ${
-                  activeMenu === 'other' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                Other
-                {activeMenu === 'other' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
-                )}
-                </button>
-                <button
-                onClick={() => {
-                  console.log('🔄 Test tab clicked from navigation');
-                  setActiveMenu('test');
-                }}
-                className={`text-base font-bold transition-colors relative ${
-                  activeMenu === 'test' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
-                }`}
-              >
-                Test
-                {activeMenu === 'test' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white"></div>
-                )}
-                        </button>
                       </div>
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={saveProjectConfiguration}
                         disabled={isSavingConfig}
                         className="px-4 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
-              >
+                      >
                         {isSavingConfig ? (
                           <>
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-black"></div>
@@ -2041,78 +1733,52 @@ For now, you can still manually configure your voice agent using the tabs above.
                           <span>Publish</span>
                         )}
                       </button>
-                      </div>
-                  </div>
+
+                      {!isInConversation ? (
+                        <button
+                          onClick={() => {
+                            startConversation().catch((err) => {
+                              console.error('🔥 Unhandled error in startConversation:', err);
+                            });
+                          }}
+                          disabled={isConnecting}
+                          className="px-4 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                        >
+                          {isConnecting ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                              <span>Connecting...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                              </svg>
+                              <span>Test Agent</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={endConversation}
+                          className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          <span>End Call</span>
+                        </button>
+                      )}
+                    </div>
+          </div>
 
           {/* Content area */}
           <div className="flex-1 overflow-hidden">
-            {activeMenu === 'test' ? (
-              <div className="h-full flex flex-col">
-                {/* Test area - Show voice interface if connected, otherwise show start button */}
-                <div className="flex-1 bg-gray-900">
-                  {isInConversation ? (
-                    <div className="h-full flex flex-col items-center justify-center p-8 bg-gray-900">
-                      <SimpleVoiceAssistant />
-                    </div>
-                  ) : (
-                    <div className="h-full flex items-center justify-center">
-                      <div className="text-center space-y-6 p-8 max-w-md mx-auto">
-                        <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto">
-                          <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                          </svg>
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <h3 className="text-2xl font-semibold text-white mb-3">Ready to Test</h3>
-                          <p className="text-gray-400 mb-6">Your voice agent is configured and ready for testing. Make sure your backend agent is running.</p>
-                          <button
-                            onClick={(e) => {
-                              console.log('🖱️ BUTTON CLICKED! Event details:');
-                              console.log('   • Event type:', e.type);
-                              console.log('   • Button disabled:', isConnecting);
-                              console.log('   • Current isInConversation:', isInConversation);
-                              
-                              e.preventDefault();
-                              e.stopPropagation();
-                              
-                              console.log('🚀 About to call startConversation()...');
-                              startConversation().catch(err => {
-                                console.error('🔥 Unhandled error in startConversation:', err);
-                              });
-                            }}
-                            disabled={isConnecting}
-                            className="px-8 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors text-lg flex items-center justify-center mx-auto"
-                          >
-                            {isConnecting ? (
-                              <>
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                                Connecting...
-                              </>
-                            ) : (
-                              'Start Conversation'
-                            )}
-                          </button>
-                        </div>
-                        
-                        <div className="border-t border-gray-700 pt-6">
-                          <h4 className="text-md font-medium text-white mb-3">Testing Tips</h4>
-                          <ul className="text-gray-400 text-sm space-y-2 text-left">
-                            <li>• Speak clearly and wait for the agent to respond</li>
-                            <li>• Try asking questions related to your agent&apos;s purpose</li>
-                            <li>• Test different conversation scenarios</li>
-                            <li>• Use the chat on the left to modify the agent&apos;s behavior</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : activeMenu === 'instructions' ? (
-              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
+            {activeMenu === 'instructions' ? (
+              <div className="h-full bg-black p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
                   {/* System Prompt Section */}
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
                     <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
                       <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2122,7 +1788,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <label className="block text-sm font-medium text-gray-200">
+                        <label className="block text-sm font-medium text-white/70">
                           Define your agent's behavior and personality
                         </label>
                       </div>
@@ -2131,7 +1797,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                         rows={8}
                         value={projectConfig.systemPrompt}
                         onChange={(e) => setProjectConfig(prev => ({ ...prev, systemPrompt: e.target.value }))}
-                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
                         placeholder="Enter your system prompt here. For example: 'You are a helpful customer service representative for an e-commerce company. You should be friendly, professional, and knowledgeable about products and policies. Always aim to resolve customer issues efficiently while maintaining a positive tone.'"
                       />
                     </div>
@@ -2139,10 +1805,10 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </div>
               </div>
             ) : activeMenu === 'models' ? (
-              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
+              <div className="h-full bg-black p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
                   {/* Base Model Configuration */}
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
                     <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
                       <svg className="w-6 h-6 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -2151,14 +1817,14 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </h3>
                     
                     <div className="space-y-6">
-                      <p className="text-gray-400">
+                      <p className="text-white/70">
                         Choose the AI model that will power your voice agent's conversations and responses.
                       </p>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Provider Selection */}
                       <div className="space-y-3">
-                        <label className="block text-sm font-medium text-gray-300">
+                        <label className="block text-sm font-medium text-white/70">
                           Provider
                         </label>
                           <div className="relative">
@@ -2178,7 +1844,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                                   handleModelChange(firstModel);
                                 }
                               }}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
+                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               {providers.map(provider => (
                                 <option key={provider.value} value={provider.value} className="bg-gray-700 text-white">
@@ -2187,7 +1853,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                               ))}
                         </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -2196,7 +1862,7 @@ For now, you can still manually configure your voice agent using the tabs above.
 
                         {/* Model Selection */}
                       <div className="space-y-3">
-                        <label className="block text-sm font-medium text-gray-300">
+                        <label className="block text-sm font-medium text-white/70">
                           Model
                         </label>
                           <div className="relative">
@@ -2206,7 +1872,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                                 setProjectConfig(prev => ({ ...prev, llmModel: e.target.value }));
                                 handleModelChange(e.target.value);
                               }}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
+                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               {modelsByProvider[projectConfig.llmProvider]?.map(model => (
                                 <option key={model.value} value={model.value} className="bg-gray-700 text-white">
@@ -2215,7 +1881,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                               ))}
                         </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -2224,7 +1890,7 @@ For now, you can still manually configure your voice agent using the tabs above.
 
                         {/* Temperature */}
                       <div className="space-y-3">
-                        <label className="block text-sm font-medium text-gray-300">
+                        <label className="block text-sm font-medium text-white/70">
                             Temperature
                         </label>
                           <div className="space-y-2">
@@ -2235,9 +1901,9 @@ For now, you can still manually configure your voice agent using the tabs above.
                               step="0.1"
                               value={projectConfig.llmTemperature}
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, llmTemperature: parseFloat(e.target.value) }))}
-                              className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
+                              className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
                             />
-                            <div className="flex justify-between text-xs text-gray-400">
+                            <div className="flex justify-between text-xs text-white/50">
                               <span>Conservative (0)</span>
                               <span>Balanced (1)</span>
                               <span>Creative (2)</span>
@@ -2247,14 +1913,14 @@ For now, you can still manually configure your voice agent using the tabs above.
 
                         {/* Max Tokens */}
                         <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
+                          <label className="block text-sm font-medium text-white/70">
                             Max Response Length
                           </label>
                           <div className="relative">
                             <select 
                               value={projectConfig.llmMaxResponseLength}
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, llmMaxResponseLength: parseInt(e.target.value) as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
+                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="150" className="bg-gray-700 text-white">Short (150 tokens)</option>
                               <option value="300" className="bg-gray-700 text-white">Medium (300 tokens)</option>
@@ -2262,7 +1928,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                               <option value="1000" className="bg-gray-700 text-white">Very Long (1000 tokens)</option>
                         </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -2273,7 +1939,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                   </div>
 
                   {/* Transcriber Configuration */}
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
                     <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
                       <svg className="w-6 h-6 mr-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -2282,31 +1948,31 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </h3>
                     
                     <div className="space-y-6">
-                      <p className="text-gray-400">
+                      <p className="text-white/70">
                         Configure how your agent converts speech to text for processing.
                       </p>
                       
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Transcriber Provider */}
                         <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
+                          <label className="block text-sm font-medium text-white/70">
                             Transcriber Provider
                           </label>
-                          <div className="bg-gray-700 border border-gray-600 rounded-xl px-4 py-3">
+                          <div className="bg-white/5 border border-white/20 rounded-xl px-4 py-3">
                             <span className="text-white">Deepgram</span>
                           </div>
                       </div>
 
                       {/* Language */}
                       <div className="space-y-3">
-                        <label className="block text-sm font-medium text-gray-300">
+                        <label className="block text-sm font-medium text-white/70">
                           Language
                         </label>
                           <div className="relative">
                             <select 
                               value={projectConfig.sttLanguage}
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, sttLanguage: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
+                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="en" className="bg-gray-700 text-white">English</option>
                               <option value="es" className="bg-gray-700 text-white">Spanish</option>
@@ -2319,7 +1985,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                               <option value="zh" className="bg-gray-700 text-white">Chinese</option>
                         </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -2328,21 +1994,21 @@ For now, you can still manually configure your voice agent using the tabs above.
 
                         {/* Model Quality */}
                       <div className="space-y-3">
-                        <label className="block text-sm font-medium text-gray-300">
+                        <label className="block text-sm font-medium text-white/70">
                             Transcription Quality
                         </label>
                           <div className="relative">
                             <select 
                               value={projectConfig.sttQuality}
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, sttQuality: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
+                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="standard" className="bg-gray-700 text-white">Standard (Faster, Lower Cost)</option>
                               <option value="enhanced" className="bg-gray-700 text-white">Enhanced (Balanced)</option>
                               <option value="premium" className="bg-gray-700 text-white">Premium (Highest Accuracy)</option>
                         </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -2356,10 +2022,10 @@ For now, you can still manually configure your voice agent using the tabs above.
                       <div className="space-y-4">
                         <h4 className="text-lg font-medium text-white">Advanced Settings</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                        <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
                             <div>
-                              <span className="text-gray-300 font-medium">Noise Suppression</span>
-                              <p className="text-gray-400 text-sm">Reduce background noise</p>
+                              <span className="text-white font-medium">Noise Suppression</span>
+                              <p className="text-white/70 text-sm">Reduce background noise</p>
                             </div>
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input 
@@ -2368,14 +2034,14 @@ For now, you can still manually configure your voice agent using the tabs above.
                               checked={projectConfig.sttNoiseSuppression}
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, sttNoiseSuppression: e.target.checked }))}
                             />
-                            <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <div className="w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/30 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/30"></div>
                           </label>
                         </div>
                         
-                          <div className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                          <div className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
                             <div>
-                              <span className="text-gray-300 font-medium">Punctuation</span>
-                              <p className="text-gray-400 text-sm">Auto-add punctuation</p>
+                              <span className="text-white font-medium">Punctuation</span>
+                              <p className="text-white/70 text-sm">Auto-add punctuation</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
                               <input 
@@ -2384,7 +2050,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                                 checked={projectConfig.sttAutoPunctuation}
                                 onChange={(e) => setProjectConfig(prev => ({ ...prev, sttAutoPunctuation: e.target.checked }))}
                               />
-                              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                              <div className="w-11 h-6 bg-white/20 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-white/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-white/30 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/30"></div>
                             </label>
                           </div>
                         </div>
@@ -2393,7 +2059,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                   </div>
 
                   {/* Voice Configuration */}
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
                     <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
                       <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
@@ -2402,28 +2068,28 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </h3>
                     
                     <div className="space-y-6">
-                      <p className="text-gray-400">
+                      <p className="text-white/70">
                         Configure how your agent's responses are converted to speech.
                       </p>
                       
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Voice Provider */}
                         <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
+                          <label className="block text-sm font-medium text-white/70">
                             Voice Provider
                           </label>
                           <div className="relative">
                             <select 
                               value={projectConfig.ttsProvider}
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsProvider: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
+                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="cartesia" className="bg-gray-700 text-white">Cartesia</option>
                               <option value="elevenlabs" className="bg-gray-700 text-white">ElevenLabs</option>
                               <option value="openai" className="bg-gray-700 text-white">OpenAI</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -2432,14 +2098,14 @@ For now, you can still manually configure your voice agent using the tabs above.
 
                         {/* Voice Selection */}
                         <div className="space-y-3">
-                          <label className="block text-sm font-medium text-gray-300">
+                          <label className="block text-sm font-medium text-white/70">
                             Voice
                           </label>
                           <div className="relative">
                             <select 
                               value={projectConfig.ttsVoice}
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsVoice: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer transition-all duration-200 hover:bg-gray-650 pr-10"
+                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="neutral" className="bg-gray-700 text-white">Neutral</option>
                               <option value="male" className="bg-gray-700 text-white">Male</option>
@@ -2449,7 +2115,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                               <option value="soft_female" className="bg-gray-700 text-white">Soft Female</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </div>
@@ -2460,10 +2126,10 @@ For now, you can still manually configure your voice agent using the tabs above.
                       </div>
 
                       {/* Voice Preview */}
-                      <div className="bg-gray-700 rounded-lg p-4">
+                      <div className="bg-white/5 border border-white/20 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-lg font-medium text-white">Voice Preview</h4>
-                          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center space-x-2">
+                          <button className="px-4 py-2 bg-white hover:bg-gray-100 text-black font-medium rounded-lg transition-colors flex items-center space-x-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8m2 4H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
@@ -2474,100 +2140,123 @@ For now, you can still manually configure your voice agent using the tabs above.
                           rows={3}
                           placeholder="Enter text to preview the voice..."
                           defaultValue="Hello! I'm your AI voice assistant. How can I help you today?"
-                          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
                         />
                       </div>
                     </div>
                   </div>
-
-
-
-
                 </div>
               </div>
             ) : activeMenu === 'phone' ? (
-              <div className="h-full bg-gray-900 p-6 overflow-y-auto">
+              <div className="h-full bg-black p-6 overflow-y-auto">
                 <div className="max-w-4xl mx-auto space-y-8">
-                  <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                      Phone Numbers
-                    </h3>
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center">
+                        <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <h3 className="text-xl font-semibold text-white">Phone Numbers</h3>
+                      </div>
+                      <button
+                        onClick={() => setShowTelnyxNumbersModal(true)}
+                        className="px-4 py-2 bg-white hover:bg-gray-100 text-black font-medium rounded-lg transition-colors flex items-center space-x-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Purchase Number</span>
+                      </button>
+                    </div>
                     
                     <div className="space-y-6">
-                      <p className="text-gray-300">
-                        Configure phone numbers for your voice agent to handle inbound and outbound calls.
+                      <p className="text-white/70">
+                        Configure phone numbers for your voice agent to handle inbound calls.
                       </p>
                       
                       {/* Phone Number Manager */}
-                      <div className="bg-gray-700 rounded-lg p-4">
-                        <PhoneNumberManager
-                          key={phoneNumberRefreshKey}
-                          projectId={project?.id || currentProject?.id}
-                          onPhoneNumberAssigned={(phoneNumber, phoneNumberId) => {
-                            setAssignedPhoneNumber(phoneNumber);
-                            setAssignedPhoneNumberId(phoneNumberId);
-                            // Update project config with the assigned phone number
-                            setProjectConfig(prev => ({ ...prev, phoneNumber }));
-                          }}
-                          onPurchaseNumber={() => setShowTelnyxNumbersModal(true)}
-                        />
-                      </div>
-                      
-                      {/* Phone Number Settings */}
-                        <div className="bg-gray-700 rounded-lg p-4">
-                        <h4 className="text-lg font-medium text-white mb-4">Call Settings</h4>
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-medium">Inbound Calls</p>
-                              <p className="text-gray-400 text-sm">Allow incoming calls to this number</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" className="sr-only peer" defaultChecked />
-                              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                          </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-medium">Outbound Calls</p>
-                              <p className="text-gray-400 text-sm">Allow agent to make outgoing calls</p>
-                              <p className="text-gray-500 text-xs mt-1">Coming Soon</p>
-                      </div>
-                            <label className="relative inline-flex items-center cursor-pointer opacity-50 cursor-not-allowed">
-                              <input type="checkbox" className="sr-only peer" disabled />
-                              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                        </div>
-                        
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-medium">Call Recording</p>
-                              <p className="text-gray-400 text-sm">Record all conversations for quality assurance</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" className="sr-only peer" defaultChecked />
-                              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                          </div>
-                        </div>
-                        </div>
-                        </div>
-                        </div>
+                      <PhoneNumberManager
+                        key={phoneNumberRefreshKey}
+                        projectId={project?.id || currentProject?.id}
+                        onPhoneNumberAssigned={(phoneNumber, phoneNumberId) => {
+                          setAssignedPhoneNumber(phoneNumber);
+                          setAssignedPhoneNumberId(phoneNumberId);
+                          // Update project config with the assigned phone number
+                          setProjectConfig(prev => ({ ...prev, phoneNumber }));
+                        }}
+                        onPurchaseNumber={() => setShowTelnyxNumbersModal(true)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center bg-gray-900">
-                <div className="text-center">
-                  <p className="text-gray-400">Coming Soon.</p>
+              <div className="h-full flex items-center justify-center bg-black">
+                <div className="text-center space-y-6 p-8 max-w-md mx-auto">
+                  <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto">
+                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <h3 className="text-2xl font-semibold text-white mb-3">Configure Your Agent</h3>
+                    <p className="text-white/70 mb-6">Use the tabs above to configure your voice agent's instructions, models, and phone numbers. Then use the "Test Agent" button in the top right to start a conversation.</p>
+                  </div>
+                  
+                  <div className="border-t border-white/20 pt-6">
+                    <h4 className="text-md font-medium text-white mb-3">Quick Start</h4>
+                    <ul className="text-white/70 text-sm space-y-2 text-left">
+                      <li>• Set up your system prompt in the Instructions tab</li>
+                      <li>• Configure your AI models in the Models tab</li>
+                      <li>• Add a phone number in the Phone Numbers tab</li>
+                      <li>• Click "Test Agent" to start testing</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
+
+        {/* Voice Assistant Overlay - Only show when connected */}
+        {isInConversation && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 flex items-center justify-center pointer-events-none">
+            <div className="pointer-events-auto">
+              <div className="bg-black/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 max-w-2xl mx-auto relative">
+                {/* Close Button */}
+                <button
+                  onClick={endConversation}
+                  className="absolute top-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors group"
+                  title="End conversation"
+                >
+                  <svg className="w-4 h-4 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                
+                <div className="text-center space-y-6">
+                  <div className="flex justify-center">
+                    <AgentVisualizer />
+                  </div>
+                  <div className="w-full max-h-60 overflow-y-auto bg-black/40 rounded-lg p-4 border border-white/20">
+                    <h4 className="text-white font-medium mb-3 flex items-center justify-center">
+                      <svg className="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                      Live Transcription
+                    </h4>
+                    <TranscriptionView />
+                  </div>
+                  <div className="space-y-4">
+                    <ConversationControlBar />
+                    <RoomAudioRenderer />
+                    <VoiceAssistantNotification />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Telnyx Numbers Modal */}
@@ -2585,3 +2274,9 @@ For now, you can still manually configure your voice agent using the tabs above.
     </RoomContext.Provider>
   );
 } 
+
+// Voice Assistant Notification Component (moved inside RoomContext)
+function VoiceAssistantNotification() {
+  const { state: agentState } = useVoiceAssistant();
+  return <NoAgentNotification state={agentState} />;
+}

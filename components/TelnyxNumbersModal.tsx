@@ -1,5 +1,22 @@
 import React, { useState } from 'react';
 
+// Function to format phone number in standard US format
+const formatPhoneNumber = (phoneNumber: string): string => {
+  // Remove all non-digit characters
+  const digits = phoneNumber.replace(/\D/g, '');
+  
+  // Check if it's a US number (11 digits starting with 1)
+  if (digits.length === 11 && digits.startsWith('1')) {
+    const areaCode = digits.slice(1, 4);
+    const exchange = digits.slice(4, 7);
+    const number = digits.slice(7, 11);
+    return `+1 (${areaCode}) ${exchange}-${number}`;
+  }
+  
+  // For other formats, just return the original
+  return phoneNumber;
+};
+
 interface TelnyxNumber {
   phone_number: string;
   record_type: string;
@@ -278,33 +295,14 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden">
+      <div className="bg-white/90 backdrop-blur-sm rounded-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden border border-white/20">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <h2 className="text-xl font-semibold text-white">Available Phone Numbers</h2>
-            <button
-              onClick={fetchTelnyxNumbers}
-              disabled={isLoadingTelnyxNumbers}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors flex items-center space-x-2"
-            >
-              {isLoadingTelnyxNumbers ? (
-                <>
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                  <span>Refreshing...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Refresh</span>
-                </>
-              )}
-            </button>
+            <h2 className="text-xl font-semibold text-black">Available Phone Numbers</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-black/70 hover:text-black transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -314,31 +312,31 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
 
         {isLoadingTelnyxNumbers ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <span className="ml-3 text-gray-300">Loading available numbers...</span>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+            <span className="ml-3 text-black/70">Loading available numbers...</span>
           </div>
         ) : telnyxNumbers.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 bg-black/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-black/20">
+              <svg className="w-8 h-8 text-black/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </div>
-            <p className="text-gray-400">No phone numbers available</p>
-            <p className="text-gray-500 text-sm mt-1">Please try again later</p>
+            <p className="text-black/70">No phone numbers available</p>
+            <p className="text-black/50 text-sm mt-1">Please try again later</p>
           </div>
         ) : (
           <div className="space-y-4 max-h-96 overflow-y-auto">
 
             
-            <div className="text-sm text-gray-400 mb-4">
+            <div className="text-sm text-black/70 mb-4">
               Found {telnyxNumbers.length} available phone number{telnyxNumbers.length !== 1 ? 's' : ''} 
             </div>
             
             {telnyxNumbers.map((number, index) => (
               <div
                 key={index}
-                className="bg-gray-700 rounded-lg p-4 hover:bg-gray-650 transition-colors"
+                className="bg-black/5 rounded-lg p-4 hover:bg-black/10 transition-colors border border-black/20"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
@@ -349,51 +347,15 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
                         </svg>
                       </div>
                       <div>
-                        <p className="text-white font-medium text-lg">{number.phone_number}</p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-400">
-                          {number.record_type && (
-                            <span className="capitalize">{number.record_type}</span>
-                          )}
-                          {number.region_information?.[0]?.region_name && (
-                            <span>{number.region_information[0].region_name}</span>
-                          )}
-                        </div>
+                        <p className="text-black font-medium text-lg">{formatPhoneNumber(number.phone_number)}</p>
                       </div>
                     </div>
-
-                    {/* Features */}
-                    {number.features && number.features.length > 0 && (
-                      <div className="mt-3">
-                        <div className="flex flex-wrap gap-2">
-                          {number.features.map((feature, featureIndex) => (
-                            <span
-                              key={featureIndex}
-                              className="px-2 py-1 bg-blue-600 bg-opacity-20 text-blue-300 text-xs rounded-full"
-                            >
-                              {feature.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Cost Information */}
-                    {number.cost_information && (
-                      <div className="mt-3 text-sm text-gray-400">
-                        {number.cost_information.monthly_cost && (
-                          <span className="mr-4">Monthly: {number.cost_information.monthly_cost}</span>
-                        )}
-                        {number.cost_information.upfront_cost && (
-                          <span>Setup: {number.cost_information.upfront_cost}</span>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   <button
                     onClick={() => handleSelectNumber(number.phone_number)}
                     disabled={isPurchasing === number.phone_number}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
+                    className="px-4 py-2 bg-black hover:bg-gray-800 disabled:bg-black/50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
                   >
                     {isPurchasing === number.phone_number ? (
                       <>
@@ -410,10 +372,10 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           </div>
         )}
 
-        <div className="flex justify-end mt-6 pt-4 border-t border-gray-700">
+        <div className="flex justify-end mt-6 pt-4 border-t border-black/20">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors"
+            className="px-4 py-2 bg-black/10 hover:bg-black/20 text-black font-medium rounded-lg transition-colors border border-black/20"
           >
             Close
           </button>
