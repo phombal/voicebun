@@ -76,6 +76,15 @@ export async function POST(request: NextRequest) {
         });
 
         console.log('✅ Phone number saved to database');
+
+        // Increment the user's phone number count
+        try {
+          await db.incrementPhoneNumberCount(body.userId);
+          console.log('✅ Phone number count incremented for user:', body.userId);
+        } catch (countError) {
+          console.error('❌ Failed to increment phone number count:', countError);
+          // Don't fail the request if count increment fails
+        }
       } catch (dbError) {
         console.error('❌ Database save failed:', dbError);
         // Don't fail the request if DB save fails, the number was still purchased
