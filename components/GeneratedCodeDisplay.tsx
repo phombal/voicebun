@@ -1429,19 +1429,19 @@ For now, you can still manually configure your voice agent using the tabs above.
 
     if (videoTrack) {
       return (
-        <div className="h-[512px] w-[512px] rounded-lg overflow-hidden bg-black">
+        <div className="h-[200px] w-[200px] sm:h-[300px] sm:w-[300px] md:h-[512px] md:w-[512px] rounded-lg overflow-hidden bg-black">
           <VideoTrack trackRef={videoTrack} />
         </div>
       );
     }
     return (
-      <div className="h-[300px] w-full bg-black">
+      <div className="h-[120px] sm:h-[180px] md:h-[300px] w-full bg-black">
         <BarVisualizer
           state={agentState}
           barCount={5}
           trackRef={audioTrack}
           className="agent-visualizer"
-          options={{ minHeight: 24 }}
+          options={{ minHeight: 12 }}
         />
       </div>
     );
@@ -2274,34 +2274,59 @@ For now, you can still manually configure your voice agent using the tabs above.
 
         {/* Voice Assistant Overlay - Only show when connected */}
         {isInConversation && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 flex items-center justify-center pointer-events-none">
-            <div className="pointer-events-auto">
-              <div className="bg-black/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 max-w-2xl mx-auto relative">
-                {/* Close Button */}
-                <button
-                  onClick={endConversation}
-                  className="absolute top-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors group"
-                  title="End conversation"
-                >
-                  <svg className="w-4 h-4 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 flex items-center justify-center p-2 sm:p-4">
+            <div className="pointer-events-auto w-full max-w-sm sm:max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-hidden">
+              <div className="bg-black/90 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-white/20 relative h-full flex flex-col">
+                {/* Mobile-friendly Header */}
+                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/20 flex-shrink-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-white flex items-center">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    <span className="hidden sm:inline">Voice Agent Test</span>
+                    <span className="sm:hidden">Voice Test</span>
+                  </h3>
+                  <button
+                    onClick={endConversation}
+                    className="w-7 h-7 sm:w-8 sm:h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors group"
+                    title="End conversation"
+                  >
+                    <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
                 
-                <div className="text-center space-y-6">
-                  <div className="flex justify-center">
-                    <AgentVisualizer />
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+                  <div className="space-y-3 sm:space-y-6">
+                    {/* Agent Visualizer - Reduced size for mobile */}
+                    <div className="flex justify-center">
+                      <div className="w-full max-w-xs sm:max-w-md">
+                        <AgentVisualizer />
+                      </div>
+                    </div>
+                    
+                    {/* Live Transcription */}
+                    <div className="w-full">
+                      <div className="bg-black/40 rounded-lg p-2 sm:p-4 border border-white/20">
+                        <h4 className="text-white font-medium mb-2 sm:mb-3 flex items-center justify-center text-xs sm:text-base">
+                          <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                          </svg>
+                          Live Transcription
+                        </h4>
+                        <div className="max-h-24 sm:max-h-40 overflow-y-auto text-sm sm:text-base">
+                          <TranscriptionView />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="w-full max-h-60 overflow-y-auto bg-black/40 rounded-lg p-4 border border-white/20">
-                    <h4 className="text-white font-medium mb-3 flex items-center justify-center">
-                      <svg className="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                      </svg>
-                      Live Transcription
-                    </h4>
-                    <TranscriptionView />
-                  </div>
-                  <div className="space-y-4">
+                </div>
+                
+                {/* Controls Footer */}
+                <div className="border-t border-white/20 p-2 sm:p-4 flex-shrink-0">
+                  <div className="space-y-2 sm:space-y-3">
                     <ConversationControlBar />
                     <RoomAudioRenderer />
                     <VoiceAssistantNotification />
