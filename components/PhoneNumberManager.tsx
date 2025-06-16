@@ -490,9 +490,6 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
                           'Disconnect'
                         )}
                       </button>
-                      <span className="text-green-400 text-sm font-medium flex items-center">
-                        Connected
-                      </span>
                     </>
                   ) : phoneNumber.project_id ? (
                     // Phone number is connected to another project - show only move to project button
