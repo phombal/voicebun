@@ -74,6 +74,9 @@ function AuthPageContent() {
         case 'access_denied':
           setOauthError('Google sign in was cancelled.')
           break
+        case 'no_oauth_params':
+          setOauthError('Safari blocked the OAuth flow. Please try using Chrome or Firefox, or disable Safari\'s "Prevent Cross-Site Tracking" in Settings.')
+          break
         default:
           setOauthError('Authentication error occurred. Please try again.')
       }

@@ -8,7 +8,17 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // Service role key for bypassing RLS policies in server-side operations
 const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtld3lud2l2dnZ3Z2hlanpleXJsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTI2NTU3MiwiZXhwIjoyMDY0ODQxNTcyfQ.i2KkRt3qxjGVMwdSCclgH5YP6tcmlsy4uEN2js69vNQ'
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // Safari-compatible settings
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'sb-auth-token',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  }
+})
 
 // Service role client for server-side operations that bypass RLS
 export const supabaseServiceRole = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
@@ -70,7 +80,8 @@ export const auth = {
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
-        }
+        },
+        skipBrowserRedirect: false,
       }
     })
     return { data, error }

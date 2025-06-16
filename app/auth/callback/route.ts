@@ -7,8 +7,16 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get('code')
   const error = requestUrl.searchParams.get('error')
   const errorDescription = requestUrl.searchParams.get('error_description')
+  const state = requestUrl.searchParams.get('state')
 
-  console.log('OAuth callback received:', { code: !!code, error, errorDescription })
+  console.log('OAuth callback received:', { 
+    code: !!code, 
+    error, 
+    errorDescription,
+    state: !!state,
+    url: request.url,
+    searchParams: Object.fromEntries(requestUrl.searchParams.entries())
+  })
 
   // Get the correct base URL for redirects
   const getBaseUrl = () => {
@@ -31,6 +39,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`/auth?error=${error}`, baseUrl))
   }
 
+  // Safari sometimes doesn't send the code parameter properly
+  // Check if we have any OAuth-related parameters at all
+  const hasOAuthParams = code || error || state || 
+    requestUrl.searchParams.has('access_token') || 
+    requestUrl.searchParams.has('refresh_token')
+
+  if (!hasOAuthParams) {
+    console.error('No OAuth parameters found in callback URL')
+    return NextResponse.redirect(new URL('/auth?error=no_oauth_params', baseUrl))
+  }
+
   if (code) {
     const cookieStore = cookies()
     
@@ -43,10 +62,18 @@ export async function GET(request: NextRequest) {
             return cookieStore.get(name)?.value
           },
           set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
+            try {
+              cookieStore.set({ name, value, ...options })
+            } catch (error) {
+              console.error('Error setting cookie:', error)
+            }
           },
           remove(name: string, options: any) {
-            cookieStore.set({ name, value: '', ...options })
+            try {
+              cookieStore.set({ name, value: '', ...options })
+            } catch (error) {
+              console.error('Error removing cookie:', error)
+            }
           },
         },
       }
