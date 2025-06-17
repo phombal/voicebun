@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ChatSession, Project } from '@/lib/database/types';
 import { TelnyxNumbersModal } from './TelnyxNumbersModal';
 import { PhoneNumberManager } from './PhoneNumberManager';
+import { VideoPresets } from "livekit-client";
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -94,7 +95,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   const [assignedPhoneNumberId, setAssignedPhoneNumberId] = useState<string | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyFile, setHistoryFile] = useState<string | null>(null);
-  const [room] = useState(new Room());
   const [isInConversation, setIsInConversation] = useState(false);
   const [activeTab, setActiveTab] = useState<'test' | 'agent' | 'config'>('test');
   
@@ -186,6 +186,25 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   const initialCodeRef = useRef(code);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // State for test type selection modal
+  const [showTestTypeModal, setShowTestTypeModal] = useState(false);
+  const [testType, setTestType] = useState<'web' | 'outbound' | null>(null);
+  const [outboundPhoneNumber, setOutboundPhoneNumber] = useState('');
+  const [isLoadingOutboundTest, setIsLoadingOutboundTest] = useState(false);
+  const [selectedFromPhoneNumber, setSelectedFromPhoneNumber] = useState('');
+  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
+
+  // Additional state
+  const [room] = useState(() =>
+    new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      videoCaptureDefaults: {
+        resolution: VideoPresets.h540.resolution,
+      },
+    }),
+  );
 
 
 
@@ -1107,6 +1126,131 @@ For now, you can still manually configure your voice agent using the tabs above.
     }
   };
 
+  // Handle test agent button click - show modal to choose test type
+  const handleTestAgentClick = () => {
+    setTestType(null); // Reset to show choice popup
+    setShowTestTypeModal(true);
+  };
+
+  // Handle test type selection
+  const handleTestTypeSelection = async (type: 'web' | 'outbound') => {
+    setTestType(type);
+    
+    if (type === 'web') {
+      // Proceed with normal web-based conversation
+      setShowTestTypeModal(false);
+      startConversation().catch((err) => {
+        console.error('🔥 Unhandled error in startConversation:', err);
+      });
+    } else if (type === 'outbound') {
+      // Load available phone numbers for dropdown
+      try {
+        let projectToUse = project || currentProject;
+        
+        if (!projectToUse && createProject) {
+          projectToUse = await createProject(
+            `Voice Agent - ${config.prompt.substring(0, 50)}${config.prompt.length > 50 ? '...' : ''}`,
+            `Generated voice agent based on: ${config.prompt}`,
+            config.prompt,
+            config,
+            code
+          );
+        }
+
+        if (projectToUse) {
+          const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
+          setAvailablePhoneNumbers(phoneNumbers || []);
+          
+          // Set the first phone number as default selection
+          if (phoneNumbers && phoneNumbers.length > 0) {
+            setSelectedFromPhoneNumber(phoneNumbers[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to load phone numbers:', error);
+        setAvailablePhoneNumbers([]);
+      }
+      // Modal stays open for phone number input
+    }
+  };
+
+  // Handle outbound test call
+  const handleOutboundTest = async () => {
+    if (!outboundPhoneNumber.trim()) {
+      alert('Please enter a phone number');
+      return;
+    }
+
+    if (!selectedFromPhoneNumber) {
+      alert('Please select a phone number to call from');
+      return;
+    }
+
+    setIsLoadingOutboundTest(true);
+    
+    try {
+      // Ensure project exists
+      let projectToUse = project || currentProject;
+      
+      if (!projectToUse && createProject) {
+        projectToUse = await createProject(
+          `Voice Agent - ${config.prompt.substring(0, 50)}${config.prompt.length > 50 ? '...' : ''}`,
+          `Generated voice agent based on: ${config.prompt}`,
+          config.prompt,
+          config,
+          code
+        );
+      }
+
+      if (!projectToUse) {
+        throw new Error('No project available for outbound test');
+      }
+
+      // Find the selected phone number from available numbers
+      const selectedPhoneNumber = availablePhoneNumbers.find(pn => pn.id === selectedFromPhoneNumber);
+      
+      if (!selectedPhoneNumber) {
+        alert('Selected phone number not found. Please select a valid phone number.');
+        setIsLoadingOutboundTest(false);
+        return;
+      }
+      
+      // Make outbound call using the selected phone number
+      const response = await fetch('/api/make-outbound-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumberId: selectedPhoneNumber.id,
+          projectId: projectToUse.id,
+          userId: user?.id,
+          toNumber: outboundPhoneNumber.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initiate outbound call');
+      }
+
+      const result = await response.json();
+      console.log('✅ Outbound call initiated:', result);
+      
+      // Close modal and show success message
+      setShowTestTypeModal(false);
+      setOutboundPhoneNumber('');
+      setSelectedFromPhoneNumber('');
+      alert(`Outbound call initiated from ${selectedPhoneNumber.phone_number} to ${outboundPhoneNumber}. Answer your phone to test the agent!`);
+      
+    } catch (error) {
+      console.error('❌ Outbound test failed:', error);
+      alert(`Failed to initiate outbound call: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoadingOutboundTest(false);
+    }
+  };
+
   const startConversation = async () => {
     console.log('🔥 CLICKED START CONVERSATION BUTTON!');
     console.log('🔍 Initial state check:');
@@ -1248,7 +1392,11 @@ For now, you can still manually configure your voice agent using the tabs above.
             agentName: 'voice-agent',
             projectId: projectToUse.id,
             userId: user?.id,
-            metadata: agentMetadata
+            metadata: JSON.stringify({
+              projectId: projectToUse.id,
+              userId: user?.id,
+              timestamp: new Date().toISOString()
+            })
           }),
         });
 
@@ -1798,11 +1946,7 @@ For now, you can still manually configure your voice agent using the tabs above.
 
               {!isInConversation ? (
                 <button
-                  onClick={() => {
-                    startConversation().catch((err) => {
-                      console.error('🔥 Unhandled error in startConversation:', err);
-                    });
-                  }}
+                  onClick={handleTestAgentClick}
                   disabled={isConnecting}
                   className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
                 >
@@ -2264,8 +2408,8 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </div>
                     
                     <div className="space-y-6">
-                      <p className="text-white/70">
-                        Configure phone numbers for your voice agent to handle inbound calls.
+                      <p className="text-sm text-gray-600 mb-4">
+                        Configure phone numbers for your voice agent to handle inbound and outbound calls.
                       </p>
                       
                       {/* Phone Number Manager */}
@@ -2390,11 +2534,170 @@ For now, you can still manually configure your voice agent using the tabs above.
         userId={user?.id}
         projectId={project?.id || currentProject?.id}
       />
+      
+      {/* Test Type Selection Modal */}
+      {showTestTypeModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={(e) => {
+            // Close modal when clicking outside
+            if (e.target === e.currentTarget) {
+              setShowTestTypeModal(false);
+              setTestType(null);
+              setOutboundPhoneNumber('');
+              setSelectedFromPhoneNumber('');
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Choose Test Type</h3>
+              <button
+                onClick={() => {
+                  setShowTestTypeModal(false);
+                  setTestType(null);
+                  setOutboundPhoneNumber('');
+                  setSelectedFromPhoneNumber('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {testType === null ? (
+              <div className="space-y-4">
+                <p className="text-gray-600 mb-6">How would you like to test your agent?</p>
+                
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handleTestTypeSelection('web')}
+                    className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">Web-based Conversation</h4>
+                        <p className="text-sm text-gray-500">Test directly in your browser using your microphone</p>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleTestTypeSelection('outbound')}
+                    className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200">
+                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">Outbound Phone Call</h4>
+                        <p className="text-sm text-gray-500">Test by calling your phone number</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => {
+                      setShowTestTypeModal(false);
+                      setTestType(null);
+                    }}
+                    className="px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : testType === 'outbound' ? (
+              <div className="space-y-4">
+                <p className="text-gray-600 mb-4">Configure your outbound test call:</p>
+                
+                {/* Phone Number Selection Dropdown */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Call From
+                  </label>
+                  {availablePhoneNumbers.length > 0 ? (
+                    <select
+                      value={selectedFromPhoneNumber}
+                      onChange={(e) => setSelectedFromPhoneNumber(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isLoadingOutboundTest}
+                    >
+                      {availablePhoneNumbers.map((phoneNumber) => (
+                        <option key={phoneNumber.id} value={phoneNumber.id}>
+                          {phoneNumber.phone_number} {phoneNumber.status === 'assigned' ? '(Assigned)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                      No phone numbers available. Please assign a phone number to this project first.
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500">Select which phone number to use for the outbound call</p>
+                </div>
+                
+                {/* Target Phone Number Input */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Call To
+                  </label>
+                  <input
+                    type="tel"
+                    value={outboundPhoneNumber}
+                    onChange={(e) => setOutboundPhoneNumber(e.target.value)}
+                    placeholder="+1234567890"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isLoadingOutboundTest}
+                  />
+                  <p className="text-xs text-gray-500">Include country code (e.g., +1 for US)</p>
+                </div>
+                
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setTestType(null);
+                      setOutboundPhoneNumber('');
+                      setSelectedFromPhoneNumber('');
+                    }}
+                    className="px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                    disabled={isLoadingOutboundTest}
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleOutboundTest}
+                    disabled={isLoadingOutboundTest || !outboundPhoneNumber.trim() || !selectedFromPhoneNumber || availablePhoneNumbers.length === 0}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white rounded-lg transition-colors flex items-center space-x-2"
+                  >
+                    {isLoadingOutboundTest && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    )}
+                    <span>{isLoadingOutboundTest ? 'Calling...' : 'Call Me'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </RoomContext.Provider>
   );
 } 
 
-// Voice Assistant Notification Component (moved inside RoomContext)
+// Voice Assistant Notification Component
 function VoiceAssistantNotification() {
   const { state: agentState } = useVoiceAssistant();
   return <NoAgentNotification state={agentState} />;

@@ -89,7 +89,7 @@ async function createDispatchRuleWithTrunk(
       roomConfig: new RoomConfiguration({
         agents: [
           new RoomAgentDispatch({
-            agentName: "voice-agent",
+            agentName: 'voice-agent',
             metadata: JSON.stringify(updatedMetadata)
           }),
         ]

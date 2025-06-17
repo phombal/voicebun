@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/service';
 import { supabaseServiceRole } from '@/lib/database/auth';
 import { SipClient } from 'livekit-server-sdk';
-import { RoomAgentDispatch, RoomConfiguration } from '@livekit/protocol';
+import { RoomAgentDispatch, RoomConfiguration, SIPTransport } from '@livekit/protocol';
 import type { SipDispatchRuleIndividual } from 'livekit-server-sdk';
 
 // Get Telnyx API key from environment variables
@@ -64,13 +64,52 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // Step 3: Create FQDN connection in Telnyx
-    console.log('🔗 Step 1: Creating FQDN connection...');
+    // Step 3: Create outbound voice profile for outbound calls
+    console.log('📞 Step 1: Creating outbound voice profile...');
+    
+    // Create a unique name to avoid conflicts
+    const timestamp = Date.now();
+    const uniqueProfileName = `LiveKit outbound profile for ${phoneNumber.phone_number} - ${timestamp}`;
+    
+    const voiceProfileResponse = await fetch('https://api.telnyx.com/v2/outbound_voice_profiles', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${TELNYX_API_KEY}`,
+      },
+      body: JSON.stringify({
+        name: uniqueProfileName,
+        traffic_type: "conversational",
+        service_plan: "global"
+      })
+    });
+
+    if (!voiceProfileResponse.ok) {
+      const errorText = await voiceProfileResponse.text();
+      console.error('❌ Outbound voice profile creation failed:', errorText);
+      return NextResponse.json({
+        success: false,
+        error: 'Outbound Voice Profile Creation Failed',
+        details: `Failed to create outbound voice profile: ${voiceProfileResponse.status} - ${errorText}`
+      }, { status: voiceProfileResponse.status });
+    }
+
+    const voiceProfileData = await voiceProfileResponse.json();
+    const voiceProfileId = voiceProfileData.data.id;
+    console.log('✅ Outbound voice profile created:', voiceProfileId);
+
+    // Step 4: Create FQDN connection with both inbound and outbound support
+    console.log('🔗 Step 2: Creating FQDN connection with inbound + outbound support...');
     
     // Create a unique connection name to avoid conflicts
-    const timestamp = Date.now();
     const randomId = Math.random().toString(36).substring(2, 8);
-    const uniqueConnectionName = `LiveKit-${phoneNumber.phone_number.replace('+', '')}-${timestamp}-${randomId}`;
+    const cleanPhoneNumber = phoneNumber.phone_number.replace(/[^0-9]/g, ''); // Remove all non-numeric characters
+    const uniqueConnectionName = `LiveKit${cleanPhoneNumber}${timestamp}${randomId}`;
+    
+    // Generate credentials for SIP authentication
+    const username = `livekit${cleanPhoneNumber}${randomId}`; // Only letters and numbers
+    const password = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     
     const fqdnConnectionResponse = await fetch('https://api.telnyx.com/v2/fqdn_connections', {
       method: 'POST',
@@ -83,9 +122,14 @@ export async function POST(request: NextRequest) {
         active: true,
         anchorsite_override: "Latency",
         connection_name: uniqueConnectionName,
+        user_name: username,
+        password: password,
         inbound: {
           ani_number_format: "+E.164",
           dnis_number_format: "+e164"
+        },
+        outbound: {
+          outbound_voice_profile_id: voiceProfileId
         }
       })
     });
@@ -102,10 +146,11 @@ export async function POST(request: NextRequest) {
 
     const fqdnConnectionData = await fqdnConnectionResponse.json();
     const connectionId = fqdnConnectionData.data.id;
-    console.log('✅ FQDN connection created:', connectionId);
+    console.log('✅ FQDN connection created with inbound + outbound support:', connectionId);
+    console.log('🔐 SIP Credentials - Username:', username, 'Password:', password);
 
-    // Step 4: Create FQDN with SIP URI
-    console.log('🌐 Step 2: Creating FQDN with SIP URI...');
+    // Step 5: Create FQDN with SIP URI
+    console.log('🌐 Step 3: Creating FQDN with SIP URI...');
     
     const fqdnResponse = await fetch('https://api.telnyx.com/v2/fqdns', {
       method: 'POST',
@@ -135,8 +180,8 @@ export async function POST(request: NextRequest) {
     const fqdnData = await fqdnResponse.json();
     console.log('✅ FQDN created:', fqdnData.data.fqdn);
 
-    // Step 5: Get the Telnyx phone number ID using the phone number
-    console.log('🔍 Step 3: Getting Telnyx phone number ID...');
+    // Step 6: Get the Telnyx phone number ID using the phone number
+    console.log('🔍 Step 4: Getting Telnyx phone number ID...');
     
     const phoneNumberSearchResponse = await fetch(
       `https://api.telnyx.com/v2/phone_numbers?filter[phone_number]=${encodeURIComponent(phoneNumber.phone_number)}`,
@@ -171,8 +216,8 @@ export async function POST(request: NextRequest) {
     const telnyxPhoneNumberId = phoneNumberSearchData.data[0].id;
     console.log('✅ Found Telnyx phone number ID:', telnyxPhoneNumberId);
 
-    // Step 6: Associate the phone number with the FQDN connection
-    console.log('🔗 Step 4: Associating phone number with FQDN connection...');
+    // Step 7: Associate the phone number with the FQDN connection
+    console.log('🔗 Step 5: Associating phone number with FQDN connection...');
     
     const associateResponse = await fetch(`https://api.telnyx.com/v2/phone_numbers/${telnyxPhoneNumberId}`, {
       method: 'PATCH',
@@ -200,8 +245,13 @@ export async function POST(request: NextRequest) {
     const associateData = await associateResponse.json();
     console.log('✅ Phone number associated with connection');
 
-    // Step 7: Setup LiveKit inbound trunk with latest configuration
-    console.log('🎯 Step 5: Setting up LiveKit inbound trunk with latest project configuration...');
+    // Step 8: Setup LiveKit inbound trunk with latest configuration
+    console.log('🎯 Step 6: Setting up LiveKit inbound trunk with latest project configuration...');
+    
+    // Initialize LiveKit variables outside try-catch for accessibility in response
+    let trunkId: string | null = null;
+    let outboundTrunkId: string | null = null;
+    let dispatchRuleId: string | null = null;
     
     try {
       // First, ensure we have the latest project configuration from Supabase
@@ -229,11 +279,10 @@ export async function POST(request: NextRequest) {
         process.env.LIVEKIT_API_SECRET!
       );
 
-      // Setup inbound trunk and dispatch rule directly
-      let trunkId: string | null = null;
-      let dispatchRuleId: string | null = null;
+      // Setup inbound and outbound trunks with dispatch rule directly
+      // Variables declared above for scope accessibility
 
-      // Step 7a: Create or find inbound trunk
+      // Step 8a: Create or find inbound trunk
       try {
         console.log('📞 Setting up LiveKit inbound trunk...');
         
@@ -263,7 +312,58 @@ export async function POST(request: NextRequest) {
         throw new Error(`Inbound trunk setup failed: ${trunkError.message}`);
       }
 
-      // Step 7b: Create dispatch rule with latest project configuration
+      // Step 8b: Create or find outbound trunk for full duplex calling
+      try {
+        console.log('🎯 Setting up LiveKit outbound trunk...');
+        console.log('🔧 Outbound trunk credentials:', { username, password: password.substring(0, 4) + '***' });
+        
+        // Check if outbound trunk already exists for this phone number
+        const existingOutboundTrunks = await sipClient.listSipOutboundTrunk();
+        console.log('📋 Found', existingOutboundTrunks.length, 'existing outbound trunks');
+        
+        const existingOutboundTrunk = existingOutboundTrunks.find(trunk => 
+          trunk.name && trunk.name.includes(phoneNumber.phone_number)
+        );
+
+        if (existingOutboundTrunk) {
+          console.log('✅ Found existing outbound trunk:', existingOutboundTrunk.sipTrunkId);
+          outboundTrunkId = existingOutboundTrunk.sipTrunkId;
+        } else {
+          // Create new outbound trunk with simplified parameters
+          console.log('🚀 Creating new outbound trunk...');
+          console.log('📋 Trunk parameters:', {
+            name: `Outbound trunk for ${phoneNumber.phone_number}`,
+            address: 'sip.telnyx.com',
+            numbers: [phoneNumber.phone_number],
+            auth_username: username,
+            transport: SIPTransport.SIP_TRANSPORT_AUTO
+          });
+
+          const newOutboundTrunk = await sipClient.createSipOutboundTrunk(
+            `Outbound trunk for ${phoneNumber.phone_number}`,
+            'sip.telnyx.com',
+            [phoneNumber.phone_number],
+            {
+              auth_username: username,
+              auth_password: password,
+              transport: SIPTransport.SIP_TRANSPORT_AUTO
+            }
+          );
+          outboundTrunkId = newOutboundTrunk.sipTrunkId;
+          console.log('✅ LiveKit outbound trunk created successfully:', outboundTrunkId);
+        }
+      } catch (outboundTrunkError: any) {
+        console.error('❌ Failed to create/find outbound trunk:', outboundTrunkError);
+        console.error('❌ Error details:', {
+          message: outboundTrunkError.message,
+          stack: outboundTrunkError.stack,
+          name: outboundTrunkError.name
+        });
+        // Don't fail the entire process if outbound trunk fails
+        console.log('⚠️ Continuing without outbound trunk - inbound calls will still work');
+      }
+
+      // Step 8c: Create dispatch rule with latest project configuration
       if (trunkId) {
         try {
           console.log('🎯 Creating dispatch rule for phone number...');
@@ -331,11 +431,11 @@ export async function POST(request: NextRequest) {
                 roomConfig: new RoomConfiguration({
                   agents: [
                     new RoomAgentDispatch({
-                      agentName: "voice-agent",
+                      agentName: 'voice-agent',
                       metadata: JSON.stringify(roomMetadata)
                     }),]
                 }),
-                trunkIds: [trunkId],
+                trunkIds: [trunkId], // Only include inbound trunk for automatic dispatch
                 metadata: JSON.stringify(roomMetadata)
               }
             );
@@ -360,8 +460,8 @@ export async function POST(request: NextRequest) {
       // Don't fail the request - Telnyx setup was successful
     }
 
-    // Step 8: Update our database with assignment status
-    console.log('💾 Step 6: Updating database with assignment status...');
+    // Step 9: Update our database with assignment status
+    console.log('💾 Step 7: Updating database with assignment status...');
     
     try {
       const { error: updateError } = await supabaseServiceRole
@@ -388,13 +488,31 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Phone number successfully assigned to project with LiveKit integration',
+      message: `Phone number successfully assigned to project with LiveKit integration${outboundTrunkId ? ' and full duplex calling support (inbound + outbound trunks)' : ' (inbound trunk only - outbound trunk failed)'}`,
       data: {
         phoneNumber: phoneNumber.phone_number,
         connectionId: connectionId,
         fqdn: fqdnData.data.fqdn,
         sipHost: body.sipHost,
-        telnyxPhoneNumberId: telnyxPhoneNumberId
+        telnyxPhoneNumberId: telnyxPhoneNumberId,
+        outbound: {
+          voiceProfileId: voiceProfileId,
+          sipCredentials: {
+            username: username,
+            password: password
+          }
+        },
+        livekit: {
+          inboundTrunkId: trunkId,
+          outboundTrunkId: outboundTrunkId,
+          dispatchRuleId: dispatchRuleId
+        },
+        capabilities: {
+          inbound: true,
+          outbound: !!outboundTrunkId,
+          authentication: 'credentials',
+          provider: 'telnyx-livekit-hybrid'
+        }
       }
     });
 

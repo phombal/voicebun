@@ -142,9 +142,9 @@ export async function POST(request: NextRequest) {
               roomConfig: new RoomConfiguration({
                 agents: [
                   new RoomAgentDispatch({
-                    agentName: "voice-agent",
                     metadata: JSON.stringify(roomMetadata)
-                }),]
+                  }),
+                ]
               }),
               trunkIds: trunkId ? [trunkId] : [],
             }
@@ -183,9 +183,9 @@ export async function POST(request: NextRequest) {
               roomConfig: new RoomConfiguration({
                 agents: [
                   new RoomAgentDispatch({
-                    agentName: "inbound-agent",
                     metadata: JSON.stringify(roomMetadata)
-                  }),]
+                  }),
+                ]
               }),
               trunkIds: trunkId ? [trunkId] : [],
               metadata: JSON.stringify(roomMetadata)

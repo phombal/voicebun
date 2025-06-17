@@ -32,6 +32,11 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState<string | null>(null);
+  
+  // Outbound calling state
+  const [outboundNumber, setOutboundNumber] = useState('');
+  const [isMakingCall, setIsMakingCall] = useState<string | null>(null);
+  
   const { user } = useAuth();
 
   // Load user's phone numbers
@@ -398,6 +403,100 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
     }
   };
 
+  // Make outbound call
+  const makeOutboundCall = async (phoneNumber: PhoneNumber, targetNumber: string) => {
+    if (!projectId || !user) {
+      console.error('❌ Missing projectId or user for outbound call');
+      return;
+    }
+
+    setIsMakingCall(phoneNumber.id);
+
+    try {
+      console.log('📞 Making outbound call:', {
+        fromPhoneNumberId: phoneNumber.id,
+        fromNumber: phoneNumber.phone_number,
+        toNumber: targetNumber,
+        projectId
+      });
+
+      const response = await fetch('/api/make-outbound-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumberId: phoneNumber.id,
+          toNumber: targetNumber,
+          projectId: projectId,
+          userId: user.id
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || errorData.error || 'Outbound call failed');
+      }
+
+      const result = await response.json();
+      console.log('✅ Outbound call initiated successfully:', result);
+
+      // Show success notification
+      const notification = document.createElement('div');
+      notification.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="font-medium">Outbound Call Initiated!</div>
+            <div class="text-sm opacity-90">Calling ${targetNumber} from ${phoneNumber.phone_number}</div>
+          </div>
+        </div>
+      `;
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 6000);
+
+      // Clear the input
+      setOutboundNumber('');
+
+    } catch (error) {
+      console.error('❌ Error making outbound call:', error);
+      
+      // Show error notification
+      const notification = document.createElement('div');
+      notification.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="font-medium">Outbound Call Failed</div>
+            <div class="text-sm opacity-90">${error instanceof Error ? error.message : 'Unknown error occurred'}</div>
+          </div>
+        </div>
+      `;
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 6000);
+    } finally {
+      setIsMakingCall(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -437,93 +536,95 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
           return (
             <div
               key={phoneNumber.id}
-              className="bg-gray-800 rounded-lg p-4 flex items-center justify-between border border-gray-600"
+              className="bg-gray-800 rounded-lg p-4 border border-gray-600"
             >
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                </div>
-                
-                <div>
-                  <p className="text-white font-medium">{formatPhoneNumber(phoneNumber.phone_number)}</p>
-                  <div className="flex items-center space-x-3 text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      isConnectedToCurrentProject
-                        ? 'bg-blue-600 text-blue-100'
-                        : isConnectedToOtherProject
-                        ? 'bg-yellow-600 text-yellow-100'
-                        : 'bg-green-600 text-green-100'
-                    }`}>
-                      {isConnectedToCurrentProject 
-                        ? 'connected' 
-                        : isConnectedToOtherProject 
-                        ? 'connected to other project'
-                        : 'available'}
-                    </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  
+                  <div>
+                    <p className="text-white font-medium">{formatPhoneNumber(phoneNumber.phone_number)}</p>
+                    <div className="flex items-center space-x-3 text-sm">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        isConnectedToCurrentProject
+                          ? 'bg-blue-600 text-blue-100'
+                          : isConnectedToOtherProject
+                          ? 'bg-yellow-600 text-yellow-100'
+                          : 'bg-green-600 text-green-100'
+                      }`}>
+                        {isConnectedToCurrentProject 
+                          ? 'connected' 
+                          : isConnectedToOtherProject 
+                          ? 'connected to other project'
+                          : 'available'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center space-x-3">
-                {/* Action buttons */}
-                <div className="flex gap-2">
-                  {phoneNumber.project_id === projectId ? (
-                    <>
+                <div className="flex items-center space-x-3">
+                  {/* Action buttons */}
+                  <div className="flex gap-2">
+                    {phoneNumber.project_id === projectId ? (
+                      <>
+                        <button
+                          onClick={() => disconnectPhoneNumber(phoneNumber)}
+                          disabled={isDisconnecting === phoneNumber.id}
+                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded disabled:opacity-50"
+                        >
+                          {isDisconnecting === phoneNumber.id ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                              Disconnecting...
+                            </div>
+                          ) : (
+                            'Disconnect'
+                          )}
+                        </button>
+                      </>
+                    ) : phoneNumber.project_id ? (
+                      // Phone number is connected to another project - show only move to project button
                       <button
-                        onClick={() => disconnectPhoneNumber(phoneNumber)}
-                        disabled={isDisconnecting === phoneNumber.id}
-                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded disabled:opacity-50"
+                        onClick={() => reconnectPhoneNumber(phoneNumber)}
+                        disabled={isReconnecting === phoneNumber.id}
+                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded disabled:opacity-50"
                       >
-                        {isDisconnecting === phoneNumber.id ? (
+                        {isReconnecting === phoneNumber.id ? (
                           <div className="flex items-center gap-2">
                             <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                            Disconnecting...
+                            Moving...
                           </div>
                         ) : (
-                          'Disconnect'
+                          'Move to this Project'
                         )}
                       </button>
-                    </>
-                  ) : phoneNumber.project_id ? (
-                    // Phone number is connected to another project - show only move to project button
-                    <button
-                      onClick={() => reconnectPhoneNumber(phoneNumber)}
-                      disabled={isReconnecting === phoneNumber.id}
-                      className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded disabled:opacity-50"
-                    >
-                      {isReconnecting === phoneNumber.id ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                          Moving...
-                        </div>
-                      ) : (
-                        'Move to this Project'
-                      )}
-                    </button>
-                  ) : (
-                    // Phone number is available - show connect button
-                    <button
-                      onClick={() => connectPhoneNumber(phoneNumber)}
-                      disabled={isConnecting === phoneNumber.id}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {isConnecting === phoneNumber.id ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Connecting...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9.5H7a1 1 0 000 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
-                          </svg>
-                          Connect
-                        </>
-                      )}
-                    </button>
-                  )}
+                    ) : (
+                      // Phone number is available - show connect button
+                      <button
+                        onClick={() => connectPhoneNumber(phoneNumber)}
+                        disabled={isConnecting === phoneNumber.id}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isConnecting === phoneNumber.id ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9.5H7a1 1 0 000 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                            </svg>
+                            Connect
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -94,8 +94,8 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Step 3: Clean up LiveKit dispatch rules and inbound trunk using SDK
-    console.log('🗑️ Cleaning up LiveKit dispatch rules and inbound trunk...');
+    // Step 3: Clean up LiveKit dispatch rules and both inbound/outbound trunks using SDK
+    console.log('🗑️ Cleaning up LiveKit dispatch rules and trunks...');
     
     // Initialize LiveKit SIP client
     const LIVEKIT_URL = process.env.LIVEKIT_URL;
@@ -114,7 +114,8 @@ export async function POST(request: NextRequest) {
     const sipClient = new SipClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
     
     let dispatchRulesDeleted = 0;
-    let trunkDeleted = false;
+    let inboundTrunkDeleted = false;
+    let outboundTrunkDeleted = false;
     
     // Step 3a: Delete dispatch rules first (they depend on trunks)
     try {
@@ -195,32 +196,59 @@ export async function POST(request: NextRequest) {
     
     // Step 3b: Delete the inbound trunk
     try {
-      console.log('📋 Listing existing LiveKit trunks...');
-      const trunks = await sipClient.listSipInboundTrunk();
+      console.log('📋 Listing existing LiveKit inbound trunks...');
+      const inboundTrunks = await sipClient.listSipInboundTrunk();
       
       // Find trunk that contains this phone number
-      const targetTrunk = trunks.find((trunk: any) => 
+      const targetInboundTrunk = inboundTrunks.find((trunk: any) => 
         trunk.numbers && trunk.numbers.includes(phoneNumber.phone_number)
       );
       
-      if (targetTrunk) {
-        console.log(`🎯 Found trunk to delete: ${targetTrunk.sipTrunkId} (${targetTrunk.name})`);
+      if (targetInboundTrunk) {
+        console.log(`🎯 Found inbound trunk to delete: ${targetInboundTrunk.sipTrunkId} (${targetInboundTrunk.name})`);
         
         try {
-          await sipClient.deleteSipTrunk(targetTrunk.sipTrunkId);
+          await sipClient.deleteSipTrunk(targetInboundTrunk.sipTrunkId);
           console.log('✅ LiveKit inbound trunk deleted successfully');
-          trunkDeleted = true;
+          inboundTrunkDeleted = true;
         } catch (deleteError) {
-          console.error(`⚠️ Failed to delete trunk ${targetTrunk.sipTrunkId}:`, deleteError);
+          console.error(`⚠️ Failed to delete inbound trunk ${targetInboundTrunk.sipTrunkId}:`, deleteError);
         }
       } else {
-        console.log('ℹ️ No LiveKit trunk found for this phone number');
+        console.log('ℹ️ No LiveKit inbound trunk found for this phone number');
       }
     } catch (trunkError) {
-      console.error('⚠️ Failed to list/delete LiveKit trunk:', trunkError);
+      console.error('⚠️ Failed to list/delete LiveKit inbound trunk:', trunkError);
+    }
+
+    // Step 3c: Delete the outbound trunk
+    try {
+      console.log('📋 Listing existing LiveKit outbound trunks...');
+      const outboundTrunks = await sipClient.listSipOutboundTrunk();
+      
+      // Find outbound trunk that contains this phone number (by name pattern)
+      const targetOutboundTrunk = outboundTrunks.find((trunk: any) => 
+        trunk.name && trunk.name.includes(phoneNumber.phone_number)
+      );
+      
+      if (targetOutboundTrunk) {
+        console.log(`🎯 Found outbound trunk to delete: ${targetOutboundTrunk.sipTrunkId} (${targetOutboundTrunk.name})`);
+        
+        try {
+          await sipClient.deleteSipTrunk(targetOutboundTrunk.sipTrunkId);
+          console.log('✅ LiveKit outbound trunk deleted successfully');
+          outboundTrunkDeleted = true;
+        } catch (deleteError) {
+          console.error(`⚠️ Failed to delete outbound trunk ${targetOutboundTrunk.sipTrunkId}:`, deleteError);
+        }
+      } else {
+        console.log('ℹ️ No LiveKit outbound trunk found for this phone number');
+      }
+    } catch (outboundTrunkError) {
+      console.error('⚠️ Failed to list/delete LiveKit outbound trunk:', outboundTrunkError);
     }
     
-    console.log(`🧹 Cleanup summary: ${dispatchRulesDeleted} dispatch rules deleted, trunk deleted: ${trunkDeleted}`);
+    console.log(`🧹 Cleanup summary: ${dispatchRulesDeleted} dispatch rules deleted, inbound trunk deleted: ${inboundTrunkDeleted}, outbound trunk deleted: ${outboundTrunkDeleted}`);
 
     // Note: We're keeping the Telnyx FQDN connection as it can be reused
     // when the number is reassigned to avoid recreating connections
@@ -234,7 +262,8 @@ export async function POST(request: NextRequest) {
         newStatus: 'active',
         cleanup: {
           dispatchRulesDeleted,
-          trunkDeleted
+          inboundTrunkDeleted,
+          outboundTrunkDeleted
         }
       }
     });

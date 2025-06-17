@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { roomName, agentName = "voice-agent", projectId, userId, metadata } = body;
+    const { roomName, agentName, projectId, userId, metadata } = body;
     
     console.log('📝 Agent dispatch request:', {
       roomName,
