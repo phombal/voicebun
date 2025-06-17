@@ -140,7 +140,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     sttProcessingMode: 'streaming' as 'streaming' | 'batch',
     sttNoiseSuppression: true,
     sttAutoPunctuation: true,
-    ttsProvider: 'cartesia' as 'cartesia' | 'elevenlabs' | 'openai',
+    ttsProvider: 'cartesia' as 'cartesia' | 'openai',
     ttsVoice: 'neutral' as 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female',
 
     phoneNumber: null as string | null,
@@ -348,7 +348,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
           sttProcessingMode: projectData.stt_processing_mode,
           sttNoiseSuppression: projectData.stt_noise_suppression,
           sttAutoPunctuation: projectData.stt_auto_punctuation,
-          ttsProvider: projectData.tts_provider,
+          ttsProvider: (projectData.tts_provider as any) === 'elevenlabs' ? 'cartesia' : projectData.tts_provider,
           ttsVoice: projectData.tts_voice,
           phoneNumber: projectData.phone_number,
           phoneInboundEnabled: projectData.phone_inbound_enabled,
@@ -2184,11 +2184,18 @@ For now, you can still manually configure your voice agent using the tabs above.
                           <div className="relative">
                             <select 
                               value={projectConfig.ttsProvider}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsProvider: e.target.value as any }))}
+                              onChange={(e) => {
+                                const newProvider = e.target.value;
+                                setProjectConfig(prev => ({ 
+                                  ...prev, 
+                                  ttsProvider: newProvider as any,
+                                  // If switching to OpenAI and current voice is british_male, switch to neutral
+                                  ttsVoice: newProvider === 'openai' && prev.ttsVoice === 'british_male' ? 'neutral' : prev.ttsVoice
+                                }));
+                              }}
                               className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="cartesia" className="bg-gray-700 text-white">Cartesia</option>
-                              <option value="elevenlabs" className="bg-gray-700 text-white">ElevenLabs</option>
                               <option value="openai" className="bg-gray-700 text-white">OpenAI</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -2212,7 +2219,9 @@ For now, you can still manually configure your voice agent using the tabs above.
                             >
                               <option value="neutral" className="bg-gray-700 text-white">Neutral</option>
                               <option value="male" className="bg-gray-700 text-white">Male</option>
-                              <option value="british_male" className="bg-gray-700 text-white">British Male</option>
+                              {projectConfig.ttsProvider !== 'openai' && (
+                                <option value="british_male" className="bg-gray-700 text-white">British Male</option>
+                              )}
                               <option value="deep_male" className="bg-gray-700 text-white">Deep Male</option>
                               <option value="female" className="bg-gray-700 text-white">Female</option>
                               <option value="soft_female" className="bg-gray-700 text-white">Soft Female</option>

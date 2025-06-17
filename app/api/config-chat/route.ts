@@ -94,7 +94,7 @@ CONFIGURATION FIELDS AND OPTIONS:
 - sttProcessingMode: "streaming" | "batch"
 - sttNoiseSuppression: boolean
 - sttAutoPunctuation: boolean
-- ttsProvider: "cartesia" | "elevenlabs" | "openai"
+- ttsProvider: "cartesia" | "openai"
 - ttsVoice: "neutral" | "male" | "british_male" | "deep_male" | "female" | "soft_female"
 - phoneInboundEnabled: boolean
 - phoneOutboundEnabled: boolean

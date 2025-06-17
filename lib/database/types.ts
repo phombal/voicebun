@@ -325,7 +325,7 @@ export interface ProjectData {
   stt_auto_punctuation: boolean;
   
   // Text-to-Speech Configuration
-  tts_provider: 'cartesia' | 'elevenlabs' | 'openai';
+  tts_provider: 'cartesia' | 'openai';
   tts_voice: 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female';
   
   // Phone Configuration
@@ -380,7 +380,7 @@ export interface ProjectDataConfig {
   stt_processing_mode?: 'streaming' | 'batch';
   stt_noise_suppression?: boolean;
   stt_auto_punctuation?: boolean;
-  tts_provider?: 'cartesia' | 'elevenlabs' | 'openai';
+  tts_provider?: 'cartesia' | 'openai';
   tts_voice?: 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female';
   phone_number?: string;
   phone_inbound_enabled?: boolean;

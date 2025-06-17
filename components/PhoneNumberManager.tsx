@@ -410,11 +410,6 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
   if (phoneNumbers.length === 0) {
     return (
       <div className="text-center py-8">
-        <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
-          <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-          </svg>
-        </div>
         <p className="text-white/70">No phone numbers purchased yet</p>
         <p className="text-white/50 text-sm mt-1 mb-4">Purchase a phone number first to connect it to your project</p>
         {onPurchaseNumber && (
@@ -442,7 +437,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
           return (
             <div
               key={phoneNumber.id}
-              className="bg-white/5 backdrop-blur-sm rounded-lg p-4 flex items-center justify-between border border-white/20"
+              className="bg-gray-800 rounded-lg p-4 flex items-center justify-between border border-gray-600"
             >
               <div className="flex items-center space-x-4">
                 <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
