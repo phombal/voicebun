@@ -1405,7 +1405,7 @@ For now, you can still manually configure your voice agent using the tabs above.
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3, ease: [0.09, 1.04, 0.245, 1.055] }}
-              className="flex flex-col items-center gap-4 h-full bg-black"
+              className="flex flex-col items-center h-full bg-black"
               style={{ '--lk-bg': '#000000' } as React.CSSProperties}
             >
         <AgentVisualizer />
@@ -1435,7 +1435,7 @@ For now, you can still manually configure your voice agent using the tabs above.
       );
     }
     return (
-      <div className="h-[120px] sm:h-[180px] md:h-[300px] w-full bg-black">
+      <div className="h-[20px] w-full bg-black">
         <BarVisualizer
           state={agentState}
           barCount={5}
