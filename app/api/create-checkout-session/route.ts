@@ -33,6 +33,45 @@ export async function POST(request: NextRequest) {
     const userEmail = userData.user.email;
     console.log('👤 User email:', userEmail);
 
+    // Look for existing Stripe customer or create one
+    let customerId: string;
+    try {
+      console.log('🔍 Looking for existing Stripe customer with email:', userEmail);
+      const existingCustomers = await stripe.customers.list({
+        email: userEmail,
+        limit: 1,
+      });
+
+      if (existingCustomers.data.length > 0) {
+        customerId = existingCustomers.data[0].id;
+        console.log('✅ Found existing Stripe customer:', customerId);
+        
+        // Update customer metadata to include user_id
+        await stripe.customers.update(customerId, {
+          metadata: {
+            user_id: userId,
+          },
+        });
+        console.log('✅ Updated customer metadata with user_id');
+      } else {
+        console.log('📝 Creating new Stripe customer');
+        const customer = await stripe.customers.create({
+          email: userEmail,
+          metadata: {
+            user_id: userId,
+          },
+        });
+        customerId = customer.id;
+        console.log('✅ Created new Stripe customer:', customerId);
+      }
+    } catch (customerError) {
+      console.error('❌ Error handling Stripe customer:', customerError);
+      return NextResponse.json(
+        { error: 'Failed to handle customer' },
+        { status: 500 }
+      );
+    }
+
     // Construct the app URL based on the request origin
     let appUrl: string;
     const origin = request.headers.get('origin');
@@ -56,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
-      customer_email: userEmail,
+      customer: customerId, // Use customer ID instead of customer_email
       payment_method_types: ['card'],
       line_items: [
         {

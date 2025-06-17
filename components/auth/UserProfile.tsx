@@ -53,11 +53,34 @@ export default function UserProfile() {
   }
 
   const handleUpgrade = async () => {
+    if (!user) {
+      console.error('No user found');
+      return;
+    }
+    
     setUpgrading(true);
     
     try {
-      // Redirect directly to the specified Stripe buy link
-      window.location.href = 'https://buy.stripe.com/test_eVq14gbe72Iv6F44M2fYY00';
+      // Use API checkout session for proper redirects
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: 'price_1QdVJhRuWKCS4zq4oGJvhzpF', // Professional plan price ID
+          userId: user.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
     } catch (error) {
       console.error('Error upgrading:', error);
       alert('Failed to start upgrade process. Please try again.');

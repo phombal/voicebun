@@ -117,8 +117,26 @@ export default function PricingPage() {
     try {
       // For the specific plan that should redirect to the Stripe buy link
       if (plan.id === 'professional') {
-        // Redirect directly to the specified Stripe buy link
-        window.location.href = 'https://buy.stripe.com/test_eVq14gbe72Iv6F44M2fYY00';
+        // Use API checkout session for proper redirects
+        const response = await fetch('/api/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            priceId: 'price_1QdVJhRuWKCS4zq4oGJvhzpF', // Professional plan price ID
+            userId: user.id,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.url) {
+          // Redirect to Stripe Checkout
+          window.location.href = data.url;
+        } else {
+          throw new Error(data.error || 'Failed to create checkout session');
+        }
         return;
       }
 

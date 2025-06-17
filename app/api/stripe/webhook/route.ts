@@ -146,14 +146,20 @@ export async function POST(request: NextRequest) {
               email: (customer as any).email
             });
             
-            // Extract user ID from metadata
+            // Extract user ID from metadata with multiple fallback strategies
             const userId = session.metadata?.user_id;
-            console.log('🆔 User ID from metadata:', userId);
+            console.log('🆔 User ID from session metadata:', userId);
             
             let finalUserId = userId;
             
-            // If no user ID in metadata, try to find user by email (payment link scenario)
-            if (!userId && (customer as any).email) {
+            // If no user ID in session metadata, check customer metadata
+            if (!finalUserId && customer && (customer as any).metadata?.user_id) {
+              finalUserId = (customer as any).metadata.user_id;
+              console.log('🆔 Found user ID in customer metadata:', finalUserId);
+            }
+            
+            // If still no user ID, try to find user by email (payment link scenario)
+            if (!finalUserId && (customer as any).email) {
               console.log('🔍 No user ID in metadata, looking up by email:', (customer as any).email);
               try {
                 const { data: userByEmail, error: emailError } = await supabaseServiceRole.auth.admin.listUsers();
@@ -161,7 +167,7 @@ export async function POST(request: NextRequest) {
                   const matchingUser = userByEmail.users.find((u: any) => u.email === (customer as any).email);
                   if (matchingUser) {
                     finalUserId = matchingUser.id;
-                    console.log('✅ Found user by email:', finalUserId);
+                    console.log('✅ Found user by email fallback:', finalUserId);
                   } else {
                     console.log('❌ No user found with email:', (customer as any).email);
                   }
