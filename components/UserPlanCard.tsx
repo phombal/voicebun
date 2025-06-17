@@ -50,7 +50,7 @@ export default function UserPlanCard() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          priceId: 'price_1RZMYS4Jw5GVEzp6EVGIuH2F', // Test Professional plan price ID
+          priceId: 'price_1RaWUdKVSt22QP5GygmOGHou', // Live Professional plan price ID
           userId: user.id,
         }),
       });
