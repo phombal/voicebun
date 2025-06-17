@@ -118,7 +118,7 @@ export default function PricingPage() {
       // For the specific plan that should redirect to the Stripe buy link
       if (plan.id === 'professional') {
         // Redirect directly to the specified Stripe buy link
-        window.location.href = 'https://buy.stripe.com/9B600ka5h6698qwgLcbsc01';
+        window.location.href = 'https://buy.stripe.com/test_eVq14gbe72Iv6F44M2fYY00';
         return;
       }
 

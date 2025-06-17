@@ -57,7 +57,7 @@ export default function UserProfile() {
     
     try {
       // Redirect directly to the specified Stripe buy link
-      window.location.href = 'https://buy.stripe.com/9B600ka5h6698qwgLcbsc01';
+      window.location.href = 'https://buy.stripe.com/test_eVq14gbe72Iv6F44M2fYY00';
     } catch (error) {
       console.error('Error upgrading:', error);
       alert('Failed to start upgrade process. Please try again.');

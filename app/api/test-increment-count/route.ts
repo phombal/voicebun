@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/service';
+import { supabaseServiceRole } from '@/lib/database/auth';
 
 interface TestIncrementRequest {
   userId: string;
@@ -38,9 +39,8 @@ export async function POST(request: NextRequest) {
           break;
         case 'sync':
           console.log('🔄 Testing sync phone number count...');
-          // First we need to create a sync function in the database service
-          // For now, let's just call the SQL function directly
-          const { data, error } = await (db as any).supabaseServiceRole
+          // Call the SQL function directly using supabaseServiceRole
+          const { data, error } = await supabaseServiceRole
             .rpc('sync_phone_number_count', { input_user_id: userId });
           
           if (error) throw error;
@@ -107,19 +107,23 @@ export async function GET(request: NextRequest) {
     // Get current user plan
     const userPlan = await db.getUserPlanWithServiceRole(userId);
     
-    // Get actual phone number count
-    const phoneNumbers = await (db as any).supabaseServiceRole
+    // Get actual phone number count using supabaseServiceRole directly
+    const { data: phoneNumbers, error } = await supabaseServiceRole
       .from('phone_numbers')
       .select('*')
       .eq('user_id', userId)
       .eq('is_active', true);
 
+    if (error) {
+      throw error;
+    }
+
     return NextResponse.json({
       success: true,
       userId,
       userPlan,
-      actualPhoneNumbers: phoneNumbers.data || [],
-      actualCount: phoneNumbers.data?.length || 0,
+      actualPhoneNumbers: phoneNumbers || [],
+      actualCount: phoneNumbers?.length || 0,
       message: 'Current phone number count status'
     });
 
