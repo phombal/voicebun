@@ -61,18 +61,14 @@ export default function UserProfile() {
     setUpgrading(true);
     
     try {
-      // For testing, redirect directly to the test Stripe link
-      window.location.href = 'https://buy.stripe.com/test_eVq14gbe72Iv6F44M2fYY00';
-      
-      // Original API approach (commented out for testing)
-      /*
+      // Use API checkout session for proper user_id metadata
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          priceId: 'price_1RaWUdKVSt22QP5GygmOGHou', // Professional plan price ID
+          priceId: 'price_1RZMYS4Jw5GVEzp6EVGIuH2F', // Test Professional plan price ID
           userId: user.id,
         }),
       });
@@ -80,11 +76,11 @@ export default function UserProfile() {
       const data = await response.json();
 
       if (data.url) {
+        // Redirect to Stripe Checkout
         window.location.href = data.url;
       } else {
         throw new Error(data.error || 'Failed to create checkout session');
       }
-      */
     } catch (error) {
       console.error('Error upgrading:', error);
       alert('Failed to start upgrade process. Please try again.');
