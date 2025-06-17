@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
         // Increment the user's phone number count
         try {
-          await db.incrementPhoneNumberCount(body.userId);
+          await db.incrementPhoneNumberCountWithServiceRole(body.userId);
           console.log('✅ Phone number count incremented for user:', body.userId);
         } catch (countError) {
           console.error('❌ Failed to increment phone number count:', countError);

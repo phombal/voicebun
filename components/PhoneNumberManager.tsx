@@ -507,15 +507,20 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
                     <button
                       onClick={() => connectPhoneNumber(phoneNumber)}
                       disabled={isConnecting === phoneNumber.id}
-                      className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded disabled:opacity-50"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                       {isConnecting === phoneNumber.id ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           Connecting...
-                        </div>
+                        </>
                       ) : (
-                        'Connect to Project'
+                        <>
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9.5H7a1 1 0 000 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                          </svg>
+                          Connect
+                        </>
                       )}
                     </button>
                   )}
