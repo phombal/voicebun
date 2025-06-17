@@ -51,7 +51,7 @@ const plans: PricingPlan[] = [
       'Access to dedicated support'
     ],
     popular: true,
-    stripePriceId: 'price_1QdVJhRuWKCS4zq4oGJvhzpF',
+    stripePriceId: 'price_1RaWUdKVSt22QP5GygmOGHou',
     buttonText: 'Get Started',
     buttonStyle: 'primary'
   },
@@ -117,14 +117,19 @@ export default function PricingPage() {
     try {
       // For the specific plan that should redirect to the Stripe buy link
       if (plan.id === 'professional') {
-        // Use API checkout session for proper redirects
+        // For testing, redirect directly to the test Stripe link
+        window.location.href = 'https://buy.stripe.com/test_eVq14gbe72Iv6F44M2fYY00';
+        return;
+        
+        // Original API approach (commented out for testing)
+        /*
         const response = await fetch('/api/create-checkout-session', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            priceId: 'price_1QdVJhRuWKCS4zq4oGJvhzpF', // Professional plan price ID
+            priceId: 'price_1RaWUdKVSt22QP5GygmOGHou', // Professional plan price ID
             userId: user.id,
           }),
         });
@@ -132,12 +137,12 @@ export default function PricingPage() {
         const data = await response.json();
 
         if (data.url) {
-          // Redirect to Stripe Checkout
           window.location.href = data.url;
         } else {
           throw new Error(data.error || 'Failed to create checkout session');
         }
         return;
+        */
       }
 
       // For other plans, use the existing API flow
@@ -241,85 +246,63 @@ export default function PricingPage() {
           {plans.map((plan, index) => (
             <div 
               key={plan.id} 
-              className={`relative bg-gray-900/50 border rounded-2xl p-6 transition-all duration-200 hover:bg-gray-900/70 ${
-                plan.popular 
-                  ? 'border-white shadow-lg shadow-white/10' 
-                  : 'border-gray-700 hover:border-gray-600'
-              }`}
+              className={`
+                relative bg-gray-900 border border-gray-800 rounded-2xl p-8 
+                ${plan.popular ? 'ring-2 ring-white' : ''}
+                hover:border-gray-700 transition-all duration-300
+              `}
             >
               {plan.popular && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-white text-black px-4 py-1 rounded-full text-xs font-medium">
-                  Most Popular
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                  <div className="bg-white text-black px-4 py-1 rounded-full text-sm font-medium">
+                    Most Popular
+                  </div>
                 </div>
               )}
               
-              {/* Plan Header */}
-              <div className="mb-6">
-                <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
-                <p className="text-gray-400 mb-4 leading-relaxed text-sm">{plan.description}</p>
-                
-                {/* Call Minutes - Made More Prominent */}
-                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-3 mb-4 text-center">
-                  <div className="text-base font-bold text-white mb-1">
-                    {plan.callMinutes}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Voice conversation time
-                  </div>
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                <p className="text-gray-400 mb-4">{plan.description}</p>
+                <div className="mb-4">
+                  <span className="text-4xl font-bold text-white">
+                    {getCurrentPrice(plan)}
+                  </span>
+                  <span className="text-gray-400 ml-1">/{plan.interval}</span>
                 </div>
-                
-                {/* Price */}
-                <div className="mb-6">
-                  <div className="flex items-baseline mb-2">
-                    <span className="text-4xl font-bold text-white">
-                      {typeof getCurrentPrice(plan) === 'number' ? `$${getCurrentPrice(plan)}` : getCurrentPrice(plan)}
-                    </span>
-                    {plan.interval && (
-                      <span className="text-gray-400 ml-2">
-                        /{plan.interval}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <p className="text-gray-400 text-sm">{plan.callMinutes}</p>
               </div>
 
-              {/* Features */}
-              <div className="space-y-3 mb-6">
+              <ul className="space-y-4 mb-8">
                 {plan.features.map((feature, featureIndex) => (
-                  <div key={featureIndex} className="flex items-start gap-3">
-                    <Check className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-300 leading-relaxed text-sm">{feature}</span>
-                  </div>
+                  <li key={featureIndex} className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 w-5 h-5 bg-white rounded-full flex items-center justify-center mt-0.5">
+                      <svg className="w-3 h-3 text-black" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <span className="text-gray-300">{feature}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
 
-              {/* CTA Button */}
               <button
-                className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 ${
-                  plan.buttonStyle === 'primary'
-                    ? 'bg-white text-black hover:bg-gray-100'
-                    : 'border border-gray-600 text-white hover:border-gray-400 hover:bg-gray-800/50'
-                } ${processingPlan === plan.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                 onClick={() => handleSubscribe(plan)}
-                disabled={processingPlan === plan.id}
+                className={`
+                  w-full py-3 px-6 rounded-lg font-medium transition-all duration-300
+                  ${plan.buttonStyle === 'primary' 
+                    ? 'bg-white text-black hover:bg-gray-100' 
+                    : plan.buttonStyle === 'secondary'
+                    ? 'bg-gray-800 text-white hover:bg-gray-700 border border-gray-700'
+                    : 'border border-white text-white hover:bg-white hover:text-black'
+                  }
+                `}
               >
-                {processingPlan === plan.id ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                    Processing...
-                  </div>
-                ) : (
-                  plan.buttonText
-                )}
+                {plan.buttonText}
               </button>
             </div>
           ))}
         </div>
-
-        {/* Footer */}
-        <div className="text-center mt-12">
-        </div>
       </div>
     </div>
   );
-} 
+}

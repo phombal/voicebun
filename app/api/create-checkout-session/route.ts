@@ -94,26 +94,46 @@ export async function POST(request: NextRequest) {
     console.log('🌐 App URL:', appUrl);
 
     // Create Stripe checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId, // Use customer ID instead of customer_email
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId, // Use customer ID instead of customer_email
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appUrl}/dashboard`,
+        metadata: {
+          user_id: userId,
         },
-      ],
-      mode: 'subscription',
-      success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/dashboard`,
-      metadata: {
-        user_id: userId,
-      },
-    });
+      });
 
-    console.log('✅ Checkout session created:', session.id);
-
-    return NextResponse.json({ url: session.url, sessionId: session.id });
+      console.log('✅ Checkout session created:', session.id);
+      return NextResponse.json({ url: session.url, sessionId: session.id });
+    } catch (stripeError: any) {
+      console.error('❌ Stripe checkout session error:', stripeError);
+      
+      // Handle specific price not found error
+      if (stripeError.message?.includes('No such price')) {
+        return NextResponse.json(
+          { 
+            error: 'Invalid price ID', 
+            details: `The price ID "${priceId}" does not exist in your Stripe account. Please check your Stripe dashboard and update the price ID in your code.`,
+            priceId: priceId
+          },
+          { status: 400 }
+        );
+      }
+      
+      return NextResponse.json(
+        { error: 'Failed to create checkout session', details: stripeError.message },
+        { status: 500 }
+      );
+    }
   } catch (error: any) {
     console.error('❌ Error creating checkout session:', error);
     return NextResponse.json(
