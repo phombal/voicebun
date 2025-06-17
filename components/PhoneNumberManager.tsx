@@ -507,11 +507,11 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
                     <button
                       onClick={() => connectPhoneNumber(phoneNumber)}
                       disabled={isConnecting === phoneNumber.id}
-                      className="px-3 py-1 bg-white hover:bg-gray-100 text-black text-sm rounded disabled:opacity-50"
+                      className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded disabled:opacity-50"
                     >
                       {isConnecting === phoneNumber.id ? (
                         <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 border border-black border-t-transparent rounded-full animate-spin"></div>
+                          <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
                           Connecting...
                         </div>
                       ) : (
