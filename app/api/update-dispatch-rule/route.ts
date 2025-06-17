@@ -240,6 +240,7 @@ export async function POST(request: NextRequest) {
     // Create updated metadata
     const updatedMetadata = {
       projectId: body.projectId,
+      userId: body.userId,
       agentConfig: {
         prompt: projectData?.system_prompt || 'You are a helpful voice assistant.'
       },

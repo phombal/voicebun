@@ -8,6 +8,7 @@ interface SetupLiveKitTrunkRequest {
   phoneNumberId: string;
   phoneNumber: string;
   projectId: string;
+  userId: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
         // Create the same metadata that we use in the test page connection
         const roomMetadata = {
           projectId: body.projectId,
+          userId: body.userId,
           agentConfig: {
             prompt: projectData?.system_prompt || 'You are a helpful voice assistant.'
           },

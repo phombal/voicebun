@@ -271,6 +271,7 @@ export async function POST(request: NextRequest) {
           // Create metadata with latest project configuration
           const roomMetadata = {
             projectId: body.projectId,
+            userId: body.userId,
             agentConfig: {
               prompt: latestProjectData?.system_prompt || 'You are a helpful voice assistant.'
             },

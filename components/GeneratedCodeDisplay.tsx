@@ -1247,6 +1247,7 @@ For now, you can still manually configure your voice agent using the tabs above.
             roomName: connectionDetailsData.roomName,
             agentName: 'voice-agent',
             projectId: projectToUse.id,
+            userId: user?.id,
             metadata: agentMetadata
           }),
         });

@@ -11,12 +11,13 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { roomName, agentName = "voice-agent", projectId, metadata } = body;
+    const { roomName, agentName = "voice-agent", projectId, userId, metadata } = body;
     
     console.log('📝 Agent dispatch request:', {
       roomName,
       agentName,
       projectId,
+      userId,
       hasMetadata: !!metadata
     });
 
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
     // Create enhanced metadata with project configuration
     const enhancedMetadata = {
       projectId,
+      userId: body.userId,
       agentConfig: {
         prompt: projectData?.system_prompt || metadata?.agentConfig?.prompt || 'You are a helpful voice assistant.'
       },
@@ -153,4 +155,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

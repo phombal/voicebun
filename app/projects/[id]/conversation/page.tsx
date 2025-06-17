@@ -149,6 +149,7 @@ export default function ConversationPage() {
       // Then set metadata with configuration information
       const roomMetadata = {
         projectId: projectId,
+        userId: user?.id,
         agentConfig: config,
         timestamp: new Date().toISOString()
       };
@@ -193,7 +194,7 @@ export default function ConversationPage() {
     } finally {
       setIsConnecting(false);
     }
-  }, [config, projectId, room]);
+  }, [config, projectId, room, user]);
 
   const endConversation = async () => {
     await room.disconnect();
