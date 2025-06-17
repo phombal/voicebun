@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { db } from '@/lib/database/service';
 import Stripe from 'stripe';
+import { supabaseServiceRole } from '@/lib/database/auth';
 
 // Force dynamic rendering since we use request body and headers
 export const dynamic = 'force-dynamic';
@@ -149,7 +150,30 @@ export async function POST(request: NextRequest) {
             const userId = session.metadata?.user_id;
             console.log('🆔 User ID from metadata:', userId);
             
-            if (userId) {
+            let finalUserId = userId;
+            
+            // If no user ID in metadata, try to find user by email (payment link scenario)
+            if (!userId && (customer as any).email) {
+              console.log('🔍 No user ID in metadata, looking up by email:', (customer as any).email);
+              try {
+                const { data: userByEmail, error: emailError } = await supabaseServiceRole.auth.admin.listUsers();
+                if (!emailError && userByEmail.users) {
+                  const matchingUser = userByEmail.users.find((u: any) => u.email === (customer as any).email);
+                  if (matchingUser) {
+                    finalUserId = matchingUser.id;
+                    console.log('✅ Found user by email:', finalUserId);
+                  } else {
+                    console.log('❌ No user found with email:', (customer as any).email);
+                  }
+                } else {
+                  console.error('❌ Error looking up user by email:', emailError);
+                }
+              } catch (emailLookupError) {
+                console.error('❌ Error during email lookup:', emailLookupError);
+              }
+            }
+            
+            if (finalUserId) {
               // Convert timestamps with detailed logging
               const currentPeriodStartISO = timestampToISO(currentPeriodStart, 'current_period_start');
               const currentPeriodEndISO = timestampToISO(currentPeriodEnd, 'current_period_end');
@@ -173,15 +197,15 @@ export async function POST(request: NextRequest) {
 
               try {
                 // Try to update existing plan first
-                console.log('🔄 Attempting to update existing user plan for user:', userId);
-                await db.updateUserPlanWithServiceRole(userId, planData);
-                console.log('✅ Updated existing user plan for user:', userId);
+                console.log('🔄 Attempting to update existing user plan for user:', finalUserId);
+                await db.updateUserPlanWithServiceRole(finalUserId, planData);
+                console.log('✅ Updated existing user plan for user:', finalUserId);
               } catch (error) {
                 console.log('⚠️ Update failed, attempting to create new plan. Error:', error);
                 // If no existing plan, create a new one
                 try {
-                  await db.createUserPlanWithServiceRole(userId, planData);
-                  console.log('✅ Created new user plan for user:', userId);
+                  await db.createUserPlanWithServiceRole(finalUserId, planData);
+                  console.log('✅ Created new user plan for user:', finalUserId);
                 } catch (createError) {
                   console.error('💥 Failed to create user plan:', createError);
                   throw createError;
