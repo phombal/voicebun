@@ -149,7 +149,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     phoneOutboundEnabled: false,
     phoneRecordingEnabled: true,
     responseLatencyPriority: 'balanced' as 'speed' | 'balanced' | 'quality',
-    knowledgeBaseFiles: [] as Array<{name: string; type: string; content: string; size: number}>,
+    knowledgeBaseFiles: [] as Array<{name: string; type: "pdf" | "txt" | "docx" | "csv" | "json"; content: string; size: number}>,
     functionsEnabled: false,
     customFunctions: [] as Array<{name: string; description: string; parameters: Record<string, any>}>,
     webhooksEnabled: false,

@@ -22,7 +22,7 @@ interface ProjectConfig {
   phoneOutboundEnabled: boolean;
   phoneRecordingEnabled: boolean;
   responseLatencyPriority: 'speed' | 'balanced' | 'quality';
-  knowledgeBaseFiles: Array<{name: string; type: string; content: string; size: number}>;
+  knowledgeBaseFiles: Array<{name: string; type: "pdf" | "txt" | "docx" | "csv" | "json"; content: string; size: number}>;
   functionsEnabled: boolean;
   customFunctions: Array<{name: string; description: string; parameters: Record<string, any>; headers?: Record<string, string>; body?: any; url?: string}>;
   webhooksEnabled: boolean;
@@ -105,7 +105,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
     try {
       console.log('Saving functions to database for project:', projectId);
       
-      // First get the current project data to preserve all required fields
+      // First get the current project data to preserve any fields not in projectConfig
       const currentData = await databaseService.getProjectData(projectId);
       if (!currentData) {
         console.warn('No existing project data found, skipping database save');
@@ -122,42 +122,42 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
         url: func.url
       }));
       
-      // Create a complete update object that preserves all existing data
+      // Create a complete update object using current projectConfig state with database fallbacks
       const updateData = {
-        // Preserve all existing required fields
-        system_prompt: currentData.system_prompt,
-        agent_instructions: currentData.agent_instructions || undefined,
-        first_message_mode: currentData.first_message_mode,
-        llm_provider: currentData.llm_provider,
-        llm_model: currentData.llm_model,
-        llm_temperature: currentData.llm_temperature,
-        llm_max_response_length: currentData.llm_max_response_length,
-        stt_provider: currentData.stt_provider,
-        stt_language: currentData.stt_language,
-        stt_quality: currentData.stt_quality,
-        stt_processing_mode: currentData.stt_processing_mode,
-        stt_noise_suppression: currentData.stt_noise_suppression,
-        stt_auto_punctuation: currentData.stt_auto_punctuation,
-        tts_provider: currentData.tts_provider,
-        tts_voice: currentData.tts_voice,
-        phone_number: currentData.phone_number || undefined,
-        phone_inbound_enabled: currentData.phone_inbound_enabled,
-        phone_outbound_enabled: currentData.phone_outbound_enabled,
-        phone_recording_enabled: currentData.phone_recording_enabled,
-        response_latency_priority: currentData.response_latency_priority,
-        knowledge_base_files: currentData.knowledge_base_files,
-        webhooks_enabled: currentData.webhooks_enabled,
-        webhook_url: currentData.webhook_url || undefined,
-        webhook_events: currentData.webhook_events,
+        // Use current projectConfig state first, then fall back to database values
+        system_prompt: projectConfig.systemPrompt || currentData.system_prompt,
+        agent_instructions: projectConfig.agentInstructions || currentData.agent_instructions || undefined,
+        first_message_mode: projectConfig.firstMessageMode || currentData.first_message_mode,
+        llm_provider: projectConfig.llmProvider || currentData.llm_provider,
+        llm_model: projectConfig.llmModel || currentData.llm_model,
+        llm_temperature: projectConfig.llmTemperature ?? currentData.llm_temperature,
+        llm_max_response_length: projectConfig.llmMaxResponseLength || currentData.llm_max_response_length,
+        stt_provider: projectConfig.sttProvider || currentData.stt_provider,
+        stt_language: projectConfig.sttLanguage || currentData.stt_language,
+        stt_quality: projectConfig.sttQuality || currentData.stt_quality,
+        stt_processing_mode: projectConfig.sttProcessingMode || currentData.stt_processing_mode,
+        stt_noise_suppression: projectConfig.sttNoiseSuppression ?? currentData.stt_noise_suppression,
+        stt_auto_punctuation: projectConfig.sttAutoPunctuation ?? currentData.stt_auto_punctuation,
+        tts_provider: projectConfig.ttsProvider || currentData.tts_provider,
+        tts_voice: projectConfig.ttsVoice || currentData.tts_voice,
+        phone_number: projectConfig.phoneNumber || currentData.phone_number || undefined,
+        phone_inbound_enabled: projectConfig.phoneInboundEnabled ?? currentData.phone_inbound_enabled,
+        phone_outbound_enabled: projectConfig.phoneOutboundEnabled ?? currentData.phone_outbound_enabled,
+        phone_recording_enabled: projectConfig.phoneRecordingEnabled ?? currentData.phone_recording_enabled,
+        response_latency_priority: projectConfig.responseLatencyPriority || currentData.response_latency_priority,
+        knowledge_base_files: projectConfig.knowledgeBaseFiles as Array<{name: string; type: "pdf" | "txt" | "docx" | "csv" | "json"; content: string; size: number}> || currentData.knowledge_base_files,
+        webhooks_enabled: projectConfig.webhooksEnabled ?? currentData.webhooks_enabled,
+        webhook_url: projectConfig.webhookUrl || currentData.webhook_url || undefined,
+        webhook_events: projectConfig.webhookEvents || currentData.webhook_events,
         
-        // Update only the function-related fields
+        // Update the function-related fields
         custom_functions: dbFunctions,
         functions_enabled: functions.length > 0
       };
       
       await databaseService.updateProjectData(projectId, updateData);
       
-      console.log('Functions saved successfully to database');
+      console.log('Functions and complete project configuration saved successfully to database');
     } catch (error) {
       console.error('Failed to save functions to database:', error);
       // Don't throw the error - just log it so the UI doesn't break
