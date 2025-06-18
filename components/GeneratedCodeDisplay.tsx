@@ -19,8 +19,9 @@ import { useDatabase } from '@/hooks/useDatabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatSession, Project } from '@/lib/database/types';
 import { TelnyxNumbersModal } from './TelnyxNumbersModal';
-import { PhoneNumberManager } from './PhoneNumberManager';
+import { FunctionsTab } from './FunctionsTab';
 import { VideoPresets } from "livekit-client";
+import { PhoneNumberManager } from './PhoneNumberManager';
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -110,7 +111,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   useEffect(() => {
     console.log('🔄 STATE CHANGE - activeTab:', activeTab);
   }, [activeTab]);
-  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'other'>('instructions');
+  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'functions' | 'other'>('instructions');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
@@ -195,6 +196,19 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   const [selectedFromPhoneNumber, setSelectedFromPhoneNumber] = useState('');
   const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
 
+  // Function dropdown state
+  const [showFunctionDropdown, setShowFunctionDropdown] = useState(false);
+  const [editingFunction, setEditingFunction] = useState<number | null>(null);
+  const [functionConfig, setFunctionConfig] = useState<{
+    name: string;
+    description: string;
+    parameters: any;
+    headers?: Record<string, string>;
+    body?: any;
+    url?: string;
+  } | null>(null);
+  const functionDropdownRef = useRef<HTMLDivElement>(null);
+
   // Additional state
   const [room] = useState(() =>
     new Room({
@@ -265,6 +279,20 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
       console.log('📋 SystemPrompt preview:', projectConfig.systemPrompt.substring(0, 100) + '...');
     }
   }, [projectConfig.systemPrompt]);
+
+  // Handle clicking outside function dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (functionDropdownRef.current && !functionDropdownRef.current.contains(event.target as Node)) {
+        setShowFunctionDropdown(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Auto-create project if one doesn't exist (only once per component mount)
   useEffect(() => {
@@ -1392,11 +1420,11 @@ For now, you can still manually configure your voice agent using the tabs above.
             agentName: 'voice-agent',
             projectId: projectToUse.id,
             userId: user?.id,
-            metadata: JSON.stringify({
+            metadata: {
               projectId: projectToUse.id,
               userId: user?.id,
               timestamp: new Date().toISOString()
-            })
+            }
           }),
         });
 
@@ -1690,9 +1718,105 @@ For now, you can still manually configure your voice agent using the tabs above.
 
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
-    // Automatically update provider based on model
-    const provider = modelProviderMapping[model] || 'openai';
-    setSelectedProvider(provider);
+  };
+
+  // Function to add different integration types
+  const addCalComIntegration = () => {
+    const calcomFunction = {
+      name: 'schedule_meeting',
+      description: 'Schedule a meeting using Cal.com',
+      parameters: {
+        type: 'object',
+        properties: {
+          attendee_name: {
+            type: 'string',
+            description: 'Name of the person scheduling the meeting'
+          },
+          attendee_email: {
+            type: 'string',
+            description: 'Email address of the attendee'
+          },
+          event_type: {
+            type: 'string',
+            description: 'Type of meeting to schedule'
+          },
+          preferred_time: {
+            type: 'string',
+            description: 'Preferred time for the meeting (ISO format)'
+          }
+        },
+        required: ['attendee_name', 'attendee_email', 'event_type']
+      }
+    };
+    setProjectConfig(prev => ({
+      ...prev,
+      customFunctions: [...prev.customFunctions, calcomFunction]
+    }));
+    setShowFunctionDropdown(false);
+  };
+
+  const addGoogleSheetsIntegration = () => {
+    const googleSheetsFunction = {
+      name: 'update_spreadsheet',
+      description: 'Add or update data in a Google Sheets spreadsheet',
+      parameters: {
+        type: 'object',
+        properties: {
+          spreadsheet_id: {
+            type: 'string',
+            description: 'ID of the Google Sheets spreadsheet'
+          },
+          sheet_name: {
+            type: 'string',
+            description: 'Name of the sheet within the spreadsheet'
+          },
+          data: {
+            type: 'object',
+            description: 'Data to add or update in the spreadsheet'
+          },
+          row_number: {
+            type: 'integer',
+            description: 'Row number to update (optional, for updates)'
+          }
+        },
+        required: ['spreadsheet_id', 'sheet_name', 'data']
+      }
+    };
+    setProjectConfig(prev => ({
+      ...prev,
+      customFunctions: [...prev.customFunctions, googleSheetsFunction]
+    }));
+    setShowFunctionDropdown(false);
+  };
+
+  const addMakeComIntegration = () => {
+    const makecomFunction = {
+      name: 'trigger_automation',
+      description: 'Trigger a Make.com automation workflow',
+      parameters: {
+        type: 'object',
+        properties: {
+          webhook_url: {
+            type: 'string',
+            description: 'Make.com webhook URL to trigger'
+          },
+          workflow_data: {
+            type: 'object',
+            description: 'Data to send to the Make.com workflow'
+          },
+          workflow_id: {
+            type: 'string',
+            description: 'ID of the Make.com workflow to trigger'
+          }
+        },
+        required: ['webhook_url', 'workflow_data']
+      }
+    };
+    setProjectConfig(prev => ({
+      ...prev,
+      customFunctions: [...prev.customFunctions, makecomFunction]
+    }));
+    setShowFunctionDropdown(false);
   };
 
   return (
@@ -1909,6 +2033,16 @@ For now, you can still manually configure your voice agent using the tabs above.
               >
                 Phone Numbers
                 </button>
+                <button
+                onClick={() => setActiveMenu('functions')}
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeMenu === 'functions' 
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                Functions
+                </button>
               </div>
             </div>
             
@@ -2053,6 +2187,24 @@ For now, you can still manually configure your voice agent using the tabs above.
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                       </svg>
                       <span>Phone Numbers</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveMenu('functions');
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                      activeMenu === 'functions' 
+                        ? 'bg-white text-black' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                      </svg>
+                      <span>Functions</span>
                     </div>
                   </button>
                 </div>
@@ -2428,6 +2580,12 @@ For now, you can still manually configure your voice agent using the tabs above.
                   </div>
                 </div>
               </div>
+            ) : activeMenu === 'functions' ? (
+              <FunctionsTab 
+                projectConfig={projectConfig}
+                setProjectConfig={setProjectConfig}
+                projectId={project?.id || currentProject?.id || ''}
+              />
             ) : (
               <div className="h-full flex items-center justify-center bg-black">
                 <div className="text-center space-y-6 p-8 max-w-md mx-auto">

@@ -7,6 +7,7 @@ export interface VoiceAgentConfig {
   capabilities: string[];
   language: string;
   responseStyle: string;
+  customFunctions?: Array<{name: string; description: string; parameters: Record<string, any>; headers?: Record<string, string>; body?: any; url?: string}>;
 }
 
 interface VoiceAgentConfigProps {

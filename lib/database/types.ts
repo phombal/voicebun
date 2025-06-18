@@ -351,6 +351,9 @@ export interface ProjectData {
     name: string;
     description: string;
     parameters: Record<string, any>;
+    headers?: Record<string, string>;
+    body?: any;
+    url?: string;
   }>;
   
   // Webhooks
@@ -398,6 +401,9 @@ export interface ProjectDataConfig {
     name: string;
     description: string;
     parameters: Record<string, any>;
+    headers?: Record<string, string>;
+    body?: any;
+    url?: string;
   }>;
   webhooks_enabled?: boolean;
   webhook_url?: string;
