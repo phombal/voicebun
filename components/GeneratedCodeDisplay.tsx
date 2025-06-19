@@ -114,7 +114,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   useEffect(() => {
     console.log('🔄 STATE CHANGE - activeTab:', activeTab);
   }, [activeTab]);
-  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'functions' | 'other'>('instructions');
+  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'functions' | 'publish' | 'other'>('instructions');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
@@ -157,7 +157,17 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     customFunctions: [] as Array<{name: string; description: string; parameters: Record<string, any>}>,
     webhooksEnabled: false,
     webhookUrl: null as string | null,
-    webhookEvents: [] as string[]
+    webhookEvents: [] as string[],
+    
+    // Community Publishing Fields
+    projectEmoji: '🤖',
+    projectPhoto: null as string | null,
+    publicTitle: '',
+    publicDescription: '',
+    publicWelcomeMessage: '',
+    showBranding: true,
+    customBrandingText: null as string | null,
+    customBrandingUrl: null as string | null
   });
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -184,8 +194,10 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   
   // Project title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(project?.name || '');
+  const [titleValue, setTitleValue] = useState(project.name);
   const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
+  const [leftPanelExpanded, setLeftPanelExpanded] = useState(false);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   
   // Ref for debouncing file saves
@@ -236,7 +248,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   // Update edited title when project prop changes
   useEffect(() => {
     if (project?.name && !isEditingTitle) {
-      setEditedTitle(project.name);
+      setTitleValue(project.name);
     }
   }, [project?.name, isEditingTitle]);
 
@@ -248,25 +260,40 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     }
   }, [isEditingTitle]);
 
+  // Handle left panel auto-hide
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const threshold = 20; // pixels from left edge - reduced from 100 to avoid interfering with header
+      if (e.clientX <= threshold) {
+        setLeftPanelExpanded(true);
+      } else if (e.clientX > 320) { // panel width + buffer
+        setLeftPanelExpanded(false);
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => document.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
   // Handle project title update
   const updateProjectTitle = async () => {
-    if (!project || !editedTitle.trim() || editedTitle === project.name) {
+    if (!project || !titleValue.trim() || titleValue === project.name) {
       setIsEditingTitle(false);
-      setEditedTitle(project?.name || '');
+      setTitleValue(project?.name || '');
       return;
     }
 
     setIsUpdatingTitle(true);
     try {
       await dbService.updateProject(project.id, { 
-        name: editedTitle.trim(),
+        name: titleValue.trim(),
         updated_at: new Date().toISOString()
       });
       
       // Create updated project object
       const updatedProject: Project = {
         ...project,
-        name: editedTitle.trim(),
+        name: titleValue.trim(),
         updated_at: new Date().toISOString()
       };
       
@@ -280,7 +307,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     } catch (error) {
       console.error('❌ Failed to update project title:', error);
       // Reset to original title on error
-      setEditedTitle(project.name);
+      setTitleValue(project.name);
       alert('Failed to update project title. Please try again.');
     } finally {
       setIsUpdatingTitle(false);
@@ -291,14 +318,14 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   const startEditingTitle = () => {
     if (project) {
       setIsEditingTitle(true);
-      setEditedTitle(project.name);
+      setTitleValue(project.name);
     }
   };
 
   // Handle title edit cancel
   const cancelEditingTitle = () => {
     setIsEditingTitle(false);
-    setEditedTitle(project?.name || '');
+    setTitleValue(project?.name || '');
   };
 
   // Handle Enter key press in title input
@@ -309,6 +336,68 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       cancelEditingTitle();
     }
   };
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Handle project photo upload
+  const handlePhotoUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      // Convert to base64 for storage
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64String = e.target?.result as string;
+        setProjectConfig(prev => ({
+          ...prev,
+          projectPhoto: base64String
+        }));
+        setIsUploadingPhoto(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo. Please try again.');
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  // Remove project photo
+  const removeProjectPhoto = () => {
+    setProjectConfig(prev => ({
+      ...prev,
+      projectPhoto: null
+    }));
+  };
+
+  // Common emojis for projects
+  const commonEmojis = [
+    '🤖', '🎯', '💬', '🚀', '💡', '🔥', '⭐', '🎉',
+    '📞', '🎵', '🎮', '📚', '💼', '🏠', '🍕', '☕',
+    '🌟', '💎', '🏆', '🎨', '🔧', '💻', '📱', '⚡',
+    '🌍', '🎭', '🎪', '🎬', '📺', '🎸', '🎤', '🎧'
+  ];
 
   // Load agent configurations function (simplified - using project_data)
   const loadAgentConfigurations = useCallback(async () => {
@@ -493,7 +582,17 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
           customFunctions: projectData.custom_functions,
           webhooksEnabled: projectData.webhooks_enabled,
           webhookUrl: projectData.webhook_url,
-          webhookEvents: projectData.webhook_events
+          webhookEvents: projectData.webhook_events,
+          
+          // Community Publishing Fields
+          projectEmoji: projectData.project_emoji || '🤖',
+          projectPhoto: projectData.project_photo || null,
+          publicTitle: projectData.public_title || '',
+          publicDescription: projectData.public_description || '',
+          publicWelcomeMessage: projectData.agent_instructions || '', // Load welcome message from agent_instructions
+          showBranding: projectData.show_branding !== undefined ? projectData.show_branding : true,
+          customBrandingText: projectData.custom_branding_text || null,
+          customBrandingUrl: projectData.custom_branding_url || null
         };
         
         console.log('🔧 Setting project config with system prompt length:', newConfig.systemPrompt?.length || 0);
@@ -545,7 +644,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       
       const configData = {
         system_prompt: projectConfig.systemPrompt,
-        agent_instructions: projectConfig.agentInstructions,
+        agent_instructions: projectConfig.publicWelcomeMessage, // Save welcome message as agent instructions
         first_message_mode: projectConfig.firstMessageMode,
         llm_provider: projectConfig.llmProvider,
         llm_model: projectConfig.llmModel,
@@ -569,7 +668,17 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
         custom_functions: projectConfig.customFunctions,
         webhooks_enabled: projectConfig.webhooksEnabled,
         webhook_url: projectConfig.webhookUrl,
-        webhook_events: projectConfig.webhookEvents
+        webhook_events: projectConfig.webhookEvents,
+        
+        // Community Publishing Fields
+        project_emoji: projectConfig.projectEmoji,
+        project_photo: projectConfig.projectPhoto,
+        public_title: projectConfig.publicTitle,
+        public_description: projectConfig.publicDescription,
+        public_welcome_message: projectConfig.publicWelcomeMessage,
+        show_branding: projectConfig.showBranding,
+        custom_branding_text: projectConfig.customBrandingText,
+        custom_branding_url: projectConfig.customBrandingUrl
       };
 
       console.log('💾 Attempting to save config data:', {
@@ -1935,6 +2044,11 @@ For now, you can still manually configure your voice agent using the tabs above.
     }
   };
 
+  // File upload state for project photo
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
   return (
     <RoomContext.Provider value={room}>
       <style jsx global>{`
@@ -1979,246 +2093,249 @@ For now, you can still manually configure your voice agent using the tabs above.
         }
       `}</style>
       <div data-lk-theme="default" className="w-full h-screen bg-black flex relative" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
-        {/* Left side - Chat conversation - Hidden on mobile */}
-        <div className="hidden md:flex md:w-1/4 bg-neutral-800 border-r border-white/20 flex-col">
-          {/* Header with logo */}
-          <div className="p-3 bg-neutral-800">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={onBackToHome}
-                  className="hover:opacity-80 transition-opacity cursor-pointer"
-                  title="Go to home page"
-                >
-                  <img 
-                    src="/VoiceBun-BunOnly.png" 
-                    alt="VoiceBun" 
-                    className="w-10 h-10"
-                  />
-                </button>
-                
-                {/* Editable Project Title */}
-                {project && (
-                  <div className="flex items-center space-x-2">
-                    {isEditingTitle ? (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          ref={titleInputRef}
-                          type="text"
-                          value={editedTitle}
-                          onChange={(e) => setEditedTitle(e.target.value)}
-                          onKeyDown={handleTitleKeyPress}
-                          onBlur={updateProjectTitle}
-                          className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent"
-                          placeholder="Project name"
-                          disabled={isUpdatingTitle}
-                        />
-                        <button
-                          onClick={updateProjectTitle}
-                          disabled={isUpdatingTitle}
-                          className="p-1 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300"
-                          title="Save title"
-                        >
-                          {isUpdatingTitle ? (
-                            <LoadingSpinner size="md" color="green" />
-                          ) : (
-                            <Check className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={cancelEditingTitle}
-                          disabled={isUpdatingTitle}
-                          className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300"
-                          title="Cancel editing"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+        {/* Auto-hiding Left Panel */}
+        <div 
+          ref={leftPanelRef}
+          className={`fixed left-0 top-0 h-full z-20 transition-all duration-300 ease-in-out ${
+            leftPanelExpanded ? 'w-80' : 'w-12'
+          } bg-neutral-800 border-r border-white/20 flex flex-col`}
+          onMouseEnter={() => setLeftPanelExpanded(true)}
+          onMouseLeave={() => setLeftPanelExpanded(false)}
+        >
+          {/* Collapsed state - menu icons */}
+          {!leftPanelExpanded && (
+            <div className="w-full h-full bg-neutral-800 flex flex-col items-center py-4 space-y-4">
+            </div>
+          )}
+
+          {/* Expanded state - full panel content */}
+          {leftPanelExpanded && (
+            <>
+              {/* Chat History */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent bg-neutral-800">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-white mb-4">
+                    AI Assistant
+                  </h3>
+                </div>
+                {messages.map((message) => (
+                  <div key={message.id} className="flex flex-col items-start">
+                    {message.role === 'assistant' ? (
+                      <div className="mb-2">
+                        <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>Bun</p>
                       </div>
                     ) : (
-                      <div className="flex items-center space-x-2">
-                        <h1 className="text-white font-medium text-sm truncate max-w-[200px]" title={project.name}>
-                          {project.name}
-                        </h1>
-                        <button
-                          onClick={startEditingTitle}
-                          className="p-1 hover:bg-white/10 rounded transition-colors text-white/60 hover:text-white"
-                          title="Edit project title"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                      <div className="mb-2">
+                        <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>You</p>
                       </div>
                     )}
+                    <div className="max-w-[95%]">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">{message.content}</p>
+                      <div className="flex items-center justify-between mt-3">
+                        <p className="text-xs opacity-70 text-white/70">
+                          {message.timestamp.toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {isGenerating && (
+                  <div className="flex flex-col items-start">
+                    <div className="mb-2">
+                      <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>Bun</p>
+                    </div>
+                    <div className="max-w-[95%]">
+                      <div className="flex items-center space-x-3">
+                        <LoadingSpinner size="lg" color="blue" className="mr-2" />
+                        <span className="text-sm text-white/90">Thinking...</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
 
-          {/* Messages area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent bg-neutral-800">
-            {messages.map((message) => (
-              <div key={message.id} className="flex flex-col items-start">
-                {message.role === 'assistant' && (
-                  <div className="mb-2">
-                    <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>Bun</p>
-                  </div>
-                )}
-                {message.role === 'user' && (
-                  <div className="mb-2">
-                    <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>You</p>
-                  </div>
-                )}
-                <div className="max-w-[95%]">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">{message.content}</p>
-                  <div className="flex items-center justify-between mt-3">
-                    <p className="text-xs opacity-70 text-white/70">
-                      {message.timestamp.toLocaleTimeString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {isGenerating && (
-              <div className="flex flex-col items-start">
-                <div className="mb-2">
-                  <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>Bun</p>
-                </div>
-                <div className="max-w-[95%]">
+              {/* Chat Input */}
+              <div className="p-6 border-t border-white/20 bg-neutral-800">
+                <div className="relative bg-white/5 rounded-3xl p-4 border border-white/20">
                   <div className="flex items-center space-x-3">
-                    <LoadingSpinner size="lg" color="blue" className="mr-2" />
-                    <span className="text-sm text-white/90">Thinking...</span>
+                    <button className="w-8 h-8 bg-white hover:bg-gray-100 rounded-full flex items-center justify-center transition-colors">
+                      <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                    
+                    <div className="flex-1">
+                      <textarea
+                        ref={textareaRef}
+                        value={inputMessage}
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDownInInput}
+                        placeholder="Ask Bun to modify your code..."
+                        className="w-full bg-transparent text-white placeholder-white/50 resize-none border-none outline-none text-sm leading-relaxed"
+                        rows={1}
+                        style={{
+                          minHeight: '20px',
+                          maxHeight: '120px',
+                          scrollbarWidth: 'none',
+                          msOverflowStyle: 'none',
+                          lineHeight: '1.5',
+                          padding: '0',
+                          margin: '0'
+                        }}
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={sendMessage}
+                      disabled={!inputMessage.trim() || isGenerating}
+                      className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* Message input */}
-          <div className="p-6 border-t border-white/20 bg-neutral-800">
-            <div className="relative bg-white/5 rounded-3xl p-4 border border-white/20">
-              <div className="flex items-center space-x-3">
-                <button className="w-8 h-8 bg-white hover:bg-gray-100 rounded-full flex items-center justify-center transition-colors">
-                  <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                </button>
-                
-                
-                <div className="flex-1">
-                  <textarea
-                    ref={textareaRef}
-                    value={inputMessage}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDownInInput}
-                    placeholder="Ask Bun"
-                    className="w-full bg-transparent text-white placeholder-white/50 focus:outline-none resize-none text-base leading-relaxed"
-                    rows={1}
-                    disabled={isGenerating}
-                    style={{
-                      minHeight: '24px',
-                      maxHeight: '120px',
-                      height: 'auto'
-                    }}
-                    onInput={(e) => {
-                      const target = e.target as HTMLTextAreaElement;
-                      target.style.height = 'auto';
-                      target.style.height = Math.min(target.scrollHeight, 120) + 'px';
-                    }}
-                  />
-                </div>
-                
-
-                
-                <button
-                  onClick={sendMessage}
-                  disabled={!inputMessage.trim() || isGenerating}
-                  className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors"
-                >
-                  <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
 
-        {/* Right side - Code/Config view - Full width on mobile, 3/4 width on desktop */}
-        <div className="w-full md:w-3/4 bg-black flex flex-col">
+        {/* Main Content Area - now takes full width */}
+        <div className={`flex-1 bg-black flex flex-col transition-all duration-300 ${leftPanelExpanded ? 'ml-80' : 'ml-12'}`}>
           {/* Header with toggle and actions */}
           <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
             <div className="flex items-center space-x-4">
-              {/* Mobile logo and hamburger menu */}
-              <div className="md:hidden flex items-center space-x-3">
+              {/* VoiceBun Logo and Project Title */}
+              <div className="flex items-center space-x-3">
                 <button
                   onClick={onBackToHome}
                   className="hover:opacity-80 transition-opacity cursor-pointer"
                   title="Go to home page"
                 >
-                  <img 
-                    src="/VoiceBun-BunOnly.png" 
+                  <img
+                    src="/VoiceBun-BunOnly.png"
                     alt="VoiceBun" 
                     className="w-8 h-8"
                   />
                 </button>
                 
-                {/* Editable Project Title - Mobile */}
-                {project && (
-                  <div className="flex items-center space-x-2 flex-1 min-w-0">
-                    {isEditingTitle ? (
-                      <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <input
-                          ref={titleInputRef}
-                          type="text"
-                          value={editedTitle}
-                          onChange={(e) => setEditedTitle(e.target.value)}
-                          onKeyDown={handleTitleKeyPress}
-                          onBlur={updateProjectTitle}
-                          className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent flex-1 min-w-0"
-                          placeholder="Project name"
-                          disabled={isUpdatingTitle}
-                        />
-                        <button
-                          onClick={updateProjectTitle}
-                          disabled={isUpdatingTitle}
-                          className="p-1 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300 flex-shrink-0"
-                          title="Save title"
-                        >
-                          {isUpdatingTitle ? (
-                            <LoadingSpinner size="md" color="green" />
-                          ) : (
-                            <Check className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={cancelEditingTitle}
-                          disabled={isUpdatingTitle}
-                          className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300 flex-shrink-0"
-                          title="Cancel editing"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <h1 className="text-white font-medium text-sm truncate flex-1" title={project.name}>
-                          {project.name}
-                        </h1>
-                        <button
-                          onClick={startEditingTitle}
-                          className="p-1 hover:bg-white/10 rounded transition-colors text-white/60 hover:text-white flex-shrink-0"
-                          title="Edit project title"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
+                {/* Project Title */}
+                <div className="flex items-center space-x-2">
+                  {isEditingTitle ? (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        ref={titleInputRef}
+                        type="text"
+                        value={titleValue}
+                        onChange={(e) => setTitleValue(e.target.value)}
+                        onKeyDown={handleTitleKeyPress}
+                        onBlur={updateProjectTitle}
+                        className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent"
+                        placeholder="Project name"
+                        disabled={isUpdatingTitle}
+                      />
+                      <button
+                        onClick={updateProjectTitle}
+                        disabled={isUpdatingTitle}
+                        className="p-1 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300"
+                        title="Save title"
+                      >
+                        {isUpdatingTitle ? (
+                          <LoadingSpinner size="md" color="green" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={cancelEditingTitle}
+                        disabled={isUpdatingTitle}
+                        className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300"
+                        title="Cancel editing"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <h1 className="text-white font-medium text-sm" title={project.name}>
+                        {project.name}
+                      </h1>
+                      <button
+                        onClick={startEditingTitle}
+                        className="p-1 hover:bg-white/10 rounded transition-colors text-white/60 hover:text-white"
+                        title="Edit project title"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tab Navigation - moved to the right */}
+              <div className="hidden md:flex space-x-1 bg-white/10 rounded-lg p-1 ml-8">
+                <button
+                onClick={() => setActiveMenu('instructions')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeMenu === 'instructions' 
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Instructions
+              </button>
+              <button
+                onClick={() => setActiveMenu('models')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeMenu === 'models' 
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Models
+              </button>
+              <button
+                onClick={() => setActiveMenu('phone')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeMenu === 'phone' 
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Phone
+              </button>
+              <button
+                onClick={() => setActiveMenu('functions')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeMenu === 'functions' 
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Functions
+              </button>
+              <button
+                onClick={() => setActiveMenu('publish')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeMenu === 'publish' 
+                    ? 'bg-white text-black' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Publish
+              </button>
+              </div>
+
+              {/* Mobile Menu Button */}
+              <div className="md:hidden">
                 <button
                   onClick={() => setShowMobileMenu(!showMobileMenu)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  className="w-8 h-8 hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center"
                   title="Menu"
                 >
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2226,55 +2343,11 @@ For now, you can still manually configure your voice agent using the tabs above.
                   </svg>
                 </button>
               </div>
-              
-              {/* Desktop tab buttons */}
-              <div className="hidden md:flex space-x-1 bg-white/10 rounded-lg p-1">
-                <button
-                onClick={() => setActiveMenu('instructions')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeMenu === 'instructions' 
-                    ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Instructions
-                </button>
-                <button
-                onClick={() => setActiveMenu('models')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeMenu === 'models' 
-                    ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Models
-                </button>
-                <button
-                onClick={() => setActiveMenu('phone')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeMenu === 'phone' 
-                    ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Phone Numbers
-                </button>
-                <button
-                onClick={() => setActiveMenu('functions')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeMenu === 'functions' 
-                    ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Functions
-                </button>
-              </div>
             </div>
             
             {/* Action buttons - reorganized for mobile */}
             <div className="flex items-center space-x-2">
-              <button
+              <button 
                 onClick={saveProjectConfiguration}
                 disabled={isSavingConfig}
                 className="px-3 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
@@ -2286,21 +2359,6 @@ For now, you can still manually configure your voice agent using the tabs above.
                   </>
                 ) : (
                   <span>Save</span>
-                )}
-              </button>
-
-              <button 
-                onClick={handlePublish}
-                disabled={isPublishing}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
-              >
-                {isPublishing ? (
-                  <>
-                    <LoadingSpinner size="sm" color="white" />
-                    <span className="hidden sm:inline">Publishing...</span>
-                  </>
-                ) : (
-                  <span>Publish to Number</span>
                 )}
               </button>
 
@@ -2433,6 +2491,24 @@ For now, you can still manually configure your voice agent using the tabs above.
                       <span>Functions</span>
                     </div>
                   </button>
+                  <button
+                    onClick={() => {
+                      setActiveMenu('publish');
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                      activeMenu === 'publish' 
+                        ? 'bg-white text-black' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                      </svg>
+                      <span>Publish</span>
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>
@@ -2465,6 +2541,32 @@ For now, you can still manually configure your voice agent using the tabs above.
                         onChange={(e) => setProjectConfig(prev => ({ ...prev, systemPrompt: e.target.value }))}
                         className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
                         placeholder="Enter your system prompt here. For example: 'You are a helpful customer service representative for an e-commerce company. You should be friendly, professional, and knowledgeable about products and policies. Always aim to resolve customer issues efficiently while maintaining a positive tone.'"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Welcome Message Section */}
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
+                      <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                      Welcome Message
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-white/70">
+                          First message users will hear when they call
+                        </label>
+                      </div>
+                      
+                      <textarea 
+                        rows={3}
+                        value={projectConfig.publicWelcomeMessage}
+                        onChange={(e) => setProjectConfig(prev => ({ ...prev, publicWelcomeMessage: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
+                        placeholder="Hello! I'm here to help you with..."
                       />
                     </div>
                   </div>
@@ -2812,6 +2914,186 @@ For now, you can still manually configure your voice agent using the tabs above.
                 setProjectConfig={setProjectConfig}
                 projectId={project?.id || currentProject?.id || ''}
               />
+            ) : activeMenu === 'publish' ? (
+              <div className="h-full bg-black p-6 overflow-y-auto">
+                <div className="max-w-4xl mx-auto space-y-8">
+                  {/* Community Publishing */}
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
+                      <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                      </svg>
+                      Publish to Community
+                    </h3>
+                    
+                    <div className="space-y-6">
+                      <p className="text-white/70">
+                        Share your voice agent with the community. Configure how it appears in the community gallery.
+                      </p>
+                      
+                      {/* Agent Avatar Section */}
+                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                        <h4 className="text-lg font-medium text-white mb-4">Agent Avatar</h4>
+                        <div className="flex items-center justify-center space-x-8">
+                          {/* Emoji Selector */}
+                          <div className="relative">
+                            <label className="block text-sm font-medium text-white mb-2 text-center">Choose Emoji</label>
+                            <button
+                              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors flex items-center space-x-2"
+                            >
+                              <span className="text-lg">{projectConfig.projectEmoji}</span>
+                              <span>Choose Emoji</span>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            
+                            {/* Emoji Picker Dropdown */}
+                            {showEmojiPicker && (
+                              <div 
+                                ref={emojiPickerRef}
+                                className="absolute top-full left-0 mt-2 w-80 max-h-40 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-3 z-10 overflow-y-auto"
+                              >
+                                <div className="grid grid-cols-8 gap-2">
+                                  {commonEmojis.map((emoji, index) => (
+                                    <button
+                                      key={index}
+                                      onClick={() => {
+                                        setProjectConfig(prev => ({ ...prev, projectEmoji: emoji, projectPhoto: null }));
+                                        setShowEmojiPicker(false);
+                                      }}
+                                      className="w-8 h-8 text-lg hover:bg-white/20 rounded transition-colors flex items-center justify-center"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Photo Upload */}
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2 text-center">Upload Photo</label>
+                            <div className="flex flex-col items-center space-y-3">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handlePhotoUpload(file);
+                                }}
+                                className="hidden"
+                                id="photo-upload"
+                              />
+                              <label
+                                htmlFor="photo-upload"
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition-colors flex items-center space-x-2"
+                              >
+                                {isUploadingPhoto ? (
+                                  <>
+                                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    <span>Uploading...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    <span>Upload Photo</span>
+                                  </>
+                                )}
+                              </label>
+                              {projectConfig.projectPhoto && (
+                                <button
+                                  onClick={removeProjectPhoto}
+                                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                              <p className="text-xs text-white/60 text-center">Max 5MB, JPG or PNG</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Public Information */}
+                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                        <h4 className="text-lg font-medium text-white mb-4">Public Information</h4>
+                        <div className="space-y-4">
+                          {/* Public Title */}
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">
+                              Public Title <span className="text-white/60">(shown in community)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={projectConfig.publicTitle}
+                              onChange={(e) => setProjectConfig(prev => ({ ...prev, publicTitle: e.target.value }))}
+                              placeholder="Give your agent a catchy public title..."
+                              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          
+                          {/* Public Description */}
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">
+                              Public Description <span className="text-white/60">(what does your agent do?)</span>
+                            </label>
+                            <textarea
+                              value={projectConfig.publicDescription}
+                              onChange={(e) => setProjectConfig(prev => ({ ...prev, publicDescription: e.target.value }))}
+                              placeholder="Describe what your voice agent does and how it can help users..."
+                              rows={3}
+                              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Publish Actions */}
+                      <div className="bg-white/5 rounded-lg p-6 border border-white/10">
+                        <h4 className="text-lg font-medium text-white mb-3">Ready to Share</h4>
+                        <p className="text-white/60 text-sm mb-4">
+                          Publish your agent to the community gallery for others to discover and use.
+                        </p>
+                        <div className="flex justify-center">
+                          <button 
+                            onClick={saveProjectConfiguration}
+                            disabled={isSavingConfig || !projectConfig.publicTitle || !projectConfig.publicDescription}
+                            className="px-8 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
+                          >
+                            {isSavingConfig ? (
+                              <>
+                                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Publishing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                                </svg>
+                                <span>Publish</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        {(!projectConfig.publicTitle || !projectConfig.publicDescription) && (
+                          <p className="text-amber-400 text-xs mt-3 text-center">
+                            Please fill in the public title and description before publishing.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="h-full flex items-center justify-center bg-black">
                 <div className="text-center space-y-6 p-8 max-w-md mx-auto">
@@ -2982,7 +3264,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </div>
                   )}
 
-<button
+                  <button
                     onClick={() => handleTestTypeSelection('outbound')}
                     className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group"
                   >

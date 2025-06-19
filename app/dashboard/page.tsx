@@ -162,6 +162,7 @@ function DashboardContent() {
       
       // Call the local API to generate a detailed system prompt
       let generatedSystemPrompt = prompt.trim();
+      let generatedWelcomeMessage = '';
       let systemPromptGenerated = false;
       
       try {
@@ -185,8 +186,9 @@ function DashboardContent() {
         if (response.ok) {
           const result = await response.json();
           generatedSystemPrompt = result.system_prompt;
+          generatedWelcomeMessage = result.welcome_message || '';
           systemPromptGenerated = true;
-          console.log('✅ Generated system prompt with local API:', result.metadata);
+          console.log('✅ Generated system prompt and welcome message with local API:', result.metadata);
         } else {
           const errorText = await response.text();
           console.warn('❌ Local API error:', response.status, response.statusText);
@@ -218,6 +220,9 @@ Guidelines for conversations:
 - End conversations gracefully when users indicate they're finished
 
 Remember to keep your responses natural and conversational since this is a voice-based interaction. Avoid overly long responses and break up complex information into digestible pieces.`;
+        
+        // Generate a fallback welcome message based on the prompt
+        generatedWelcomeMessage = `Hello! I'm your ${prompt.trim().toLowerCase()} assistant. How can I help you today?`;
       }
 
       // Create a basic configuration from the prompt
@@ -300,7 +305,7 @@ if __name__ == "__main__":
       // Create initial project_data entry with the generated system prompt
       const initialProjectData = {
         system_prompt: generatedSystemPrompt,
-        agent_instructions: '',
+        agent_instructions: generatedWelcomeMessage,
         first_message_mode: 'wait' as const,
         llm_provider: 'openai' as const,
         llm_model: 'gpt-4o-mini',

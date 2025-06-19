@@ -28,6 +28,16 @@ interface ProjectConfig {
   webhooksEnabled: boolean;
   webhookUrl: string | null;
   webhookEvents: string[];
+  
+  // Community Publishing Fields
+  projectEmoji: string;
+  projectPhoto: string | null;
+  publicTitle: string;
+  publicDescription: string;
+  publicWelcomeMessage: string;
+  showBranding: boolean;
+  customBrandingText: string | null;
+  customBrandingUrl: string | null;
 }
 
 interface FunctionsTabProps {
@@ -706,6 +716,62 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
     setShowFunctionDropdown(false);
   };
 
+  const addCustomFunction = () => {
+    const customFunction = {
+      name: 'custom_function',
+      description: 'Custom function description',
+      url: 'https://api.example.com/webhook',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer YOUR_API_KEY'
+      },
+      method: 'POST',
+      body: {
+        "data": "{{input_data}}",
+        "action": "process"
+      },
+      parameters: {
+        type: 'object',
+        properties: {
+          input_data: {
+            type: 'string',
+            description: 'Data to send to the API'
+          }
+        },
+        required: ['input_data']
+      }
+    };
+    
+    const updatedFunctions = [...(projectConfig.customFunctions || []), customFunction];
+    setProjectConfig(prev => ({
+      ...prev,
+      customFunctions: updatedFunctions,
+      functionsEnabled: updatedFunctions.length > 0
+    }));
+    // Save to database
+    saveFunctionsToDatabase(updatedFunctions);
+    
+    // Immediately start editing the new function
+    const newFunctionIndex = updatedFunctions.length - 1;
+    setEditingFunction(newFunctionIndex);
+    setFunctionConfig({
+      name: customFunction.name,
+      description: customFunction.description,
+      parameters: customFunction.parameters,
+      headers: customFunction.headers || {},
+      body: customFunction.body || {},
+      url: customFunction.url || '',
+      method: customFunction.method || 'POST'
+    });
+    // Set initial view mode to simple
+    setFunctionViewMode(prev => ({
+      ...prev,
+      [newFunctionIndex]: 'simple'
+    }));
+    
+    setShowFunctionDropdown(false);
+  };
+
   const savePresetFunction = () => {
     if (configuringPreset === 'calcom') {
       const calcomFunction = {
@@ -961,6 +1027,23 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                     <div>
                       <div className="text-sm font-medium text-gray-900">Cal.com Get Bookings</div>
                       <div className="text-xs text-gray-500">Retrieve existing bookings (requires API key)</div>
+                    </div>
+                  </button>
+
+                  <div className="border-t border-gray-100 my-2"></div>
+                  
+                  <button
+                    onClick={addCustomFunction}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100">
+                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Custom Function</div>
+                      <div className="text-xs text-gray-500">Create your own API integration</div>
                     </div>
                   </button>
                 </div>
@@ -1271,74 +1354,77 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                         >
                           Configure
                         </button>
-                        <button
-                          onClick={() => {
-                            setEditingFunction(index);
-                            setTestingFunction(index); // Set to Test mode
-                            setFunctionConfig({
-                              name: func.name,
-                              description: func.description,
-                              parameters: func.parameters,
-                              headers: (func as any).headers || {},
-                              body: (func as any).body || {},
-                              url: (func as any).url || '',
-                              method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
-                            });
-                            // Initialize test params with default values
-                            const initialParams: Record<string, any> = {};
-                            if (func.parameters?.properties) {
-                              Object.entries(func.parameters.properties).forEach(([key, param]: [string, any]) => {
-                                // First priority: use the parameter's default value if it exists
-                                if (param.default !== undefined && param.default !== '') {
-                                  initialParams[key] = param.default;
-                                } else if (key === 'timezone') {
-                                  initialParams[key] = 'America/New_York';
-                                } else if (key === 'language') {
-                                  initialParams[key] = 'en';
-                                } else if (key.includes('email')) {
-                                  initialParams[key] = 'test@example.com';
-                                } else if (key.includes('name')) {
-                                  initialParams[key] = 'John Doe';
-                                } else if (key.includes('phone')) {
-                                  initialParams[key] = '+1234567890';
-                                } else if (key.includes('time') || key.includes('date') || key.includes('start')) {
-                                  const futureDate = new Date();
-                                  futureDate.setDate(futureDate.getDate() + 1);
-                                  futureDate.setHours(14, 0, 0, 0); // 2 PM tomorrow
-                                  initialParams[key] = futureDate.toISOString();
-                                } else if (param.type === 'object') {
-                                  if (key === 'metadata') {
-                                    initialParams[key] = { source: 'voice_agent', test: true };
-                                  } else if (key.includes('custom_field')) {
-                                    initialParams[key] = { field1: 'value1' };
-                                  } else {
-                                    initialParams[key] = param.default || {};
-                                  }
-                                } else if (param.type === 'array') {
-                                  if (key.includes('email') || key.includes('guest')) {
-                                    initialParams[key] = [];
-                                  } else {
-                                    initialParams[key] = param.default || [];
-                                  }
-                                } else if (param.type === 'integer' || param.type === 'number') {
-                                  if (key.includes('duration')) {
-                                    initialParams[key] = 30;
-                                  } else if (key.includes('id')) {
-                                    initialParams[key] = 123456;
-                                  } else {
-                                    initialParams[key] = param.default || 0;
-                                  }
-                                } else {
-                                  initialParams[key] = param.default || '';
-                                }
+                        {/* Only show test button for preset integrations, not custom functions */}
+                        {!func.name.includes('custom_function') && (
+                          <button
+                            onClick={() => {
+                              setEditingFunction(index);
+                              setTestingFunction(index); // Set to Test mode
+                              setFunctionConfig({
+                                name: func.name,
+                                description: func.description,
+                                parameters: func.parameters,
+                                headers: (func as any).headers || {},
+                                body: (func as any).body || {},
+                                url: (func as any).url || '',
+                                method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
                               });
-                            }
-                            setTestParams(initialParams);
-                          }}
-                          className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
-                        >
-                          Test
-                        </button>
+                              // Initialize test params with default values
+                              const initialParams: Record<string, any> = {};
+                              if (func.parameters?.properties) {
+                                Object.entries(func.parameters.properties).forEach(([key, param]: [string, any]) => {
+                                  // First priority: use the parameter's default value if it exists
+                                  if (param.default !== undefined && param.default !== '') {
+                                    initialParams[key] = param.default;
+                                  } else if (key === 'timezone') {
+                                    initialParams[key] = 'America/New_York';
+                                  } else if (key === 'language') {
+                                    initialParams[key] = 'en';
+                                  } else if (key.includes('email')) {
+                                    initialParams[key] = 'test@example.com';
+                                  } else if (key.includes('name')) {
+                                    initialParams[key] = 'John Doe';
+                                  } else if (key.includes('phone')) {
+                                    initialParams[key] = '+1234567890';
+                                  } else if (key.includes('time') || key.includes('date') || key.includes('start')) {
+                                    const futureDate = new Date();
+                                    futureDate.setDate(futureDate.getDate() + 1);
+                                    futureDate.setHours(14, 0, 0, 0); // 2 PM tomorrow
+                                    initialParams[key] = futureDate.toISOString();
+                                  } else if (param.type === 'object') {
+                                    if (key === 'metadata') {
+                                      initialParams[key] = { source: 'voice_agent', test: true };
+                                    } else if (key.includes('custom_field')) {
+                                      initialParams[key] = { field1: 'value1' };
+                                    } else {
+                                      initialParams[key] = param.default || {};
+                                    }
+                                  } else if (param.type === 'array') {
+                                    if (key.includes('email') || key.includes('guest')) {
+                                      initialParams[key] = [];
+                                    } else {
+                                      initialParams[key] = param.default || [];
+                                    }
+                                  } else if (param.type === 'integer' || param.type === 'number') {
+                                    if (key.includes('duration')) {
+                                      initialParams[key] = 30;
+                                    } else if (key.includes('id')) {
+                                      initialParams[key] = 123456;
+                                    } else {
+                                      initialParams[key] = param.default || 0;
+                                    }
+                                  } else {
+                                    initialParams[key] = param.default || '';
+                                  }
+                                });
+                              }
+                              setTestParams(initialParams);
+                            }}
+                            className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                          >
+                            Test
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             const updatedFunctions = (projectConfig.customFunctions || []).filter((_: any, i: number) => i !== index);

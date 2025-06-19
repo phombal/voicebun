@@ -366,6 +366,16 @@ export interface ProjectData {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  
+  // Community Publishing Fields
+  project_emoji?: string;
+  project_photo?: string;
+  public_title?: string;
+  public_description?: string;
+  public_welcome_message?: string;
+  show_branding?: boolean;
+  custom_branding_text?: string;
+  custom_branding_url?: string;
 }
 
 // Configuration input type (without metadata fields)
@@ -408,6 +418,16 @@ export interface ProjectDataConfig {
   webhooks_enabled?: boolean;
   webhook_url?: string;
   webhook_events?: string[];
+  
+  // Community Publishing Fields
+  project_emoji?: string;
+  project_photo?: string;
+  public_title?: string;
+  public_description?: string;
+  public_welcome_message?: string;
+  show_branding?: boolean;
+  custom_branding_text?: string;
+  custom_branding_url?: string;
 }
 
 // Request types for creating entities

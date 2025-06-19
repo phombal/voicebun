@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
 
     console.log('🤖 Generating system prompt for:', user_prompt);
 
-    const systemPromptGenerationPrompt = `You are an expert at creating detailed system prompts for AI voice agents. 
+    const systemPromptGenerationPrompt = `You are an expert at creating detailed system prompts and welcome messages for AI voice agents. 
 
-Create a comprehensive system prompt for a voice agent based on this user description: "${user_prompt}"
+Create a comprehensive system prompt and welcome message for a voice agent based on this user description: "${user_prompt}"
 
 The system prompt should:
 - Be detailed and specific to the user's request
@@ -32,13 +32,24 @@ The system prompt should:
 - Be professional yet engaging
 - Include specific examples of how to handle common scenarios
 
+The welcome message should:
+- Be a brief, friendly greeting (1-2 sentences)
+- Introduce the agent's purpose clearly
+- Be warm and inviting
+- Set expectations for what the agent can help with
+- Be natural for voice delivery (avoid complex punctuation)
+
 Context: ${context}
 Tone: ${tone}
 Domain: ${domain}
 
-IMPORTANT: Return ONLY the system prompt content without any headers, markers, or formatting like "[System Prompt Start]", "[System Prompt End]", "**System Prompt**:", or similar. The response should be ready to use directly as instructions for the voice agent.
+IMPORTANT: Please format your response as JSON with the following structure:
+{
+  "system_prompt": "The detailed system prompt content here...",
+  "welcome_message": "The brief welcome message here..."
+}
 
-The prompt should be between 800-1500 characters and ready to use directly in a voice agent system.`;
+Return ONLY the JSON response without any markdown formatting, headers, or additional text. The system prompt should be between 800-1500 characters and the welcome message should be 1-2 sentences (50-150 characters).`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -49,21 +60,47 @@ The prompt should be between 800-1500 characters and ready to use directly in a 
         },
         {
           role: 'user',
-          content: `Generate a system prompt for: ${user_prompt}`
+          content: `Generate a system prompt and welcome message for: ${user_prompt}`
         }
       ],
-      max_tokens: 800,
+      max_tokens: 1000,
       temperature: 0.7,
     });
 
-    const generatedSystemPrompt = completion.choices[0]?.message?.content;
+    const generatedContent = completion.choices[0]?.message?.content;
 
-    if (!generatedSystemPrompt) {
-      throw new Error('Failed to generate system prompt');
+    if (!generatedContent) {
+      throw new Error('Failed to generate system prompt and welcome message');
     }
 
-    // Clean up the generated system prompt by removing unwanted formatting
-    const cleanedSystemPrompt = generatedSystemPrompt
+    // Parse the JSON response
+    let parsedContent;
+    try {
+      parsedContent = JSON.parse(generatedContent);
+    } catch (parseError) {
+      // Fallback: try to extract system prompt and welcome message manually
+      console.warn('Failed to parse JSON response, attempting manual extraction');
+      
+      // Try to find system_prompt and welcome_message in the response
+      const systemPromptMatch = generatedContent.match(/"system_prompt":\s*"([^"]+)"/);
+      const welcomeMessageMatch = generatedContent.match(/"welcome_message":\s*"([^"]+)"/);
+      
+      if (systemPromptMatch && welcomeMessageMatch) {
+        parsedContent = {
+          system_prompt: systemPromptMatch[1],
+          welcome_message: welcomeMessageMatch[1]
+        };
+      } else {
+        // Last resort: split content or use original logic for system prompt only
+        parsedContent = {
+          system_prompt: generatedContent.trim(),
+          welcome_message: "Hello! I'm here to help you. How can I assist you today?"
+        };
+      }
+    }
+
+    // Clean up the generated content
+    const cleanedSystemPrompt = (parsedContent.system_prompt || '')
       .replace(/\[System Prompt Start\]/gi, '')
       .replace(/\[System Prompt End\]/gi, '')
       .replace(/\[System Prompt for.*?\]/gi, '')
@@ -71,20 +108,26 @@ The prompt should be between 800-1500 characters and ready to use directly in a 
       .replace(/^\*\*Role:\*\*.*?\n/gi, '')
       .trim();
 
+    const cleanedWelcomeMessage = (parsedContent.welcome_message || '')
+      .replace(/^\*\*Welcome Message\*\*:?\s*/gi, '')
+      .trim();
+
     const response = {
       system_prompt: cleanedSystemPrompt,
+      welcome_message: cleanedWelcomeMessage,
       original_prompt: user_prompt,
       metadata: {
         tone,
         domain,
         context,
         model_used: 'gpt-4o',
-        prompt_length: cleanedSystemPrompt.length,
+        system_prompt_length: cleanedSystemPrompt.length,
+        welcome_message_length: cleanedWelcomeMessage.length,
         tokens_used: completion.usage?.total_tokens || 0
       }
     };
 
-    console.log('✅ Generated system prompt successfully');
+    console.log('✅ Generated system prompt and welcome message successfully');
     return NextResponse.json(response);
 
   } catch (error) {
@@ -92,7 +135,7 @@ The prompt should be between 800-1500 characters and ready to use directly in a 
     
     return NextResponse.json(
       { 
-        error: 'Failed to generate system prompt',
+        error: 'Failed to generate system prompt and welcome message',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }

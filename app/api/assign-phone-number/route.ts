@@ -370,42 +370,14 @@ export async function POST(request: NextRequest) {
           
           // Create metadata with latest project configuration
           const roomMetadata = {
-            projectId: body.projectId,
-            userId: body.userId,
-            agentConfig: {
-              prompt: latestProjectData?.system_prompt || 'You are a helpful voice assistant.'
-            },
-            modelConfigurations: {
-              // LLM Configuration
-              llm: {
-                provider: latestProjectData?.llm_provider || 'openai',
-                model: latestProjectData?.llm_model || 'gpt-4o-mini',
-                temperature: latestProjectData?.llm_temperature || 0.7,
-                maxResponseLength: latestProjectData?.llm_max_response_length || 300
-              },
-              // STT Configuration
-              stt: {
-                provider: latestProjectData?.stt_provider || 'deepgram',
-                language: latestProjectData?.stt_language || 'en',
-                quality: latestProjectData?.stt_quality || 'enhanced',
-                processingMode: latestProjectData?.stt_processing_mode || 'streaming',
-                noiseSuppression: latestProjectData?.stt_noise_suppression ?? true,
-                autoPunctuation: latestProjectData?.stt_auto_punctuation ?? true
-              },
-              // TTS Configuration
-              tts: {
-                provider: latestProjectData?.tts_provider || 'cartesia',
-                voice: latestProjectData?.tts_voice || 'neutral'
-              },
-              // Additional configurations
-              firstMessageMode: latestProjectData?.first_message_mode || 'wait',
-              responseLatencyPriority: latestProjectData?.response_latency_priority || 'balanced'
-            },
-            phoneNumber: phoneNumber.phone_number,
-            timestamp: new Date().toISOString()
+            projectId: body.projectId
           };
 
-          console.log('📋 Room metadata to be set:', JSON.stringify(roomMetadata, null, 2));
+          console.log('📋 Simplified room metadata (agent will fetch config from Supabase):', {
+            projectId: body.projectId,
+            metadataSize: JSON.stringify(roomMetadata).length,
+            note: 'Only sending projectId - agent backend pulls full config from database'
+          });
 
           // Check for existing dispatch rule
           const existingRules = await sipClient.listSipDispatchRule();

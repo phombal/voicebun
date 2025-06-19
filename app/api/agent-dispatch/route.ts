@@ -35,56 +35,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get project configuration for the metadata
-    let projectData = null;
-    try {
-      projectData = await db.getProjectDataWithServiceRole(projectId);
-      console.log('🔍 Project data retrieved:', projectData ? 'Found' : 'Not found');
-    } catch (dbError) {
-      console.error('❌ Failed to get project data:', dbError);
-      // Continue without project data - use provided metadata
-    }
-
-    // Create enhanced metadata with project configuration
+    // Create simplified metadata with only projectId (agent backend will pull data from Supabase)
     const enhancedMetadata = {
-      projectId,
-      userId: body.userId,
-      agentConfig: {
-        prompt: projectData?.system_prompt || metadata?.agentConfig?.prompt || 'You are a helpful voice assistant.'
-      },
-      modelConfigurations: {
-        llm: {
-          provider: projectData?.llm_provider || 'openai',
-          model: projectData?.llm_model || 'gpt-4o-mini',
-          temperature: projectData?.llm_temperature || 0.7,
-          maxResponseLength: projectData?.llm_max_response_length || 300
-        },
-        stt: {
-          provider: projectData?.stt_provider || 'deepgram',
-          language: projectData?.stt_language || 'en',
-          quality: projectData?.stt_quality || 'enhanced',
-          processingMode: projectData?.stt_processing_mode || 'streaming',
-          noiseSuppression: projectData?.stt_noise_suppression ?? true,
-          autoPunctuation: projectData?.stt_auto_punctuation ?? true
-        },
-        tts: {
-          provider: projectData?.tts_provider || 'cartesia',
-          voice: projectData?.tts_voice || 'neutral'
-        },
-        firstMessageMode: projectData?.first_message_mode || 'wait',
-        responseLatencyPriority: projectData?.response_latency_priority || 'balanced'
-      },
-      timestamp: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
-      ...metadata // Include any additional metadata passed from the client
+      projectId
     };
 
-    console.log('📋 Enhanced metadata prepared:', {
+    console.log('📋 Simplified metadata prepared (agent will fetch config from Supabase):', {
       projectId,
-      llmModel: enhancedMetadata.modelConfigurations.llm.model,
-      sttProvider: enhancedMetadata.modelConfigurations.stt.provider,
-      ttsProvider: enhancedMetadata.modelConfigurations.tts.provider,
-      metadataSize: JSON.stringify(enhancedMetadata).length
+      metadataSize: JSON.stringify(enhancedMetadata).length,
+      note: 'Only sending projectId - agent backend pulls full config from database'
     });
 
     // Generate JWT token for LiveKit API authentication
