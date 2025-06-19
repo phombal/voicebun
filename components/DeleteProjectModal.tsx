@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LoadingSpinner } from './LoadingBun';
 
 interface DeleteProjectModalProps {
   isOpen: boolean;
@@ -117,7 +118,7 @@ export default function DeleteProjectModal({
                 >
                   {isDeleting ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      <LoadingSpinner size="md" color="white" className="mr-2" />
                       Deleting...
                     </>
                   ) : (

@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { Project, VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
 import { GeneratedCodeDisplay } from '@/components/GeneratedCodeDisplay';
+import { LoadingBun } from '@/components/LoadingBun';
 
 export default function ProjectPage() {
   const { user, loading } = useAuth();
@@ -114,14 +115,7 @@ if __name__ == "__main__":
   };
 
   if (loading || loadingProject) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading project...</p>
-        </div>
-      </div>
-    );
+    return <LoadingBun message="Loading project..." />;
   }
 
   if (!user || !project || !config) {

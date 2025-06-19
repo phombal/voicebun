@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { LoadingSpinner } from './LoadingBun';
 
 export interface VoiceAgentConfig {
   prompt: string;
@@ -247,7 +248,7 @@ Generate the complete agent code with proper structure following the latest Live
         >
           {isGenerating ? (
             <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+              <LoadingSpinner size="lg" color="white" className="mr-2" />
               Generating Agent Code...
             </div>
           ) : (

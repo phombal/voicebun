@@ -25,6 +25,7 @@ import type { ConnectionDetails } from "./api/connection-details/route";
 import { useDatabase } from "@/hooks/useDatabase";
 import { useRouter } from "next/navigation";
 import { ClientDatabaseService } from "@/lib/database/client-service";
+import { LoadingBun, LoadingPageWithTips } from '@/components/LoadingBun';
 
 // Audio bars visualization component
 function AudioBars() {
@@ -119,96 +120,6 @@ interface Project {
   };
 }
 
-// Loading page component with animated logo and tips
-function LoadingPage() {
-  const [currentTip, setCurrentTip] = useState(0);
-  
-  const tips = [
-    "💡 Tip: Be specific in your voice agent description for better results",
-    "🎯 Tip: You can customize personality, language, and response style",
-    "🔊 Tip: Test your agent with different conversation scenarios",
-    "⚡ Tip: Use example prompts to get started quickly",
-    "🤖 Tip: Your agent will remember context throughout conversations",
-    "📝 Tip: Generated code includes all necessary dependencies",
-    "🎨 Tip: Agents can handle multiple languages and accents",
-    "🔧 Tip: You can modify the generated code after creation"
-  ];
-
-  // Rotate tips every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTip((prev) => (prev + 1) % tips.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [tips.length]);
-
-    return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="min-h-screen flex flex-col items-center justify-center bg-gray-800"
-      style={{ 
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-      }}
-    >
-        <div className="text-center">
-        {/* Animated VoiceBun Logo */}
-        <motion.div
-          animate={{ 
-            x: [-20, 20, -20],
-          }}
-          transition={{ 
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="mb-8"
-        >
-          <img 
-            src="/VoiceBun-BunOnly.png" 
-            alt="VoiceBun" 
-            className="h-24 w-auto mx-auto"
-          />
-        </motion.div>
-
-        {/* Loading Dots */}
-        <div className="flex justify-center space-x-2 mb-8">
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={i}
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.5, 1, 0.5]
-              }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                delay: i * 0.2
-              }}
-              className="w-3 h-3 bg-white rounded-full"
-            />
-          ))}
-        </div>
-
-        {/* Rotating Tips */}
-        <motion.div
-          key={currentTip}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-md mx-auto"
-        >
-          <p className="text-white/90 text-lg leading-relaxed">
-            {tips[currentTip]}
-          </p>
-        </motion.div>
-      </div>
-    </motion.div>
-    );
-  }
-
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -248,14 +159,7 @@ export default function LandingPage() {
   ];
 
   if (loading) {
-  return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingBun />;
   }
 
   // Show landing page for unauthenticated users

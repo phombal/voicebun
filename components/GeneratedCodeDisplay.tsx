@@ -24,6 +24,7 @@ import { VideoPresets } from "livekit-client";
 import { PhoneNumberManager } from './PhoneNumberManager';
 import { Edit2, Check, X } from 'lucide-react';
 import { ClientDatabaseService } from '@/lib/database/client-service';
+import { LoadingSpinner } from './LoadingBun';
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -1246,9 +1247,37 @@ For now, you can still manually configure your voice agent using the tabs above.
   };
 
   // Handle test agent button click - show modal to choose test type
-  const handleTestAgentClick = () => {
+  const handleTestAgentClick = async () => {
     setTestType(null); // Reset to show choice popup
     setShowTestTypeModal(true);
+    
+    // Load available phone numbers immediately for the info box
+    try {
+      let projectToUse = project || currentProject;
+      
+      if (!projectToUse && createProject) {
+        projectToUse = await createProject(
+          `Voice Agent - ${config.prompt.substring(0, 50)}${config.prompt.length > 50 ? '...' : ''}`,
+          `Generated voice agent based on: ${config.prompt}`,
+          config.prompt,
+          config,
+          code
+        );
+      }
+
+      if (projectToUse) {
+        const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
+        setAvailablePhoneNumbers(phoneNumbers || []);
+        
+        // Set the first phone number as default selection
+        if (phoneNumbers && phoneNumbers.length > 0) {
+          setSelectedFromPhoneNumber(phoneNumbers[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to load phone numbers:', error);
+      setAvailablePhoneNumbers([]);
+    }
   };
 
   // Handle test type selection
@@ -1262,33 +1291,7 @@ For now, you can still manually configure your voice agent using the tabs above.
         console.error('🔥 Unhandled error in startConversation:', err);
       });
     } else if (type === 'outbound') {
-      // Load available phone numbers for dropdown
-      try {
-        let projectToUse = project || currentProject;
-        
-        if (!projectToUse && createProject) {
-          projectToUse = await createProject(
-            `Voice Agent - ${config.prompt.substring(0, 50)}${config.prompt.length > 50 ? '...' : ''}`,
-            `Generated voice agent based on: ${config.prompt}`,
-            config.prompt,
-            config,
-            code
-          );
-        }
-
-        if (projectToUse) {
-          const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
-          setAvailablePhoneNumbers(phoneNumbers || []);
-          
-          // Set the first phone number as default selection
-          if (phoneNumbers && phoneNumbers.length > 0) {
-            setSelectedFromPhoneNumber(phoneNumbers[0].id);
-          }
-        }
-      } catch (error) {
-        console.error('❌ Failed to load phone numbers:', error);
-        setAvailablePhoneNumbers([]);
-      }
+      // Phone numbers are already loaded when modal opened
       // Modal stays open for phone number input
     }
   };
@@ -1655,7 +1658,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                   transition={{ duration: 0.3, delay: 0.1 }}
                   className="flex items-center justify-center text-white text-lg"
                 >
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  <LoadingSpinner size="lg" color="white" className="mr-2" />
                   Creating Agent Session...
                 </motion.div>
               ) : (
@@ -2017,7 +2020,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                           title="Save title"
                         >
                           {isUpdatingTitle ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400"></div>
+                            <LoadingSpinner size="md" color="green" />
                           ) : (
                             <Check className="w-4 h-4" />
                           )}
@@ -2082,7 +2085,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 </div>
                 <div className="max-w-[95%]">
                   <div className="flex items-center space-x-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-400 border-t-transparent"></div>
+                    <LoadingSpinner size="lg" color="blue" className="mr-2" />
                     <span className="text-sm text-white/90">Thinking...</span>
                   </div>
                 </div>
@@ -2182,7 +2185,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                           title="Save title"
                         >
                           {isUpdatingTitle ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400"></div>
+                            <LoadingSpinner size="md" color="green" />
                           ) : (
                             <Check className="w-4 h-4" />
                           )}
@@ -2278,7 +2281,7 @@ For now, you can still manually configure your voice agent using the tabs above.
               >
                 {isSavingConfig ? (
                   <>
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-black"></div>
+                    <LoadingSpinner size="sm" color="black" />
                     <span className="hidden sm:inline">Saving...</span>
                   </>
                 ) : (
@@ -2293,7 +2296,7 @@ For now, you can still manually configure your voice agent using the tabs above.
               >
                 {isPublishing ? (
                   <>
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    <LoadingSpinner size="sm" color="white" />
                     <span className="hidden sm:inline">Publishing...</span>
                   </>
                 ) : (
@@ -2309,7 +2312,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 >
                   {isConnecting ? (
                     <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                      <LoadingSpinner size="sm" color="white" />
                       <span className="hidden sm:inline">Connecting...</span>
                     </>
                   ) : (
@@ -2952,9 +2955,50 @@ For now, you can still manually configure your voice agent using the tabs above.
             
             {testType === null ? (
               <div className="space-y-4">
-                <p className="text-gray-600 mb-6">How would you like to test your agent?</p>
+                <p className="text-gray-600 mb-4">How would you like to test your agent?</p>
                 
                 <div className="space-y-3">
+                  {/* Quick Test Option - styled like other options */}
+                  {availablePhoneNumbers.length > 0 && (
+                    <div className="w-full p-4 border-2 border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">Call Your Agent</h4>
+                          <p className="text-sm text-gray-500">Call your assigned number directly</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {availablePhoneNumbers.map((phoneNumber) => (
+                              <span key={phoneNumber.id} className="text-xs font-mono text-gray-700 bg-gray-200 px-2 py-1 rounded">
+                                {phoneNumber.phone_number}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+<button
+                    onClick={() => handleTestTypeSelection('outbound')}
+                    className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200">
+                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">Have the Agent Call You</h4>
+                        <p className="text-sm text-gray-500">Test by calling your phone number</p>
+                      </div>
+                    </div>
+                  </button>
+                  
                   <button
                     onClick={() => handleTestTypeSelection('web')}
                     className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group"
@@ -2972,22 +3016,6 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </div>
                   </button>
                   
-                  <button
-                    onClick={() => handleTestTypeSelection('outbound')}
-                    className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200">
-                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">Outbound Phone Call</h4>
-                        <p className="text-sm text-gray-500">Test by calling your phone number</p>
-                      </div>
-                    </div>
-                  </button>
                 </div>
                 
                 <div className="flex justify-end mt-6">
@@ -3110,7 +3138,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white rounded-lg transition-colors flex items-center space-x-2"
                   >
                     {isLoadingOutboundTest && (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <LoadingSpinner size="md" color="white" />
                     )}
                     <span>{isLoadingOutboundTest ? 'Calling...' : 'Call Me'}</span>
                   </button>

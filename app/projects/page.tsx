@@ -9,6 +9,7 @@ import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
 import UserProfile from '@/components/auth/UserProfile';
 import DeleteProjectModal from '@/components/DeleteProjectModal';
+import { LoadingBun } from '@/components/LoadingBun';
 
 interface Project {
   id: string;
@@ -197,16 +198,7 @@ export default function ProjectsPage() {
   };
 
   if (loading || (user && loadingProjects)) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center" style={{ 
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-      }}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white/70">Loading projects...</p>
-        </div>
-      </div>
-    );
+    return <LoadingBun message="Loading projects..." />;
   }
 
   if (!user) {
