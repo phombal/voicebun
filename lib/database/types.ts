@@ -97,6 +97,7 @@ export interface Project {
   initial_prompt: string;
   config: VoiceAgentConfig;
   status: 'active' | 'archived' | 'deleted';
+  visibility: 'public' | 'private';
   created_at: string;
   updated_at: string;
   last_accessed_at: string;
@@ -436,6 +437,7 @@ export interface CreateProjectRequest {
   description?: string;
   initial_prompt: string;
   config: Record<string, unknown>;
+  visibility?: 'public' | 'private';
 }
 
 export interface CreateSessionRequest {

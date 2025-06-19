@@ -44,7 +44,8 @@ export class DatabaseService {
         name: request.name,
         description: request.description || null,
         initial_prompt: request.initial_prompt,
-        config: request.config
+        config: request.config,
+        visibility: request.visibility || 'private'
       })
       .select()
       .single();

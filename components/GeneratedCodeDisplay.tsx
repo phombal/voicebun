@@ -114,7 +114,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   useEffect(() => {
     console.log('🔄 STATE CHANGE - activeTab:', activeTab);
   }, [activeTab]);
-  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'functions' | 'publish' | 'other'>('instructions');
+  const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'functions' | 'other'>('instructions');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
@@ -2319,16 +2319,6 @@ For now, you can still manually configure your voice agent using the tabs above.
               >
                 Functions
               </button>
-              <button
-                onClick={() => setActiveMenu('publish')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  activeMenu === 'publish' 
-                    ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                Publish
-              </button>
               </div>
 
               {/* Mobile Menu Button */}
@@ -2347,7 +2337,7 @@ For now, you can still manually configure your voice agent using the tabs above.
             
             {/* Action buttons - reorganized for mobile */}
             <div className="flex items-center space-x-2">
-              <button 
+              <button
                 onClick={saveProjectConfiguration}
                 disabled={isSavingConfig}
                 className="px-3 py-1.5 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
@@ -2491,24 +2481,6 @@ For now, you can still manually configure your voice agent using the tabs above.
                       <span>Functions</span>
                     </div>
                   </button>
-                  <button
-                    onClick={() => {
-                      setActiveMenu('publish');
-                      setShowMobileMenu(false);
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                      activeMenu === 'publish' 
-                        ? 'bg-white text-black' 
-                        : 'text-white/70 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                      </svg>
-                      <span>Publish</span>
-                    </div>
-                  </button>
                 </div>
               </div>
             </div>
@@ -2568,6 +2540,39 @@ For now, you can still manually configure your voice agent using the tabs above.
                         className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
                         placeholder="Hello! I'm here to help you with..."
                       />
+                      
+                      {/* Assistant Speaks First Toggle */}
+                      <div className="flex items-center justify-between p-4 bg-white/5 border border-white/20 rounded-lg">
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium text-white">
+                            Assistant speaks first
+                          </label>
+                          <span className="text-xs text-white/60 mt-1">
+                            When enabled, the assistant will greet users immediately when they call
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setProjectConfig(prev => ({ 
+                            ...prev, 
+                            firstMessageMode: prev.firstMessageMode === 'wait' ? 'speak_first' : 'wait'
+                          }))}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            projectConfig.firstMessageMode !== 'wait' 
+                              ? 'bg-green-600' 
+                              : 'bg-white/20'
+                          }`}
+                          aria-pressed={projectConfig.firstMessageMode !== 'wait'}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              projectConfig.firstMessageMode !== 'wait' 
+                                ? 'translate-x-6' 
+                                : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2914,186 +2919,6 @@ For now, you can still manually configure your voice agent using the tabs above.
                 setProjectConfig={setProjectConfig}
                 projectId={project?.id || currentProject?.id || ''}
               />
-            ) : activeMenu === 'publish' ? (
-              <div className="h-full bg-black p-6 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-8">
-                  {/* Community Publishing */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                      </svg>
-                      Publish to Community
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      <p className="text-white/70">
-                        Share your voice agent with the community. Configure how it appears in the community gallery.
-                      </p>
-                      
-                      {/* Agent Avatar Section */}
-                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                        <h4 className="text-lg font-medium text-white mb-4">Agent Avatar</h4>
-                        <div className="flex items-center justify-center space-x-8">
-                          {/* Emoji Selector */}
-                          <div className="relative">
-                            <label className="block text-sm font-medium text-white mb-2 text-center">Choose Emoji</label>
-                            <button
-                              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors flex items-center space-x-2"
-                            >
-                              <span className="text-lg">{projectConfig.projectEmoji}</span>
-                              <span>Choose Emoji</span>
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            
-                            {/* Emoji Picker Dropdown */}
-                            {showEmojiPicker && (
-                              <div 
-                                ref={emojiPickerRef}
-                                className="absolute top-full left-0 mt-2 w-80 max-h-40 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-3 z-10 overflow-y-auto"
-                              >
-                                <div className="grid grid-cols-8 gap-2">
-                                  {commonEmojis.map((emoji, index) => (
-                                    <button
-                                      key={index}
-                                      onClick={() => {
-                                        setProjectConfig(prev => ({ ...prev, projectEmoji: emoji, projectPhoto: null }));
-                                        setShowEmojiPicker(false);
-                                      }}
-                                      className="w-8 h-8 text-lg hover:bg-white/20 rounded transition-colors flex items-center justify-center"
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Photo Upload */}
-                          <div>
-                            <label className="block text-sm font-medium text-white mb-2 text-center">Upload Photo</label>
-                            <div className="flex flex-col items-center space-y-3">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handlePhotoUpload(file);
-                                }}
-                                className="hidden"
-                                id="photo-upload"
-                              />
-                              <label
-                                htmlFor="photo-upload"
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition-colors flex items-center space-x-2"
-                              >
-                                {isUploadingPhoto ? (
-                                  <>
-                                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                    <span>Uploading...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                    </svg>
-                                    <span>Upload Photo</span>
-                                  </>
-                                )}
-                              </label>
-                              {projectConfig.projectPhoto && (
-                                <button
-                                  onClick={removeProjectPhoto}
-                                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
-                                >
-                                  Remove
-                                </button>
-                              )}
-                              <p className="text-xs text-white/60 text-center">Max 5MB, JPG or PNG</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Public Information */}
-                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                        <h4 className="text-lg font-medium text-white mb-4">Public Information</h4>
-                        <div className="space-y-4">
-                          {/* Public Title */}
-                          <div>
-                            <label className="block text-sm font-medium text-white mb-2">
-                              Public Title <span className="text-white/60">(shown in community)</span>
-                            </label>
-                            <input
-                              type="text"
-                              value={projectConfig.publicTitle}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, publicTitle: e.target.value }))}
-                              placeholder="Give your agent a catchy public title..."
-                              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          </div>
-                          
-                          {/* Public Description */}
-                          <div>
-                            <label className="block text-sm font-medium text-white mb-2">
-                              Public Description <span className="text-white/60">(what does your agent do?)</span>
-                            </label>
-                            <textarea
-                              value={projectConfig.publicDescription}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, publicDescription: e.target.value }))}
-                              placeholder="Describe what your voice agent does and how it can help users..."
-                              rows={3}
-                              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Publish Actions */}
-                      <div className="bg-white/5 rounded-lg p-6 border border-white/10">
-                        <h4 className="text-lg font-medium text-white mb-3">Ready to Share</h4>
-                        <p className="text-white/60 text-sm mb-4">
-                          Publish your agent to the community gallery for others to discover and use.
-                        </p>
-                        <div className="flex justify-center">
-                          <button 
-                            onClick={saveProjectConfiguration}
-                            disabled={isSavingConfig || !projectConfig.publicTitle || !projectConfig.publicDescription}
-                            className="px-8 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
-                          >
-                            {isSavingConfig ? (
-                              <>
-                                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                <span>Publishing...</span>
-                              </>
-                            ) : (
-                              <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                                </svg>
-                                <span>Publish</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        {(!projectConfig.publicTitle || !projectConfig.publicDescription) && (
-                          <p className="text-amber-400 text-xs mt-3 text-center">
-                            Please fill in the public title and description before publishing.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             ) : (
               <div className="h-full flex items-center justify-center bg-black">
                 <div className="text-center space-y-6 p-8 max-w-md mx-auto">

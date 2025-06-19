@@ -26,7 +26,8 @@ export function useDatabase() {
     description: string,
     prompt: string,
     config: VoiceAgentConfigType,
-    generatedCode: string
+    generatedCode: string,
+    visibility: 'public' | 'private' = 'private'
   ): Promise<Project> => {
     if (!user) throw new Error('User not authenticated');
 
@@ -61,7 +62,8 @@ export function useDatabase() {
         name,
         description,
         initial_prompt: prompt,
-        config: config as any
+        config: config as any,
+        visibility
       });
 
       pendingProjectCreations.set(rapidDuplicateKey, creationPromise);

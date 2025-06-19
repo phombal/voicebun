@@ -110,6 +110,7 @@ function DashboardContent() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
   const { getUserProjects, createProject, createProjectData } = useDatabase();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -297,7 +298,8 @@ if __name__ == "__main__":
         projectDescription,
         config.prompt,
         config,
-        basicCode
+        basicCode,
+        isPublic ? 'public' : 'private'
       );
       
       console.log('✅ Created project in database:', project.id);
@@ -329,7 +331,16 @@ if __name__ == "__main__":
         custom_functions: [],
         webhooks_enabled: false,
         webhook_url: null,
-        webhook_events: []
+        webhook_events: [],
+        
+        // Public visibility settings
+        is_public: isPublic,
+        public_title: isPublic ? projectName : null,
+        public_description: isPublic ? prompt.trim() : null,
+        public_welcome_message: isPublic ? generatedWelcomeMessage : null,
+        show_branding: true,
+        custom_branding_text: null,
+        custom_branding_url: null
       };
       
       await createProjectData(project.id, initialProjectData);
@@ -347,7 +358,7 @@ if __name__ == "__main__":
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt, createProject, createProjectData, router]);
+  }, [prompt, createProject, createProjectData, router, isPublic]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -454,6 +465,18 @@ if __name__ == "__main__":
                 </div>
                 
                 <button
+                  onClick={() => setIsPublic(!isPublic)}
+                  disabled={isGenerating}
+                  className={`px-4 py-2 rounded-full font-medium text-sm transition-all duration-200 ${
+                    isPublic 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {isPublic ? '🌍 Public' : '🔒 Private'}
+                </button>
+                
+                <button
                   onClick={generateAgent}
                   disabled={!prompt.trim() || isGenerating}
                   className="w-10 h-10 bg-black hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
@@ -469,7 +492,6 @@ if __name__ == "__main__":
               </div>
             </div>
           </motion.div>
-
           {/* Error Display */}
           {error && (
             <motion.div
