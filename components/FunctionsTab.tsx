@@ -158,9 +158,11 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
       
       console.log('Functions and complete project configuration saved successfully to database');
     } catch (error) {
-      console.error('Failed to save functions to database:', error);
-      // Don't throw the error - just log it so the UI doesn't break
-      // The functions will still work in the current session
+      console.error('❌ Failed to save project configuration:', error);
+      console.error('❌ Error details:', error);
+      
+      // Throw the error so the UI can show the user what went wrong
+      throw new Error(`Failed to save project configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -944,7 +946,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                       <img src="/cal_logo.jpeg" alt="Cal.com" className="w-8 h-8 object-cover rounded-lg" />
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-900">Cal.com</div>
+                      <div className="text-sm font-medium text-gray-900">Cal.com Make Bookings</div>
                       <div className="text-xs text-gray-500">Schedule meetings (requires API key)</div>
                     </div>
                   </button>
@@ -1969,22 +1971,6 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                 ))}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* How Functions Work */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-          <h4 className="text-lg font-medium text-white mb-4">How Functions Work</h4>
-          <div className="space-y-3 text-white/70 text-sm">
-            <p>Functions allow your voice agent to perform actions by calling external APIs. When a user requests an action that matches a function, the agent will:</p>
-            <ol className="list-decimal list-inside space-y-2 ml-4">
-              <li>Extract required parameters from the conversation</li>
-              <li>Make an HTTP request to the configured endpoint</li>
-              <li>Process the response and inform the user of the result</li>
-            </ol>
-            <p className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-              <strong>Tip:</strong> Use placeholders like <code>{"{{parameter_name}}"}</code> in your URLs and request bodies. They will be automatically replaced with values from the conversation.
-            </p>
           </div>
         </div>
       </div>

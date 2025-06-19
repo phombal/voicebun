@@ -309,16 +309,50 @@ export class DatabaseService {
 
   // Get project data using service role (for server-side operations)
   async getProjectDataWithServiceRole(projectId: string) {
+    console.log('🔍 Getting project data with service role for project:', projectId);
+    
     const { data, error } = await supabaseServiceRole
       .from('project_data')
       .select('*')
       .eq('project_id', projectId)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      console.error('Error fetching project data with service role:', error);
+      console.error('❌ Error fetching project data with service role:', error);
       return null;
+    }
+
+    console.log('📋 Project data query result:', data ? 'Found' : 'Not found');
+    
+    if (!data) {
+      // Debug: Check if any project data exists for this project (without is_active filter)
+      console.log('🔍 No active project data found, checking if any project data exists...');
+      const { data: allData, error: allError } = await supabaseServiceRole
+        .from('project_data')
+        .select('id, project_id, is_active, version, created_at')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+      
+      if (allError) {
+        console.error('❌ Error checking all project data:', allError);
+      } else {
+        console.log('📊 All project data for this project:', allData);
+        if (allData && allData.length > 0) {
+          console.log(`⚠️ Found ${allData.length} project data record(s) but none are active`);
+          console.log('🔍 Active status of records:', allData.map(d => ({ id: d.id, is_active: d.is_active, version: d.version })));
+        } else {
+          console.log('📭 No project data records found at all for this project');
+        }
+      }
+    } else {
+      console.log('✅ Successfully found active project data:', {
+        id: data.id,
+        version: data.version,
+        hasSystemPrompt: !!data.system_prompt,
+        llmProvider: data.llm_provider,
+        llmModel: data.llm_model
+      });
     }
 
     return data;

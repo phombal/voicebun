@@ -163,6 +163,115 @@ async function cleanupExistingDispatchRules(sipClient: SipClient, phoneNumber: s
   }
 }
 
+// Helper function to check if a dispatch rule has the correct configuration
+async function isDispatchRuleCorrect(
+  sipClient: SipClient, 
+  dispatchRuleId: string, 
+  expectedMetadata: any,
+  expectedTrunkIds: string[]
+): Promise<boolean> {
+  try {
+    const rules = await sipClient.listSipDispatchRule();
+    const rule = rules.find(r => r.sipDispatchRuleId === dispatchRuleId);
+    
+    if (!rule) {
+      console.log('🔍 Dispatch rule not found:', dispatchRuleId);
+      return false;
+    }
+
+    // Check trunk IDs
+    const trunkIdsMatch = rule.trunkIds && 
+      rule.trunkIds.length === expectedTrunkIds.length &&
+      rule.trunkIds.every(id => expectedTrunkIds.includes(id));
+
+    if (!trunkIdsMatch) {
+      console.log('🔍 Trunk IDs mismatch:', { current: rule.trunkIds, expected: expectedTrunkIds });
+      return false;
+    }
+
+    // Check metadata
+    if (rule.metadata) {
+      try {
+        const currentMetadata = JSON.parse(rule.metadata);
+        const metadataMatch = 
+          currentMetadata.projectId === expectedMetadata.projectId &&
+          currentMetadata.userId === expectedMetadata.userId &&
+          currentMetadata.phoneNumber === expectedMetadata.phoneNumber;
+
+        if (!metadataMatch) {
+          console.log('🔍 Metadata mismatch detected');
+          return false;
+        }
+      } catch (e) {
+        console.log('🔍 Failed to parse existing metadata');
+        return false;
+      }
+    } else {
+      console.log('🔍 No metadata in existing rule');
+      return false;
+    }
+
+    console.log('✅ Existing dispatch rule is correct');
+    return true;
+  } catch (error: any) {
+    console.error('❌ Error checking dispatch rule:', error);
+    return false;
+  }
+}
+
+// Helper function to update dispatch rule metadata without recreating
+async function updateDispatchRuleMetadata(
+  sipClient: SipClient,
+  dispatchRuleId: string,
+  updatedMetadata: any
+): Promise<string> {
+  try {
+    console.log('🔄 Updating existing dispatch rule metadata:', dispatchRuleId);
+    
+    // For now, we'll delete and recreate since direct metadata update might not be supported
+    // This is more efficient than the current approach because we only do it when needed
+    const rules = await sipClient.listSipDispatchRule();
+    const currentRule = rules.find(r => r.sipDispatchRuleId === dispatchRuleId);
+    
+    if (!currentRule) {
+      throw new Error('Dispatch rule not found for update');
+    }
+
+    // Delete the existing rule
+    await sipClient.deleteSipDispatchRule(dispatchRuleId);
+    console.log('🗑️ Deleted existing dispatch rule for update');
+
+    // Create new rule with updated metadata and same trunk IDs
+    const rule: SipDispatchRuleIndividual = {
+      roomPrefix: "call-",
+      type: 'individual',
+    };
+
+    const newDispatchRule = await sipClient.createSipDispatchRule(
+      rule,
+      {
+        name: currentRule.name || `Dispatch rule for phone number`,
+        roomConfig: new RoomConfiguration({
+          agents: [
+            new RoomAgentDispatch({
+              agentName: 'voice-agent',
+              metadata: JSON.stringify(updatedMetadata)
+            }),
+          ]
+        }),
+        trunkIds: currentRule.trunkIds || [],
+        metadata: JSON.stringify(updatedMetadata)
+      }
+    );
+
+    console.log('✅ Successfully recreated dispatch rule with updated metadata:', newDispatchRule.sipDispatchRuleId);
+    return newDispatchRule.sipDispatchRuleId;
+  } catch (error: any) {
+    console.error('❌ Failed to update dispatch rule metadata:', error);
+    throw error;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Starting dispatch rule metadata update...');
@@ -278,54 +387,87 @@ export async function POST(request: NextRequest) {
     console.log('📋 Updated metadata to be set:', JSON.stringify(updatedMetadata, null, 2));
 
     try {
+      let finalDispatchRuleId: string;
+
       if (phoneNumber.dispatch_rule_id) {
-        // Use comprehensive cleanup to remove all conflicting dispatch rules
-        console.log('🧹 Starting comprehensive cleanup for existing dispatch rules');
-        await cleanupExistingDispatchRules(sipClient, phoneNumber.phone_number, trunkIds);
-      } else {
-        // Even if no dispatch_rule_id is stored, check for any existing rules that might conflict
-        console.log('🔍 No stored dispatch rule ID, but checking for any existing conflicts');
-        await cleanupExistingDispatchRules(sipClient, phoneNumber.phone_number, trunkIds);
-      }
+        console.log('🔍 Checking if existing dispatch rule is correct...');
+        
+        // Check if the existing dispatch rule has correct configuration
+        const isCorrect = await isDispatchRuleCorrect(
+          sipClient,
+          phoneNumber.dispatch_rule_id,
+          updatedMetadata,
+          trunkIds
+        );
 
-      // Create new dispatch rule with proper trunk association
-      console.log('🆕 Creating new dispatch rule for phone number:', phoneNumber.phone_number);
-      const newDispatchRule = await createDispatchRuleWithTrunk(
-        sipClient,
-        phoneNumber.phone_number,
-        updatedMetadata,
-        trunkIds
-      );
-
-      // Update the phone number record with the new dispatch rule ID
-      const { error: updateError } = await supabaseServiceRole
-        .from('phone_numbers')
-        .update({ dispatch_rule_id: newDispatchRule.sipDispatchRuleId })
-        .eq('id', body.phoneNumberId)
-        .eq('user_id', body.userId);
-
-      if (updateError) {
-        console.error('❌ Failed to update phone number with dispatch rule ID:', updateError);
-        // Try to clean up the created dispatch rule
-        try {
-          await sipClient.deleteSipDispatchRule(newDispatchRule.sipDispatchRuleId);
-        } catch (cleanupError: any) {
-          console.error('❌ Failed to cleanup dispatch rule after database update failure:', cleanupError);
+        if (isCorrect) {
+          console.log('✅ Existing dispatch rule is already correct, updating metadata only...');
+          finalDispatchRuleId = await updateDispatchRuleMetadata(
+            sipClient,
+            phoneNumber.dispatch_rule_id,
+            updatedMetadata
+          );
+        } else {
+          console.log('🔄 Existing dispatch rule needs to be replaced...');
+          // Clean up and recreate
+          await cleanupExistingDispatchRules(sipClient, phoneNumber.phone_number, trunkIds);
+          const newDispatchRule = await createDispatchRuleWithTrunk(
+            sipClient,
+            phoneNumber.phone_number,
+            updatedMetadata,
+            trunkIds
+          );
+          finalDispatchRuleId = newDispatchRule.sipDispatchRuleId;
         }
-        throw new Error(`Database update failed: ${updateError.message}`);
+      } else {
+        console.log('🆕 No existing dispatch rule, creating new one...');
+        // Check for any existing rules that might conflict and clean them up
+        await cleanupExistingDispatchRules(sipClient, phoneNumber.phone_number, trunkIds);
+        
+        const newDispatchRule = await createDispatchRuleWithTrunk(
+          sipClient,
+          phoneNumber.phone_number,
+          updatedMetadata,
+          trunkIds
+        );
+        finalDispatchRuleId = newDispatchRule.sipDispatchRuleId;
       }
 
-      console.log('✅ Updated phone number record with new dispatch rule ID');
+      // Update the phone number record with the dispatch rule ID (might be the same or new)
+      if (finalDispatchRuleId !== phoneNumber.dispatch_rule_id) {
+        const { error: updateError } = await supabaseServiceRole
+          .from('phone_numbers')
+          .update({ dispatch_rule_id: finalDispatchRuleId })
+          .eq('id', body.phoneNumberId)
+          .eq('user_id', body.userId);
+
+        if (updateError) {
+          console.error('❌ Failed to update phone number with dispatch rule ID:', updateError);
+          // Try to clean up the created dispatch rule if it's new
+          if (finalDispatchRuleId !== phoneNumber.dispatch_rule_id) {
+            try {
+              await sipClient.deleteSipDispatchRule(finalDispatchRuleId);
+            } catch (cleanupError: any) {
+              console.error('❌ Failed to cleanup dispatch rule after database update failure:', cleanupError);
+            }
+          }
+          throw new Error(`Database update failed: ${updateError.message}`);
+        }
+
+        console.log('✅ Updated phone number record with dispatch rule ID:', finalDispatchRuleId);
+      } else {
+        console.log('✅ Phone number record already has correct dispatch rule ID');
+      }
 
       return NextResponse.json({
         success: true,
-        message: 'Dispatch rule created with updated metadata successfully',
+        message: 'Dispatch rule updated successfully',
         data: {
-          dispatchRuleId: newDispatchRule.sipDispatchRuleId,
+          dispatchRuleId: finalDispatchRuleId,
           phoneNumber: phoneNumber.phone_number,
           trunkIds: trunkIds,
           updatedMetadata: updatedMetadata,
-          created: true
+          wasRecreated: finalDispatchRuleId !== phoneNumber.dispatch_rule_id
         }
       });
 

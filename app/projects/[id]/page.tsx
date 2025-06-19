@@ -106,6 +106,13 @@ if __name__ == "__main__":
     router.push(`/projects/${projectId}/conversation`);
   };
 
+  const handleProjectUpdate = (updatedProject: Project) => {
+    console.log('📝 Updating project state:', updatedProject.name);
+    setProject(updatedProject);
+    // Also update the current project in the database hook
+    setCurrentProject(updatedProject);
+  };
+
   if (loading || loadingProject) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -135,6 +142,7 @@ if __name__ == "__main__":
         project={project}
         onStartConversation={handleStartConversation}
         onBackToHome={handleBackToHome}
+        onProjectUpdate={handleProjectUpdate}
       />
     </motion.div>
   );

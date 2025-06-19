@@ -56,8 +56,26 @@ export async function POST(request: NextRequest) {
     // Get project configuration data for agent metadata
     let projectData = null;
     try {
+      console.log('🔍 Attempting to get project data for projectId:', body.projectId);
+      console.log('🔍 Project object from previous query:', project ? { id: project.id, title: project.title } : 'null');
+      
       projectData = await db.getProjectDataWithServiceRole(body.projectId);
-      console.log('🔍 Project data retrieved:', projectData ? 'Found' : 'Not found');
+      console.log('📋 Project data retrieval result:', projectData ? 'Found' : 'Not found');
+      
+      if (projectData) {
+        console.log('✅ Project data details:', {
+          id: projectData.id,
+          hasSystemPrompt: !!projectData.system_prompt,
+          systemPromptPreview: projectData.system_prompt ? projectData.system_prompt.substring(0, 100) + '...' : 'none',
+          llmProvider: projectData.llm_provider,
+          llmModel: projectData.llm_model,
+          ttsProvider: projectData.tts_provider,
+          version: projectData.version,
+          isActive: projectData.is_active
+        });
+      } else {
+        console.log('⚠️ No project data found, will use fallback values');
+      }
     } catch (dbError) {
       console.error('❌ Failed to get project data:', dbError);
       // Continue without project data - use fallback values

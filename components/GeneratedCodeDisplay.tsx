@@ -22,14 +22,16 @@ import { TelnyxNumbersModal } from './TelnyxNumbersModal';
 import { FunctionsTab } from './FunctionsTab';
 import { VideoPresets } from "livekit-client";
 import { PhoneNumberManager } from './PhoneNumberManager';
+import { Edit2, Check, X } from 'lucide-react';
+import { ClientDatabaseService } from '@/lib/database/client-service';
 
 interface GeneratedCodeDisplayProps {
   code: string;
   config: VoiceAgentConfig;
-  project?: Project; // Add project as optional prop
-  onStartConversation?: () => void;
-  onReconfigure: () => void;
+  project: Project;
   onBackToHome: () => void;
+  onStartConversation?: () => void;
+  onProjectUpdate?: (updatedProject: Project) => void;
 }
 
 interface PhoneNumberFeature {
@@ -52,7 +54,7 @@ interface ChatMessage {
 
 
 
-export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Omit<GeneratedCodeDisplayProps, 'onReconfigure'>) {
+export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onStartConversation, onProjectUpdate }: Omit<GeneratedCodeDisplayProps, 'onReconfigure'>) {
   // Debug logging on every render
   console.log('🔍 GeneratedCodeDisplay RENDER:');
   console.log('   • Component props:', { hasCode: !!code, hasConfig: !!config, hasProject: !!project });
@@ -179,6 +181,12 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     getProjectPhoneNumbers
   } = useDatabase();
   
+  // Project title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(project?.name || '');
+  const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  
   // Ref for debouncing file saves
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -192,6 +200,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
   const [showTestTypeModal, setShowTestTypeModal] = useState(false);
   const [testType, setTestType] = useState<'web' | 'outbound' | null>(null);
   const [outboundPhoneNumber, setOutboundPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+1');
   const [isLoadingOutboundTest, setIsLoadingOutboundTest] = useState(false);
   const [selectedFromPhoneNumber, setSelectedFromPhoneNumber] = useState('');
   const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
@@ -220,9 +229,85 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome }: Om
     }),
   );
 
+  // Database service instance for project updates
+  const dbService = useRef(new ClientDatabaseService()).current;
 
+  // Update edited title when project prop changes
+  useEffect(() => {
+    if (project?.name && !isEditingTitle) {
+      setEditedTitle(project.name);
+    }
+  }, [project?.name, isEditingTitle]);
 
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
 
+  // Handle project title update
+  const updateProjectTitle = async () => {
+    if (!project || !editedTitle.trim() || editedTitle === project.name) {
+      setIsEditingTitle(false);
+      setEditedTitle(project?.name || '');
+      return;
+    }
+
+    setIsUpdatingTitle(true);
+    try {
+      await dbService.updateProject(project.id, { 
+        name: editedTitle.trim(),
+        updated_at: new Date().toISOString()
+      });
+      
+      // Create updated project object
+      const updatedProject: Project = {
+        ...project,
+        name: editedTitle.trim(),
+        updated_at: new Date().toISOString()
+      };
+      
+      // Notify parent component of the update
+      if (onProjectUpdate) {
+        onProjectUpdate(updatedProject);
+      }
+      
+      console.log('✅ Project title updated successfully');
+      setIsEditingTitle(false);
+    } catch (error) {
+      console.error('❌ Failed to update project title:', error);
+      // Reset to original title on error
+      setEditedTitle(project.name);
+      alert('Failed to update project title. Please try again.');
+    } finally {
+      setIsUpdatingTitle(false);
+    }
+  };
+
+  // Handle title edit start
+  const startEditingTitle = () => {
+    if (project) {
+      setIsEditingTitle(true);
+      setEditedTitle(project.name);
+    }
+  };
+
+  // Handle title edit cancel
+  const cancelEditingTitle = () => {
+    setIsEditingTitle(false);
+    setEditedTitle(project?.name || '');
+  };
+
+  // Handle Enter key press in title input
+  const handleTitleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      updateProjectTitle();
+    } else if (e.key === 'Escape') {
+      cancelEditingTitle();
+    }
+  };
 
   // Load agent configurations function (simplified - using project_data)
   const loadAgentConfigurations = useCallback(async () => {
@@ -661,6 +746,12 @@ Just tell me what you want your voice agent to do or any issues you're experienc
   };
 
   const handlePublish = async () => {
+    // Prevent multiple simultaneous publish operations
+    if (isPublishing) {
+      console.log('🔒 Publishing already in progress, ignoring duplicate request');
+      return;
+    }
+
     console.log('🚀 Publishing voice agent...');
     
     const projectToUse = project || currentProject;
@@ -1205,10 +1296,13 @@ For now, you can still manually configure your voice agent using the tabs above.
   // Handle outbound test call
   const handleOutboundTest = async () => {
     if (!outboundPhoneNumber.trim()) {
-      alert('Please enter a phone number');
+      alert('Please enter a phone number to call');
       return;
     }
 
+    // Format the phone number with country code
+    const formattedNumber = `${countryCode}${outboundPhoneNumber.replace(/\D/g, '')}`;
+    
     if (!selectedFromPhoneNumber) {
       alert('Please select a phone number to call from');
       return;
@@ -1253,7 +1347,7 @@ For now, you can still manually configure your voice agent using the tabs above.
           phoneNumberId: selectedPhoneNumber.id,
           projectId: projectToUse.id,
           userId: user?.id,
-          toNumber: outboundPhoneNumber.trim()
+          toNumber: formattedNumber
         }),
       });
 
@@ -1268,8 +1362,9 @@ For now, you can still manually configure your voice agent using the tabs above.
       // Close modal and show success message
       setShowTestTypeModal(false);
       setOutboundPhoneNumber('');
+      setCountryCode('+1');
       setSelectedFromPhoneNumber('');
-      alert(`Outbound call initiated from ${selectedPhoneNumber.phone_number} to ${outboundPhoneNumber}. Answer your phone to test the agent!`);
+      alert(`Outbound call initiated from ${selectedPhoneNumber.phone_number} to ${formattedNumber}. Answer your phone to test the agent!`);
       
     } catch (error) {
       console.error('❌ Outbound test failed:', error);
@@ -1819,6 +1914,24 @@ For now, you can still manually configure your voice agent using the tabs above.
     setShowFunctionDropdown(false);
   };
 
+  // Add phone number formatting function
+  const formatPhoneNumber = (value: string) => {
+    // Remove all non-digit characters
+    const cleaned = value.replace(/\D/g, '');
+    
+    // Apply formatting based on length - support longer international numbers
+    if (cleaned.length <= 3) {
+      return cleaned;
+    } else if (cleaned.length <= 6) {
+      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
+    } else if (cleaned.length <= 10) {
+      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+    } else {
+      // For numbers longer than 10 digits, don't apply US formatting
+      return cleaned;
+    }
+  };
+
   return (
     <RoomContext.Provider value={room}>
       <style jsx global>{`
@@ -1868,17 +1981,73 @@ For now, you can still manually configure your voice agent using the tabs above.
           {/* Header with logo */}
           <div className="p-3 bg-neutral-800">
             <div className="flex items-center justify-between">
-              <button
-                onClick={onBackToHome}
-                className="hover:opacity-80 transition-opacity cursor-pointer"
-                title="Go to home page"
-              >
-                <img 
-                  src="/VoiceBun-BunOnly.png" 
-                  alt="VoiceBun" 
-                  className="w-10 h-10"
-                />
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={onBackToHome}
+                  className="hover:opacity-80 transition-opacity cursor-pointer"
+                  title="Go to home page"
+                >
+                  <img 
+                    src="/VoiceBun-BunOnly.png" 
+                    alt="VoiceBun" 
+                    className="w-10 h-10"
+                  />
+                </button>
+                
+                {/* Editable Project Title */}
+                {project && (
+                  <div className="flex items-center space-x-2">
+                    {isEditingTitle ? (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          ref={titleInputRef}
+                          type="text"
+                          value={editedTitle}
+                          onChange={(e) => setEditedTitle(e.target.value)}
+                          onKeyDown={handleTitleKeyPress}
+                          onBlur={updateProjectTitle}
+                          className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent"
+                          placeholder="Project name"
+                          disabled={isUpdatingTitle}
+                        />
+                        <button
+                          onClick={updateProjectTitle}
+                          disabled={isUpdatingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300"
+                          title="Save title"
+                        >
+                          {isUpdatingTitle ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400"></div>
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelEditingTitle}
+                          disabled={isUpdatingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300"
+                          title="Cancel editing"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <h1 className="text-white font-medium text-sm truncate max-w-[200px]" title={project.name}>
+                          {project.name}
+                        </h1>
+                        <button
+                          onClick={startEditingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-white/60 hover:text-white"
+                          title="Edit project title"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1990,6 +2159,60 @@ For now, you can still manually configure your voice agent using the tabs above.
                   />
                 </button>
                 
+                {/* Editable Project Title - Mobile */}
+                {project && (
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    {isEditingTitle ? (
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <input
+                          ref={titleInputRef}
+                          type="text"
+                          value={editedTitle}
+                          onChange={(e) => setEditedTitle(e.target.value)}
+                          onKeyDown={handleTitleKeyPress}
+                          onBlur={updateProjectTitle}
+                          className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent flex-1 min-w-0"
+                          placeholder="Project name"
+                          disabled={isUpdatingTitle}
+                        />
+                        <button
+                          onClick={updateProjectTitle}
+                          disabled={isUpdatingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300 flex-shrink-0"
+                          title="Save title"
+                        >
+                          {isUpdatingTitle ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400"></div>
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelEditingTitle}
+                          disabled={isUpdatingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300 flex-shrink-0"
+                          title="Cancel editing"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <h1 className="text-white font-medium text-sm truncate flex-1" title={project.name}>
+                          {project.name}
+                        </h1>
+                        <button
+                          onClick={startEditingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-white/60 hover:text-white flex-shrink-0"
+                          title="Edit project title"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 <button
                   onClick={() => setShowMobileMenu(!showMobileMenu)}
                   className="p-2 hover:bg-white/10 rounded-lg transition-colors"
@@ -2074,7 +2297,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     <span className="hidden sm:inline">Publishing...</span>
                   </>
                 ) : (
-                  <span>Publish</span>
+                  <span>Publish to Number</span>
                 )}
               </button>
 
@@ -2703,6 +2926,7 @@ For now, you can still manually configure your voice agent using the tabs above.
               setShowTestTypeModal(false);
               setTestType(null);
               setOutboundPhoneNumber('');
+              setCountryCode('+1');
               setSelectedFromPhoneNumber('');
             }
           }}
@@ -2715,6 +2939,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                   setShowTestTypeModal(false);
                   setTestType(null);
                   setOutboundPhoneNumber('');
+                  setCountryCode('+1');
                   setSelectedFromPhoneNumber('');
                 }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -2770,6 +2995,9 @@ For now, you can still manually configure your voice agent using the tabs above.
                     onClick={() => {
                       setShowTestTypeModal(false);
                       setTestType(null);
+                      setOutboundPhoneNumber('');
+                      setCountryCode('+1');
+                      setSelectedFromPhoneNumber('');
                     }}
                     className="px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
                   >
@@ -2812,15 +3040,55 @@ For now, you can still manually configure your voice agent using the tabs above.
                   <label className="block text-sm font-medium text-gray-700">
                     Call To
                   </label>
-                  <input
-                    type="tel"
-                    value={outboundPhoneNumber}
-                    onChange={(e) => setOutboundPhoneNumber(e.target.value)}
-                    placeholder="+1234567890"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={isLoadingOutboundTest}
-                  />
-                  <p className="text-xs text-gray-500">Include country code (e.g., +1 for US)</p>
+                  <div className="flex space-x-2">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      disabled={isLoadingOutboundTest}
+                    >
+                      <option value="+1">🇺🇸 +1</option>
+                      <option value="+44">🇬🇧 +44</option>
+                      <option value="+33">🇫🇷 +33</option>
+                      <option value="+49">🇩🇪 +49</option>
+                      <option value="+39">🇮🇹 +39</option>
+                      <option value="+34">🇪🇸 +34</option>
+                      <option value="+31">🇳🇱 +31</option>
+                      <option value="+32">🇧🇪 +32</option>
+                      <option value="+41">🇨🇭 +41</option>
+                      <option value="+43">🇦🇹 +43</option>
+                      <option value="+45">🇩🇰 +45</option>
+                      <option value="+46">🇸🇪 +46</option>
+                      <option value="+47">🇳🇴 +47</option>
+                      <option value="+358">🇫🇮 +358</option>
+                      <option value="+61">🇦🇺 +61</option>
+                      <option value="+64">🇳🇿 +64</option>
+                      <option value="+81">🇯🇵 +81</option>
+                      <option value="+82">🇰🇷 +82</option>
+                      <option value="+86">🇨🇳 +86</option>
+                      <option value="+91">🇮🇳 +91</option>
+                      <option value="+55">🇧🇷 +55</option>
+                      <option value="+52">🇲🇽 +52</option>
+                      <option value="+54">🇦🇷 +54</option>
+                      <option value="+56">🇨🇱 +56</option>
+                      <option value="+57">🇨🇴 +57</option>
+                      <option value="+51">🇵🇪 +51</option>
+                      <option value="+27">🇿🇦 +27</option>
+                    </select>
+                    <input
+                      type="tel"
+                      value={formatPhoneNumber(outboundPhoneNumber)}
+                      onChange={(e) => {
+                        // Store raw digits only, let formatPhoneNumber handle display
+                        const rawDigits = e.target.value.replace(/\D/g, '');
+                        setOutboundPhoneNumber(rawDigits);
+                      }}
+                      placeholder="123-456-7890"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isLoadingOutboundTest}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">Enter your phone number to receive the test call</p>
                 </div>
                 
                 <div className="flex justify-end space-x-3 mt-6">
@@ -2828,6 +3096,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     onClick={() => {
                       setTestType(null);
                       setOutboundPhoneNumber('');
+                      setCountryCode('+1');
                       setSelectedFromPhoneNumber('');
                     }}
                     className="px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
