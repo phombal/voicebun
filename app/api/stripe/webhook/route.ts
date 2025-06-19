@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { db } from '@/lib/database/service';
 import Stripe from 'stripe';
-import { supabaseServiceRole } from '@/lib/database/auth';
+import { supabaseServiceRole } from '@/lib/database/server';
 
 // Force dynamic rendering since we use request body and headers
 export const dynamic = 'force-dynamic';

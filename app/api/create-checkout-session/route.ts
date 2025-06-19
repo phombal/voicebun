@@ -1,4 +1,4 @@
-import { supabaseServiceRole } from '@/lib/database/auth';
+import { supabaseServiceRole } from '@/lib/database/server';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 

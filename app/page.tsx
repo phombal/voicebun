@@ -23,8 +23,8 @@ import { Room, RoomEvent } from "livekit-client";
 import { useCallback, useEffect, useState } from "react";
 import type { ConnectionDetails } from "./api/connection-details/route";
 import { useDatabase } from "@/hooks/useDatabase";
-import { DatabaseService } from "@/lib/database/service";
 import { useRouter } from "next/navigation";
+import { ClientDatabaseService } from "@/lib/database/client-service";
 
 // Audio bars visualization component
 function AudioBars() {

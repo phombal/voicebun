@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServiceRole } from '@/lib/database/auth';
+import { supabaseServiceRole } from '@/lib/database/server';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';

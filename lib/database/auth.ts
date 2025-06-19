@@ -5,9 +5,15 @@ import { Database } from './types'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// Service role key for bypassing RLS policies in server-side operations
-const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtld3lud2l2dnZ3Z2hlanpleXJsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTI2NTU3MiwiZXhwIjoyMDY0ODQxNTcyfQ.i2KkRt3qxjGVMwdSCclgH5YP6tcmlsy4uEN2js69vNQ'
+// Validate required environment variables
+if (!supabaseUrl) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable')
+}
+if (!supabaseAnonKey) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable')
+}
 
+// Client-side Supabase client (uses anon key, safe for browser)
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     // Implicit flow settings
@@ -17,14 +23,6 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true, // Enable automatic session detection from URL
     flowType: 'implicit' // Use implicit flow instead of PKCE
-  }
-})
-
-// Service role client for server-side operations that bypass RLS
-export const supabaseServiceRole = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
   }
 })
 

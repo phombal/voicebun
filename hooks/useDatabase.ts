@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { DatabaseService } from '@/lib/database/service';
+import { ClientDatabaseService } from '@/lib/database/client-service';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   Project, 
@@ -9,7 +9,7 @@ import {
 } from '@/lib/database/types';
 
 // Create singleton instance outside the hook to prevent multiple instances
-const dbInstance = new DatabaseService();
+const dbInstance = new ClientDatabaseService();
 
 // Global state to prevent concurrent project creation
 let isCreatingProjectGlobally = false;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServiceRole } from '@/lib/database/auth';
+import { supabaseServiceRole } from '@/lib/database/server';
 import { SipClient, AgentDispatchClient } from 'livekit-server-sdk';
 import { db } from '@/lib/database/service';
 

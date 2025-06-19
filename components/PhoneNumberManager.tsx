@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PhoneNumber } from '@/lib/database/types';
-import { db } from '@/lib/database/service';
+import { clientDb } from '@/lib/database/client-service';
 
 interface PhoneNumberManagerProps {
   projectId?: string;
@@ -45,7 +45,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
     
     setIsLoading(true);
     try {
-      const numbers = await db.getUserPhoneNumbers();
+      const numbers = await clientDb.getUserPhoneNumbers();
       console.log('📱 Loaded phone numbers:', numbers);
       setPhoneNumbers(numbers);
     } catch (error) {

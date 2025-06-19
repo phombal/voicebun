@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { supabase, supabaseServiceRole } from './auth';
+import { supabase } from './auth';
+import { supabaseServiceRole } from './server';
 import { 
   Database, 
   Project, 

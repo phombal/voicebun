@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { DatabaseService } from '../lib/database/service';
+import { clientDb } from '../lib/database/client-service';
 
 interface ProjectConfig {
   systemPrompt: string;
@@ -72,7 +72,6 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
   const [functionViewMode, setFunctionViewMode] = useState<Record<number, 'simple' | 'complex'>>({});
   const [testResults, setTestResults] = useState<Record<number, { success: boolean; message: string; data?: any } | null>>({});
   const functionDropdownRef = useRef<HTMLDivElement>(null);
-  const databaseService = new DatabaseService();
 
   // Helper function to get logo for function type
   const getFunctionLogo = (functionName: string) => {
@@ -106,7 +105,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
       console.log('Saving functions to database for project:', projectId);
       
       // First get the current project data to preserve any fields not in projectConfig
-      const currentData = await databaseService.getProjectData(projectId);
+      const currentData = await clientDb.getProjectData(projectId);
       if (!currentData) {
         console.warn('No existing project data found, skipping database save');
         return;
@@ -155,7 +154,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
         functions_enabled: functions.length > 0
       };
       
-      await databaseService.updateProjectData(projectId, updateData);
+      await clientDb.updateProjectData(projectId, updateData);
       
       console.log('Functions and complete project configuration saved successfully to database');
     } catch (error) {

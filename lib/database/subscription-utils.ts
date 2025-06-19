@@ -1,5 +1,5 @@
 import 'server-only'
-import { supabaseServiceRole } from './auth'
+import { supabaseServiceRole } from './server'
 import Stripe from 'stripe'
 import { UserPlan } from './types'
 
