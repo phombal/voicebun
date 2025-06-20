@@ -10,6 +10,7 @@ import { useDatabase } from '@/hooks/useDatabase';
 import UserProfile from '@/components/auth/UserProfile';
 import DeleteProjectModal from '@/components/DeleteProjectModal';
 import { LoadingBun } from '@/components/LoadingBun';
+import CommunityProjectsSection from '@/components/CommunityProjectsSection';
 
 interface Project {
   id: string;
@@ -29,7 +30,13 @@ interface Project {
 export default function ProjectsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { getUserProjects, createProject, createProjectData, deleteProject } = useDatabase();
+  const { 
+    getUserProjects, 
+    createProject, 
+    createProjectData, 
+    updateProject,
+    deleteProject: deleteProjectFromDB 
+  } = useDatabase();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
@@ -89,7 +96,7 @@ export default function ProjectsPage() {
     setDeleteModal(prev => ({ ...prev, isDeleting: true }));
 
     try {
-      await deleteProject(deleteModal.project.id);
+      await deleteProjectFromDB(deleteModal.project.id);
       
       // Remove the project from the local state
       setProjects(prev => prev.filter(p => p.id !== deleteModal.project!.id));
@@ -154,6 +161,67 @@ export default function ProjectsPage() {
       
       console.log('✅ Created new project:', project.id);
       
+      // Auto-tag the project based on its content
+      console.log('🏷️ Starting auto-tagging process for new project...');
+      let autoTaggedCategory = 'other'; // Default category
+      let categoryEmoji = '🤖'; // Default emoji
+      
+      console.log('🏷️ Initial values - Category:', autoTaggedCategory, 'Emoji:', categoryEmoji);
+      
+      try {
+        console.log('🏷️ Making auto-tag API request with data:', {
+          systemPrompt: "You are a helpful AI voice assistant...",
+          title: projectName,
+          description: projectDescription || 'undefined'
+        });
+        
+        const autoTagResponse = await fetch('/api/auto-tag', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            systemPrompt: "You are a helpful AI voice assistant. Provide clear, accurate, and helpful responses to user questions while maintaining a professional yet friendly conversational tone.",
+            title: projectName,
+            description: projectDescription || undefined
+          }),
+        });
+
+        console.log('🏷️ Auto-tag API response status:', autoTagResponse.status);
+        console.log('🏷️ Auto-tag API response ok:', autoTagResponse.ok);
+
+        if (autoTagResponse.ok) {
+          const responseData = await autoTagResponse.json();
+          console.log('🏷️ Auto-tag API response data:', responseData);
+          
+          const { category } = responseData;
+          console.log('🏷️ Extracted category from response:', category, 'Type:', typeof category);
+          
+          if (category && category !== 'undefined') {
+            autoTaggedCategory = category;
+            console.log('✅ Category updated to:', autoTaggedCategory);
+          } else {
+            console.warn('⚠️ Category from API is empty or undefined, keeping default:', autoTaggedCategory);
+          }
+          
+          // Get the emoji for the auto-tagged category
+          const { getCategoryEmoji } = await import('@/lib/auto-tagger');
+          categoryEmoji = getCategoryEmoji(autoTaggedCategory as any) || '🤖';
+          console.log('🎯 Setting project emoji based on category:', `${autoTaggedCategory} -> ${categoryEmoji}`);
+        } else {
+          const errorText = await autoTagResponse.text();
+          console.warn('⚠️ Auto-tagging failed with status:', autoTagResponse.status);
+          console.warn('⚠️ Error response:', errorText);
+          console.warn('⚠️ Using default category and emoji');
+        }
+      } catch (error) {
+        console.error('❌ Auto-tagging error:', error);
+        console.log('🔄 Continuing with default category:', autoTaggedCategory, 'and emoji:', categoryEmoji);
+        // Continue with default category and emoji
+      }
+      
+      console.log('🏷️ Final auto-tagging values - Category:', autoTaggedCategory, 'Emoji:', categoryEmoji);
+      
       // Create initial project_data entry
       const initialProjectData = {
         system_prompt: "You are a helpful AI voice assistant. Provide clear, accurate, and helpful responses to user questions while maintaining a professional yet friendly conversational tone.",
@@ -181,11 +249,32 @@ export default function ProjectsPage() {
         custom_functions: [],
         webhooks_enabled: false,
         webhook_url: null,
-        webhook_events: []
+        webhook_events: [],
+        
+        // Auto-tagging fields
+        project_emoji: categoryEmoji, // Use the emoji based on the auto-tagged category
       };
+      
+      console.log('🚀 About to create project data with the following payload:');
+      console.log('🚀 initialProjectData keys:', Object.keys(initialProjectData));
+      console.log('🚀 initialProjectData.project_emoji:', initialProjectData.project_emoji);
+      console.log('🚀 Full initialProjectData object:', JSON.stringify(initialProjectData, null, 2));
       
       await createProjectData(project.id, initialProjectData);
       console.log('✅ Created initial project configuration');
+      
+      // Now update the project with the category
+      console.log('🏷️ Updating project with category:', autoTaggedCategory);
+      try {
+        await updateProject(project.id, { 
+          category: autoTaggedCategory,
+          project_emoji: categoryEmoji 
+        });
+        console.log('✅ Project category and emoji updated successfully');
+      } catch (categoryError) {
+        console.error('❌ Error updating project category:', categoryError);
+        // Don't fail the entire process if category update fails
+      }
       
       // Navigate directly to the project console
       router.push(`/projects/${project.id}`);
@@ -268,105 +357,49 @@ export default function ProjectsPage() {
           </motion.div>
         ) : (
           <div>
+            {/* Title outside the white box */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between mb-8"
+              className="mb-12"
             >
-              <div>
-                <h2 className="text-2xl font-bold text-white">Your Voice Agents</h2>
-                <p className="text-white/70">
-                  {projects.length} {projects.length === 1 ? 'project' : 'projects'}
-                </p>
-              </div>
+              <h1 
+                className="text-4xl md:text-5xl font-bold text-white mb-4"
+              >
+                Your Voice Agents
+              </h1>
+            </motion.div>
+
+            <CommunityProjectsSection 
+              projectType="user"
+              variant="full-page"
+              title=""
+              showSearch={true}
+              showFilters={false}
+              gridCols="auto"
+            />
+            
+            {/* Floating Create Button */}
+            <div className="fixed bottom-8 right-8 z-50">
               <button
                 onClick={handleCreateNewProject}
                 disabled={creatingProject}
-                className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-white text-black px-6 py-3 rounded-full shadow-2xl hover:bg-gray-100 transition-all duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 hover:scale-105"
               >
                 {creatingProject ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
-                    Creating...
-                  </div>
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black"></div>
+                    <span>Creating...</span>
+                  </>
                 ) : (
-                  'New Project'
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>New Project</span>
+                  </>
                 )}
               </button>
-            </motion.div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4">
-              {projects.map((project, index) => (
-                <motion.div
-                  key={project.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl hover:border-white/30 transition-all duration-200 group relative mt-2"
-                >
-                  <div 
-                    className="cursor-pointer"
-                    onClick={() => router.push(`/projects/${project.id}`)}
-                  >
-                    <div className="aspect-video bg-gradient-to-br from-blue-500 to-purple-600 relative overflow-hidden rounded-t-xl">
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-4xl">🤖</div>
-                      </div>
-                      <div className="absolute top-2 right-2">
-                        <div className="bg-black/20 backdrop-blur-sm rounded-full px-2 py-1">
-                          <span className="text-white text-xs">Active</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      <h3 className="text-white font-medium text-sm group-hover:text-blue-400 transition-colors mb-2 line-clamp-1">
-                        {project.name}
-                      </h3>
-                      <div className="flex items-center justify-between text-xs text-white/60">
-                        <span>
-                          Created {new Date(project.created_at).toLocaleDateString()} at {new Date(project.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dropdown Menu */}
-                  <div className="absolute top-2 left-2 z-20">
-                    <div className="relative">
-                      <button
-                        onClick={(e) => {
-                          console.log('🔽 Dropdown toggle clicked for project:', project.name);
-                          e.stopPropagation();
-                          setOpenDropdown(openDropdown === project.id ? null : project.id);
-                        }}
-                        className="bg-black/20 backdrop-blur-sm rounded-full p-1.5 hover:bg-black/30 transition-colors"
-                      >
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                      </button>
-
-                      {openDropdown === project.id && (
-                        <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[100] min-w-[120px]">
-                          <button
-                            onClick={(e) => {
-                              console.log('🗑️ Delete button in dropdown clicked for project:', project.name);
-                              e.stopPropagation();
-                              handleDeleteProject(project);
-                            }}
-                            className="w-full px-3 py-2 text-left text-red-400 hover:bg-gray-700 transition-colors text-sm flex items-center rounded-lg"
-                          >
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
             </div>
           </div>
         )}

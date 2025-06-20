@@ -248,35 +248,88 @@ export class DatabaseService {
   async createProjectData(projectId: string, data: ProjectDataConfig): Promise<ProjectData> {
     const userId = await this.getCurrentUserId();
     
-    const { data: result, error } = await this.supabase
+    console.log('💾 Creating project data for project:', projectId);
+    console.log('💾 User ID:', userId);
+    console.log('💾 Input data keys:', Object.keys(data));
+    
+    const insertData = {
+      project_id: projectId,
+      user_id: userId,
+      version: 1,
+      is_active: true,
+      ...data
+    };
+    
+    console.log('💾 Final insert data keys:', Object.keys(insertData));
+    console.log('💾 Final insert data project_emoji:', insertData.project_emoji);
+    
+    // Log the exact data being sent to Supabase
+    console.log('💾 Complete insertData object:', JSON.stringify(insertData, null, 2));
+    
+    // Test: Try to manually verify the category field can be written/read
+    console.log('🧪 Testing category field access...');
+    try {
+      const { data: testData, error: testError } = await this.supabase
+        .from('project_data')
+        .select('category, project_emoji')
+        .limit(1);
+      
+      console.log('🧪 Test query result - can read category column:', testData);
+      if (testError) {
+        console.log('🧪 Test query error:', testError);
+      }
+    } catch (testErr) {
+      console.log('🧪 Test query failed:', testErr);
+    }
+    
+    // Create project data
+    const { data: projectData, error: projectDataError } = await this.supabase
       .from('project_data')
-      .insert({
-        project_id: projectId,
-        user_id: userId,
-        version: 1,
-        is_active: true,
-        ...data
-      })
+      .insert(insertData)
       .select()
       .single();
-    
-    if (error) throw error;
-    return result;
+
+    if (projectDataError) {
+      console.error('❌ Error creating project data:', {
+        error: projectDataError,
+        code: projectDataError.code,
+        message: projectDataError.message,
+        details: projectDataError.details,
+        hint: projectDataError.hint
+      });
+      throw new Error(`Failed to create project data: ${projectDataError.message}`);
+    }
+
+    console.log('✅ Project data created successfully:', {
+      id: projectData.id,
+      keys: Object.keys(projectData),
+      projectEmoji: projectData.project_emoji,
+      result: JSON.stringify(projectData, null, 2)
+    });
+
+    return projectData;
   }
 
   // Server-side version that doesn't require auth session (for API routes)
   async createProjectDataServerSide(projectId: string, userId: string, data: ProjectDataConfig): Promise<ProjectData> {
     console.log('💾 Creating project data with server-side method:', { projectId, userId });
+    console.log('💾 Server-side input data keys:', Object.keys(data));
+    console.log('💾 Server-side project emoji in data:', data.project_emoji);
+    
+    const insertData = {
+      project_id: projectId,
+      user_id: userId,
+      version: 1,
+      is_active: true,
+      ...data
+    };
+    
+    console.log('💾 Server-side final insert data keys:', Object.keys(insertData));
+    console.log('💾 Server-side final insert data project_emoji:', insertData.project_emoji);
     
     const { data: result, error } = await this.supabase
       .from('project_data')
-      .insert({
-        project_id: projectId,
-        user_id: userId,
-        version: 1,
-        is_active: true,
-        ...data
-      })
+      .insert(insertData)
       .select()
       .single();
     
@@ -286,6 +339,8 @@ export class DatabaseService {
     }
     
     console.log('✅ Project data created successfully');
+    console.log('✅ Server-side returned data keys:', Object.keys(result));
+    console.log('✅ Server-side returned project_emoji:', result.project_emoji);
     return result;
   }
 

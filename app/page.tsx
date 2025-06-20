@@ -96,6 +96,7 @@ interface Project {
     responseStyle?: string;
     capabilities?: string[];
   };
+  view_count?: number;
 }
 
 export default function LandingPage() {
@@ -145,7 +146,7 @@ export default function LandingPage() {
   };
 
   const UserProjectCard = ({ project }: { project: Project }) => {
-    const viewCount = Math.floor(Math.random() * 1000) + 50; // Random view count between 50-1049
+    const viewCount = project.view_count || 0; // Use actual view count from database
     
     return (
       <div className="bg-gray-100 rounded-xl overflow-hidden hover:scale-105 transition-all duration-300 group cursor-pointer text-left">

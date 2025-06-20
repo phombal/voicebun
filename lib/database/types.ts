@@ -107,6 +107,9 @@ export interface Project {
   created_at: string;
   updated_at: string;
   last_accessed_at: string;
+  category?: string;
+  project_emoji?: string;
+  view_count?: number;
 }
 
 export interface ChatSession {

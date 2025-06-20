@@ -112,7 +112,7 @@ function DashboardContent() {
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
-  const { getUserProjects, createProject, createProjectData } = useDatabase();
+  const { getUserProjects, createProject, createProjectData, updateProject } = useDatabase();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
@@ -162,9 +162,46 @@ function DashboardContent() {
     try {
       console.log('🤖 Generating system prompt with ChatGPT 4o...');
       
+      // Helper function to generate a better fallback title
+      const generateFallbackTitle = (userPrompt: string): string => {
+        // Clean up the prompt
+        const cleanPrompt = userPrompt.trim();
+        
+        // Common patterns to create better titles
+        if (cleanPrompt.toLowerCase().includes('customer service')) {
+          return 'Customer Service Assistant';
+        } else if (cleanPrompt.toLowerCase().includes('language') && cleanPrompt.toLowerCase().includes('tutor')) {
+          return 'Language Learning Tutor';
+        } else if (cleanPrompt.toLowerCase().includes('healthcare') || cleanPrompt.toLowerCase().includes('medical')) {
+          return 'Healthcare Assistant';
+        } else if (cleanPrompt.toLowerCase().includes('sales') || cleanPrompt.toLowerCase().includes('marketing')) {
+          return 'Sales & Marketing Assistant';
+        } else if (cleanPrompt.toLowerCase().includes('education') || cleanPrompt.toLowerCase().includes('teacher')) {
+          return 'Educational Assistant';
+        } else if (cleanPrompt.toLowerCase().includes('personal assistant') || cleanPrompt.toLowerCase().includes('productivity')) {
+          return 'Personal Assistant';
+        } else if (cleanPrompt.toLowerCase().includes('entertainment') || cleanPrompt.toLowerCase().includes('game')) {
+          return 'Entertainment Assistant';
+        } else {
+          // Create a title from the first few words, capitalizing appropriately
+          const words = cleanPrompt.split(' ').slice(0, 4);
+          const title = words.map(word => {
+            // Skip articles and prepositions for capitalization
+            const skipWords = ['a', 'an', 'the', 'for', 'of', 'in', 'on', 'at', 'to', 'with', 'that', 'helps', 'who'];
+            if (skipWords.includes(word.toLowerCase())) {
+              return word.toLowerCase();
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+          }).join(' ');
+          
+          return title.endsWith('Assistant') ? title : `${title} Assistant`;
+        }
+      };
+      
       // Call the local API to generate a detailed system prompt
       let generatedSystemPrompt = prompt.trim();
       let generatedWelcomeMessage = '';
+      let generatedTitle = '';
       let systemPromptGenerated = false;
       
       try {
@@ -178,7 +215,8 @@ function DashboardContent() {
             user_prompt: prompt.trim(),
             context: 'Voice agent assistant',
             tone: 'professional',
-            domain: 'general'
+            domain: 'general',
+            generate_title: true // Request title generation
           }),
         });
 
@@ -189,18 +227,19 @@ function DashboardContent() {
           const result = await response.json();
           generatedSystemPrompt = result.system_prompt;
           generatedWelcomeMessage = result.welcome_message || '';
+          generatedTitle = result.title || '';
           systemPromptGenerated = true;
-          console.log('✅ Generated system prompt and welcome message with local API:', result.metadata);
+          console.log('✅ Generated system prompt, welcome message, and title with local API:', result.metadata);
         } else {
           const errorText = await response.text();
           console.warn('❌ Local API error:', response.status, response.statusText);
           console.warn('❌ Error details:', errorText);
-          console.log('📝 Using enhanced fallback system prompt');
+          console.log('📝 Using enhanced fallback system prompt and title');
         }
       } catch (apiError) {
         console.warn('❌ Local API unavailable:', apiError instanceof Error ? apiError.message : String(apiError));
         console.warn('❌ Full error:', apiError);
-        console.log('📝 Using enhanced fallback system prompt');
+        console.log('📝 Using enhanced fallback system prompt and title');
       }
       
       // Enhanced fallback if backend is unavailable
@@ -225,6 +264,9 @@ Remember to keep your responses natural and conversational since this is a voice
         
         // Generate a fallback welcome message based on the prompt
         generatedWelcomeMessage = `Hello! I'm your ${prompt.trim().toLowerCase()} assistant. How can I help you today?`;
+        
+        // Generate a better fallback title based on the prompt
+        generatedTitle = generateFallbackTitle(prompt.trim());
       }
 
       // Create a basic configuration from the prompt
@@ -282,16 +324,8 @@ async def entrypoint(ctx: agents.JobContext):
 if __name__ == "__main__":
     agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))`;
 
-      // Create project in database with unique name
-      const timestamp = new Date().toLocaleString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
-      });
-      const promptPreview = config.prompt.substring(0, 40);
-      const projectName = `${promptPreview}${config.prompt.length > 40 ? '...' : ''} (${timestamp})`;
+      // Create project in database with better title
+      const projectName = generatedTitle || generateFallbackTitle(prompt.trim());
       const projectDescription = `AI voice agent: ${config.prompt.substring(0, 100)}${config.prompt.length > 100 ? '...' : ''}`;
       
       const project = await createProject(
@@ -304,6 +338,69 @@ if __name__ == "__main__":
       );
       
       console.log('✅ Created project in database:', project.id);
+      
+      // Auto-tag the project based on its content
+      console.log('🏷️ Starting auto-tagging process for new project...');
+      let autoTaggedCategory = 'other'; // Default category
+      let categoryEmoji = '🤖'; // Default emoji
+      
+      console.log('🏷️ Initial values - Category:', autoTaggedCategory, 'Emoji:', categoryEmoji);
+      
+      try {
+        console.log('🏷️ Making auto-tag API request with data:', {
+          systemPrompt: generatedSystemPrompt.substring(0, 100) + '...',
+          title: projectName,
+          description: project.description || 'undefined',
+          publicDescription: prompt.trim() || 'undefined'
+        });
+        
+        const autoTagResponse = await fetch('/api/auto-tag', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            systemPrompt: generatedSystemPrompt,
+            title: projectName,
+            description: project.description || undefined,
+            publicDescription: prompt.trim() || undefined
+          }),
+        });
+
+        console.log('🏷️ Auto-tag API response status:', autoTagResponse.status);
+        console.log('🏷️ Auto-tag API response ok:', autoTagResponse.ok);
+
+        if (autoTagResponse.ok) {
+          const responseData = await autoTagResponse.json();
+          console.log('🏷️ Auto-tag API response data:', responseData);
+          
+          const { category } = responseData;
+          console.log('🏷️ Extracted category from response:', category, 'Type:', typeof category);
+          
+          if (category && category !== 'undefined') {
+            autoTaggedCategory = category;
+            console.log('✅ Category updated to:', autoTaggedCategory);
+          } else {
+            console.warn('⚠️ Category from API is empty or undefined, keeping default:', autoTaggedCategory);
+          }
+          
+          // Get the emoji for the auto-tagged category
+          const { getCategoryEmoji } = await import('@/lib/auto-tagger');
+          categoryEmoji = getCategoryEmoji(autoTaggedCategory as any) || '🤖';
+          console.log('🎯 Setting project emoji based on category:', `${autoTaggedCategory} -> ${categoryEmoji}`);
+        } else {
+          const errorText = await autoTagResponse.text();
+          console.warn('⚠️ Auto-tagging failed with status:', autoTagResponse.status);
+          console.warn('⚠️ Error response:', errorText);
+          console.warn('⚠️ Using default category and emoji');
+        }
+      } catch (error) {
+        console.error('❌ Auto-tagging error:', error);
+        console.log('🔄 Continuing with default category:', autoTaggedCategory, 'and emoji:', categoryEmoji);
+        // Continue with default category and emoji
+      }
+      
+      console.log('🏷️ Final auto-tagging values - Category:', autoTaggedCategory, 'Emoji:', categoryEmoji);
       
       // Create initial project_data entry with the generated system prompt
       const initialProjectData = {
@@ -335,17 +432,35 @@ if __name__ == "__main__":
         webhook_events: [],
         
         // Public visibility settings
-        is_public: isPublic,
+        project_emoji: categoryEmoji, // Use the emoji based on the auto-tagged category
         public_title: isPublic ? projectName : null,
         public_description: isPublic ? prompt.trim() : null,
         public_welcome_message: isPublic ? generatedWelcomeMessage : null,
         show_branding: true,
         custom_branding_text: null,
-        custom_branding_url: null
+        custom_branding_url: null,
       };
+      
+      console.log('🚀 About to create project data with the following payload:');
+      console.log('🚀 initialProjectData keys:', Object.keys(initialProjectData));
+      console.log('🚀 initialProjectData.project_emoji:', initialProjectData.project_emoji);
+      console.log('🚀 Full initialProjectData object:', JSON.stringify(initialProjectData, null, 2));
       
       await createProjectData(project.id, initialProjectData);
       console.log('✅ Created initial project configuration in database');
+      
+      // Now update the project with the category
+      console.log('🏷️ Updating project with category:', autoTaggedCategory);
+      try {
+        await updateProject(project.id, { 
+          category: autoTaggedCategory,
+          project_emoji: categoryEmoji 
+        });
+        console.log('✅ Project category and emoji updated successfully');
+      } catch (categoryError) {
+        console.error('❌ Error updating project category:', categoryError);
+        // Don't fail the entire process if category update fails
+      }
       
       // Small delay to ensure database operations are complete before navigation
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -359,7 +474,7 @@ if __name__ == "__main__":
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt, createProject, createProjectData, router, isPublic]);
+  }, [prompt, createProject, createProjectData, router, isPublic, updateProject]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

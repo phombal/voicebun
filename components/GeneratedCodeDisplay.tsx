@@ -29,6 +29,7 @@ import {
   useVoiceAssistant,
 } from "@livekit/components-react";
 import { CloseIcon } from "./CloseIcon";
+import { getCategoryEmoji, type ProjectCategory } from '@/lib/auto-tagger';
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -43,8 +44,6 @@ interface PhoneNumberFeature {
   name: string;
 }
 
-
-
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -54,10 +53,6 @@ interface ChatMessage {
   filesSnapshot?: Map<string, string>; // Snapshot of all files at this point
   isError?: boolean; // Mark error messages
 }
-
-
-
-
 
 export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onStartConversation, onProjectUpdate }: Omit<GeneratedCodeDisplayProps, 'onReconfigure'>) {
   // Debug logging on every render
@@ -173,7 +168,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(project?.name || 'Untitled Project');
   const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
-  const [leftPanelExpanded, setLeftPanelExpanded] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   
   // Audio recording state for Clone Voice
@@ -244,21 +238,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       titleInputRef.current.select();
     }
   }, [isEditingTitle]);
-
-  // Handle left panel auto-hide
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const threshold = 20; // pixels from left edge - reduced from 100 to avoid interfering with header
-      if (e.clientX <= threshold) {
-        setLeftPanelExpanded(true);
-      } else if (e.clientX > 320) { // panel width + buffer
-        setLeftPanelExpanded(false);
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    return () => document.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   // Handle project title update
   const updateProjectTitle = async () => {
@@ -518,7 +497,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
           webhookEvents: projectData.webhook_events,
           
           // Community Publishing Fields
-          projectEmoji: projectData.project_emoji || '🤖',
+          projectEmoji: projectData.project_emoji ||'🤖',
           projectPhoto: projectData.project_photo || null,
           publicTitle: projectData.public_title || '',
           publicDescription: projectData.public_description || '',
@@ -584,6 +563,46 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
         });
       }
       
+      // Auto-tag the project based on its content
+      console.log('🏷️ Starting auto-tagging process...');
+      let autoTaggedCategory = 'other'; // Default category
+      
+      try {
+        const autoTagResponse = await fetch('/api/auto-tag', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            systemPrompt: projectConfig.systemPrompt,
+            title: projectConfig.publicTitle || projectToUse.name,
+            description: projectToUse.description || undefined,
+            publicDescription: projectConfig.publicDescription || undefined
+          }),
+        });
+
+        if (autoTagResponse.ok) {
+          const { category } = await autoTagResponse.json();
+          autoTaggedCategory = category || 'other';
+          console.log('✅ Project auto-tagged as:', autoTaggedCategory);
+        } else {
+          console.warn('⚠️ Auto-tagging failed, using default category');
+        }
+      } catch (error) {
+        console.error('❌ Auto-tagging error:', error);
+        // Continue with default category
+      }
+
+      // Get the emoji for the auto-tagged category
+      const categoryEmoji = getCategoryEmoji(autoTaggedCategory as ProjectCategory);
+      console.log('🎯 Setting project emoji based on category:', `${autoTaggedCategory} -> ${categoryEmoji}`);
+      
+      // Update the project config state to reflect the new emoji
+      setProjectConfig(prev => ({
+        ...prev,
+        projectEmoji: categoryEmoji
+      }));
+      
       const configData = {
         system_prompt: projectConfig.systemPrompt,
         agent_instructions: projectConfig.publicWelcomeMessage, // Save welcome message as agent instructions
@@ -613,14 +632,17 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
         webhook_events: projectConfig.webhookEvents,
         
         // Community Publishing Fields
-        project_emoji: projectConfig.projectEmoji,
+        project_emoji: categoryEmoji, // Use the emoji based on the auto-tagged category
         project_photo: projectConfig.projectPhoto,
         public_title: projectConfig.publicTitle,
         public_description: projectConfig.publicDescription,
         public_welcome_message: projectConfig.publicWelcomeMessage,
         show_branding: projectConfig.showBranding,
         custom_branding_text: projectConfig.customBrandingText,
-        custom_branding_url: projectConfig.customBrandingUrl
+        custom_branding_url: projectConfig.customBrandingUrl,
+        
+        // Auto-tagging field
+        category: autoTaggedCategory
       };
 
       console.log('💾 Attempting to save config data:', {
@@ -728,8 +750,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     // Remove this effect since we no longer have a test tab
     // The conversation can continue while user navigates between config tabs
   }, []);
-
-
 
   // Initialize chat
   useEffect(() => {
@@ -1461,35 +1481,24 @@ For now, you can still manually configure your voice agent using the tabs above.
       <div data-lk-theme="default" className="w-full h-screen bg-black flex relative" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
         {/* Auto-hiding Left Panel */}
         <ChatPanel
-          isExpanded={leftPanelExpanded}
-          onExpandedChange={setLeftPanelExpanded}
+          isExpanded={true}
+          onExpandedChange={() => {}} // No-op since panel is always static
           messages={messages}
           inputMessage={inputMessage}
           onInputChange={setInputMessage}
           onSendMessage={sendMessage}
           isGenerating={isGenerating}
+          onBackToHome={onBackToHome}
         />
 
         {/* Main Content Area - now takes full width */}
-        <div className={`flex-1 bg-black flex flex-col transition-all duration-300 ${leftPanelExpanded ? 'ml-80' : 'ml-12'}`}>
+        <div className="flex-1 bg-black flex flex-col transition-all duration-300 ml-80">
           {/* Header with toggle and actions */}
           <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
             {/* Left side - VoiceBun Logo and Project Title */}
             <div className="flex items-center space-x-4 flex-1">
               <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-3">
-                <button
-                  onClick={onBackToHome}
-                  className="hover:opacity-80 transition-opacity cursor-pointer"
-                  title="Go to home page"
-                >
-                  <img 
-                    src="/VoiceBun-BunOnly.png" 
-                    alt="VoiceBun" 
-                    className="w-8 h-8"
-                  />
-                </button>
-                
                   {/* Project Title */}
                   <div className="flex items-center space-x-2">
                     {isEditingTitle ? (
@@ -1718,8 +1727,11 @@ For now, you can still manually configure your voice agent using the tabs above.
 
         {/* Voice Assistant Overlay - Only show when connected */}
         <VoiceConversationModal
-          isOpen={isInConversation}
-          onClose={endConversation}
+          isOpen={showVoiceConversationModal}
+          onClose={() => {
+            setShowVoiceConversationModal(false);
+            endConversation();
+          }}
           config={config}
           project={project}
           currentProject={currentProject}
@@ -1750,9 +1762,8 @@ For now, you can still manually configure your voice agent using the tabs above.
         availablePhoneNumbers={availableNumbers}
         user={user}
         onWebTest={() => {
-          startConversation().catch((err) => {
-            console.error('🔥 Unhandled error in startConversation:', err);
-          });
+          console.log('🌐 Web test selected - showing voice conversation modal');
+          setShowVoiceConversationModal(true);
         }}
         onOutboundTest={handleOutboundTestAPI}
       />

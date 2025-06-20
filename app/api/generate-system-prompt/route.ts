@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { user_prompt, context = 'Voice agent assistant', tone = 'professional', domain = 'general' } = await request.json();
+    const { user_prompt, context = 'Voice agent assistant', tone = 'professional', domain = 'general', generate_title = false } = await request.json();
 
     if (!user_prompt) {
       return NextResponse.json(
@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
 
     console.log('🤖 Generating system prompt for:', user_prompt);
 
-    const systemPromptGenerationPrompt = `You are an expert at creating detailed system prompts and welcome messages for AI voice agents. 
+    const systemPromptGenerationPrompt = `You are an expert at creating detailed system prompts${generate_title ? ', project titles,' : ''} and welcome messages for AI voice agents. 
 
-Create a comprehensive system prompt and welcome message for a voice agent based on this user description: "${user_prompt}"
+Create a comprehensive system prompt${generate_title ? ', a catchy project title,' : ''} and welcome message for a voice agent based on this user description: "${user_prompt}"
 
 The system prompt should:
 - Be detailed and specific to the user's request
@@ -32,7 +32,14 @@ The system prompt should:
 - Be professional yet engaging
 - Include specific examples of how to handle common scenarios
 
-The welcome message should:
+${generate_title ? `The project title should:
+- Be concise and descriptive (2-5 words)
+- Clearly indicate the agent's purpose
+- Be professional and appealing
+- Not include generic words like "AI" or "Agent" unless necessary
+- Be suitable for display in a project list
+
+` : ''}The welcome message should:
 - Be a brief, friendly greeting (1-2 sentences)
 - Introduce the agent's purpose clearly
 - Be warm and inviting
@@ -44,12 +51,16 @@ Tone: ${tone}
 Domain: ${domain}
 
 IMPORTANT: Please format your response as JSON with the following structure:
-{
+${generate_title ? `{
+  "system_prompt": "The detailed system prompt content here...",
+  "welcome_message": "The brief welcome message here...",
+  "title": "The project title here..."
+}` : `{
   "system_prompt": "The detailed system prompt content here...",
   "welcome_message": "The brief welcome message here..."
-}
+}`}
 
-Return ONLY the JSON response without any markdown formatting, headers, or additional text. The system prompt should be between 800-1500 characters and the welcome message should be 1-2 sentences (50-150 characters).`;
+Return ONLY the JSON response without any markdown formatting, headers, or additional text. The system prompt should be between 800-1500 characters${generate_title ? ', the title should be 2-5 words,' : ''} and the welcome message should be 1-2 sentences (50-150 characters).`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -84,11 +95,13 @@ Return ONLY the JSON response without any markdown formatting, headers, or addit
       // Try to find system_prompt and welcome_message in the response
       const systemPromptMatch = generatedContent.match(/"system_prompt":\s*"([^"]+)"/);
       const welcomeMessageMatch = generatedContent.match(/"welcome_message":\s*"([^"]+)"/);
+      const titleMatch = generatedContent.match(/"title":\s*"([^"]+)"/);
       
       if (systemPromptMatch && welcomeMessageMatch) {
         parsedContent = {
           system_prompt: systemPromptMatch[1],
-          welcome_message: welcomeMessageMatch[1]
+          welcome_message: welcomeMessageMatch[1],
+          ...(titleMatch && { title: titleMatch[1] })
         };
       } else {
         // Last resort: split content or use original logic for system prompt only
@@ -112,9 +125,15 @@ Return ONLY the JSON response without any markdown formatting, headers, or addit
       .replace(/^\*\*Welcome Message\*\*:?\s*/gi, '')
       .trim();
 
+    const cleanedTitle = (parsedContent.title || '')
+      .replace(/^\*\*Title\*\*:?\s*/gi, '')
+      .replace(/^\*\*Project Title\*\*:?\s*/gi, '')
+      .trim();
+
     const response = {
       system_prompt: cleanedSystemPrompt,
       welcome_message: cleanedWelcomeMessage,
+      ...(generate_title && cleanedTitle && { title: cleanedTitle }),
       original_prompt: user_prompt,
       metadata: {
         tone,
@@ -123,6 +142,7 @@ Return ONLY the JSON response without any markdown formatting, headers, or addit
         model_used: 'gpt-4o',
         system_prompt_length: cleanedSystemPrompt.length,
         welcome_message_length: cleanedWelcomeMessage.length,
+        ...(generate_title && { title_length: cleanedTitle.length }),
         tokens_used: completion.usage?.total_tokens || 0
       }
     };

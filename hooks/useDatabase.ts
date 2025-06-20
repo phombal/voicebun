@@ -140,6 +140,12 @@ export function useDatabase() {
     return await dbInstance.getUserProjects();
   }, [user]);
 
+  // Update project
+  const updateProject = useCallback(async (projectId: string, updates: any) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.updateProject(projectId, updates);
+  }, [user]);
+
   // Project Data Management
   const createProjectData = useCallback(async (projectId: string, data: any) => {
     if (!user) throw new Error('User not authenticated');
@@ -248,6 +254,7 @@ export function useDatabase() {
     currentProject,
     currentSession,
     setCurrentProject,
-    setCurrentSession
+    setCurrentSession,
+    updateProject
   };
 } 

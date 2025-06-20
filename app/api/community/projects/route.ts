@@ -17,6 +17,9 @@ export async function GET(request: NextRequest) {
         description,
         created_at,
         user_id,
+        view_count,
+        project_emoji,
+        category,
         project_data (
           public_title,
           public_description,
@@ -26,7 +29,8 @@ export async function GET(request: NextRequest) {
           system_prompt,
           tts_provider,
           tts_voice,
-          llm_model
+          llm_model,
+          category
         )
       `)
       .eq('visibility', 'public')

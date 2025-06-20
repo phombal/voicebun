@@ -35,15 +35,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create simplified metadata with only projectId (agent backend will pull data from Supabase)
+    // Create metadata with essential user and project information
     const enhancedMetadata = {
-      projectId
+      projectId,
+      userId: userId || null,
+      isCommunityProject: true,
+      timestamp: new Date().toISOString(),
+      // Include any additional metadata passed from the client
+      ...(metadata && typeof metadata === 'object' ? {
+        userEmail: metadata.userEmail,
+        userName: metadata.userName
+      } : {})
     };
 
-    console.log('📋 Simplified metadata prepared (agent will fetch config from Supabase):', {
+    console.log('📋 Enhanced metadata prepared with user context:', {
       projectId,
+      userId: userId || 'NOT_PROVIDED',
+      isCommunityProject: true,
       metadataSize: JSON.stringify(enhancedMetadata).length,
-      note: 'Only sending projectId - agent backend pulls full config from database'
+      note: 'Including userId and essential user context for agent'
     });
 
     // Generate JWT token for LiveKit API authentication

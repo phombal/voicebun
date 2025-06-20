@@ -57,6 +57,7 @@ export function VoiceConversationModal({
 }: VoiceConversationModalProps) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInConversation, setIsInConversation] = useState(false);
+  const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
   // Room state
   const [room] = useState(() =>
@@ -329,17 +330,29 @@ export function VoiceConversationModal({
 
   // Start conversation when modal opens
   useEffect(() => {
-    if (isOpen && !isInConversation && !isConnecting) {
+    if (isOpen && !isInConversation && !isConnecting && !hasStartedConversation) {
+      console.log('🌐 Modal opened - starting conversation...');
+      setHasStartedConversation(true);
       startConversation();
     }
-  }, [isOpen]);
+  }, [isOpen, isInConversation, isConnecting, hasStartedConversation]);
 
-  // Close modal if not in conversation anymore
+  // Close modal if not in conversation anymore (but only after we've attempted to start)
   useEffect(() => {
-    if (!isInConversation && !isConnecting && isOpen) {
+    if (!isInConversation && !isConnecting && isOpen && hasStartedConversation) {
+      console.log('🔄 Conversation ended - closing modal...');
       onClose();
     }
-  }, [isInConversation, isConnecting, isOpen, onClose]);
+  }, [isInConversation, isConnecting, isOpen, onClose, hasStartedConversation]);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setHasStartedConversation(false);
+      setIsConnecting(false);
+      setIsInConversation(false);
+    }
+  }, [isOpen]);
 
   function AgentVisualizer() {
     const { state: agentState, videoTrack, audioTrack } = useVoiceAssistant();

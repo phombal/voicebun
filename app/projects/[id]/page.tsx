@@ -20,6 +20,22 @@ export default function ProjectPage() {
   const [config, setConfig] = useState<VoiceAgentConfigType | null>(null);
   const [code, setCode] = useState<string>("");
 
+  // Function to track project views
+  const trackProjectView = async (projectId: string) => {
+    try {
+      await fetch(`/api/projects/${projectId}/view`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('📊 Project view tracked for:', projectId);
+    } catch (error) {
+      console.error('Failed to track project view:', error);
+      // Don't throw error - view tracking is not critical for user experience
+    }
+  };
+
   // Redirect unauthenticated users to landing
   useEffect(() => {
     if (!loading && !user) {
@@ -48,6 +64,9 @@ export default function ProjectPage() {
         console.log('🎯 Setting current project in useDatabase hook:', foundProject.id);
         setCurrentProject(foundProject);
         console.log('✅ Current project set in useDatabase hook');
+
+        // Track the view after successfully loading the project
+        await trackProjectView(foundProject.id);
 
         // Reconstruct config from project data
         const agentConfig: VoiceAgentConfigType = {

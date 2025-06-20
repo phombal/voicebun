@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Play, ArrowRight, Search, Filter, Clock, User, Mic, Sparkles } from 'lucide-react';
 import Link from 'next/link';
@@ -14,6 +14,9 @@ interface PublicProject {
   user_name: string | null;
   user_email: string;
   created_at: string;
+  category?: string;
+  project_emoji?: string;
+  view_count?: number;
   project_data?: {
     public_title?: string;
     public_description?: string;
@@ -24,6 +27,7 @@ interface PublicProject {
     tts_provider: string;
     tts_voice: string;
     llm_model: string;
+    category?: string;
   };
 }
 
@@ -52,18 +56,20 @@ export default function CommunityProjectsSection({
 }: CommunityProjectsSectionProps) {
   const [featuredProjects, setFeaturedProjects] = useState<PublicProject[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const { getUserProjects } = useDatabase();
   const { user } = useAuth();
 
-  useEffect(() => {
-    fetchFeaturedProjects();
-  }, [projectType, user, getUserProjects]);
-
-  const fetchFeaturedProjects = async () => {
+  const fetchFeaturedProjects = useCallback(async (silent = false) => {
     try {
-      setProjectsLoading(true);
+      if (!silent) {
+        setProjectsLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       
       let projects: any[] = [];
       
@@ -78,24 +84,35 @@ export default function CommunityProjectsSection({
           user_name: user.user_metadata?.name || user.email?.split('@')[0] || 'You',
           user_email: user.email,
           created_at: project.created_at,
+          category: project.category,
+          project_emoji: project.project_emoji,
+          view_count: project.view_count || 0,
           project_data: {
             public_title: project.name,
             public_description: project.description,
-            project_emoji: '🤖',
+            project_emoji: project.project_emoji || '🤖',
             system_prompt: project.initial_prompt || '',
             tts_provider: 'cartesia',
             tts_voice: 'neutral',
-            llm_model: 'gpt-4o-mini'
+            llm_model: 'gpt-4o-mini',
+            category: project.category
           }
         }));
       } else {
-        // Fetch community projects
-        const response = await fetch('/api/community/projects');
+        // Fetch community projects with cache-busting parameter
+        const cacheBuster = Date.now();
+        const response = await fetch(`/api/community/projects?t=${cacheBuster}`, {
+          cache: 'no-store', // Prevent caching
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        });
         if (!response.ok) {
           throw new Error('Failed to fetch community projects');
         }
         const data = await response.json();
         projects = data.projects || [];
+        console.log(`📊 Fetched ${projects.length} community projects (${silent ? 'silent' : 'visible'} refresh)`);
       }
       
       // Apply limit if specified
@@ -104,11 +121,82 @@ export default function CommunityProjectsSection({
       }
       
       setFeaturedProjects(projects);
+      setLastRefreshTime(new Date());
     } catch (err) {
       console.error('Failed to load projects:', err);
-      setFeaturedProjects([]);
+      if (!silent) {
+        setFeaturedProjects([]);
+      }
     } finally {
-      setProjectsLoading(false);
+      if (!silent) {
+        setProjectsLoading(false);
+      } else {
+        setRefreshing(false);
+      }
+    }
+  }, [projectType, user, getUserProjects, limit]);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchFeaturedProjects();
+  }, [fetchFeaturedProjects]);
+
+  // Auto-refresh every 30 seconds when page is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        console.log('🔄 Auto-refreshing community projects...');
+        fetchFeaturedProjects(true); // Silent refresh
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [fetchFeaturedProjects]);
+
+  // Refresh when user returns to the tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('👁️ Page became visible - refreshing community projects...');
+        fetchFeaturedProjects(true); // Silent refresh
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchFeaturedProjects]);
+
+  // Manual refresh function
+  const handleManualRefresh = () => {
+    console.log('🔄 Manual refresh triggered');
+    fetchFeaturedProjects();
+  };
+
+  // Function to track project views
+  const trackProjectView = async (projectId: string, projectType: 'community' | 'user') => {
+    try {
+      const endpoint = projectType === 'community' 
+        ? `/api/community/projects/${projectId}/view`
+        : `/api/projects/${projectId}/view`;
+      
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      // Optionally update the local state to reflect the incremented view count
+      setFeaturedProjects(prev => 
+        prev.map(project => 
+          project.id === projectId 
+            ? { ...project, view_count: (project.view_count || 0) + 1 }
+            : project
+        )
+      );
+    } catch (error) {
+      console.error('Failed to track project view:', error);
+      // Don't throw error - view tracking is not critical for user experience
     }
   };
 
@@ -119,7 +207,9 @@ export default function CommunityProjectsSection({
       (project.description && project.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (project.project_data?.public_description && project.project_data.public_description.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    const matchesCategory = selectedCategory === 'All' || true; // For now, show all projects
+    // Use project-level category for filtering
+    const projectCategory = project.category || project.project_data?.category;
+    const matchesCategory = selectedCategory === 'All' || projectCategory === selectedCategory;
     
     return matchesSearch && matchesCategory;
   });
@@ -133,13 +223,83 @@ export default function CommunityProjectsSection({
   };
 
   const ProjectCard = ({ project, index }: { project: PublicProject; index: number }) => {
-    const emoji = project.project_data?.project_emoji || '🤖';
-    const viewCount = Math.floor(Math.random() * 1000) + 50; // Random view count between 50-1049
+    const emoji = project.project_emoji || project.project_data?.project_emoji || '🤖';
+    
+    // Debug logging for emoji selection
+    if (projectType === 'community') {
+      console.log(`🎭 Project "${project.name}" emoji selection:`, {
+        projectId: project.id,
+        project_emoji: project.project_emoji,
+        project_data_emoji: project.project_data?.project_emoji,
+        selected_emoji: emoji,
+        category: project.category || project.project_data?.category
+      });
+    }
+    
+    const viewCount = project.view_count || 0;
     const displayTitle = project.project_data?.public_title || project.name || 'Untitled Project';
     const displayDescription = project.project_data?.public_description || project.description || 'No description available';
+    const category = project.category || project.project_data?.category;
     
     // Determine the correct link based on project type
     const projectLink = projectType === 'user' ? `/projects/${project.id}` : `/community/${project.id}`;
+    
+    // Handle project click with view tracking
+    const handleProjectClick = (e: React.MouseEvent) => {
+      // Track the view
+      trackProjectView(project.id, projectType);
+      // Navigation will happen automatically via the Link component
+    };
+
+    // Get category display info and gradient
+    const getCategoryInfo = (cat: string | undefined) => {
+      const categoryMap = {
+        'Healthcare': { 
+          color: 'bg-red-100 text-red-800', 
+          emoji: '🏥',
+          gradient: 'from-red-500 via-pink-500 to-rose-500'
+        },
+        'Education': { 
+          color: 'bg-blue-100 text-blue-800', 
+          emoji: '📚',
+          gradient: 'from-blue-500 via-indigo-500 to-purple-500'
+        },
+        'Customer Service': { 
+          color: 'bg-green-100 text-green-800', 
+          emoji: '💬',
+          gradient: 'from-green-500 via-emerald-500 to-teal-500'
+        },
+        'Personal Assistant': { 
+          color: 'bg-purple-100 text-purple-800', 
+          emoji: '🤖',
+          gradient: 'from-purple-500 via-violet-500 to-indigo-500'
+        },
+        'Sales & Marketing': { 
+          color: 'bg-orange-100 text-orange-800', 
+          emoji: '📈',
+          gradient: 'from-orange-500 via-amber-500 to-yellow-500'
+        },
+        'Entertainment': { 
+          color: 'bg-pink-100 text-pink-800', 
+          emoji: '🎉',
+          gradient: 'from-pink-500 via-rose-500 to-red-500'
+        },
+        'Productivity': { 
+          color: 'bg-gray-100 text-gray-800', 
+          emoji: '⚡',
+          gradient: 'from-gray-500 via-slate-500 to-zinc-500'
+        }
+      };
+      return cat && categoryMap[cat as keyof typeof categoryMap] 
+        ? categoryMap[cat as keyof typeof categoryMap]
+        : { 
+            color: 'bg-gray-100 text-gray-800', 
+            emoji: '🤖',
+            gradient: 'from-blue-500 via-purple-500 to-pink-500'
+          };
+    };
+    
+    const categoryInfo = getCategoryInfo(category);
     
     // Always use light theme cards inside the white container
     return (
@@ -148,10 +308,10 @@ export default function CommunityProjectsSection({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: delay + 0.1 + index * 0.1 }}
       >
-        <Link href={projectLink}>
+        <Link href={projectLink} onClick={handleProjectClick}>
           <div className="bg-gray-100 rounded-xl overflow-hidden hover:scale-105 transition-all duration-300 group cursor-pointer text-left">
             {/* Preview Image Area */}
-            <div className="aspect-video bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 relative overflow-hidden">
+            <div className={`aspect-video bg-gradient-to-br ${categoryInfo.gradient} relative overflow-hidden`}>
               <div className="absolute inset-0 bg-black/20"></div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-4xl opacity-80">{emoji}</div>
@@ -162,6 +322,14 @@ export default function CommunityProjectsSection({
                   <Play className="w-6 h-6 text-white" />
                 </div>
               </div>
+              {/* Category Badge */}
+              {categoryInfo && (
+                <div className="absolute top-2 right-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${categoryInfo.color}`}>
+                    {category}
+                  </span>
+                </div>
+              )}
             </div>
             
             {/* Content Area */}
@@ -212,9 +380,28 @@ export default function CommunityProjectsSection({
       {/* Title inside the white card */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-            {title}
-          </h2>
+          <div className="flex items-center space-x-4">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+              {title}
+            </h2>
+            {projectType === 'community' && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleManualRefresh}
+                  className="flex items-center space-x-1 px-3 py-1 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                  title="Refresh projects"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Refresh</span>
+                </button>
+                <span className="text-xs text-gray-400">
+                  Updated {lastRefreshTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            )}
+          </div>
           {variant === 'card' && (
             <div className="flex items-center space-x-4">
               <Link
