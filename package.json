@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.53.0",
+    "@cartesia/cartesia-js": "^2.2.4",
     "@livekit/components-react": "^2.9.3",
     "@livekit/components-styles": "^1.1.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/rest": "^21.1.1",
+    "@speechify/api": "^1.0.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
     "@types/jsonwebtoken": "^9.0.9",

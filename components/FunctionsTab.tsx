@@ -15,8 +15,8 @@ interface ProjectConfig {
   sttProcessingMode: 'streaming' | 'batch';
   sttNoiseSuppression: boolean;
   sttAutoPunctuation: boolean;
-  ttsProvider: 'cartesia' | 'openai';
-  ttsVoice: 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female';
+  ttsProvider: 'cartesia' | 'openai' | 'clone_voice';
+  ttsVoice: string;
   phoneNumber: string | null;
   phoneInboundEnabled: boolean;
   phoneOutboundEnabled: boolean;
@@ -1001,7 +1001,13 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
       description: 'Detect when the call goes to voicemail and handle accordingly',
       parameters: {
         type: 'object',
-        properties: {},
+        properties: {
+          voicemail_message: {
+            type: 'string',
+            description: 'Message to say when voicemail is detected',
+            default: 'Hello, I noticed this call went to voicemail. I\'ll leave a brief message and follow up later.'
+          }
+        },
         required: []
       }
     };
@@ -1414,26 +1420,29 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => {
-                            setEditingFunction(index);
-                            setTestingFunction(null); // Ensure we're in Configure mode
-                            setFunctionConfig({
-                              name: func.name,
-                              description: func.description,
-                              parameters: func.parameters,
-                              headers: (func as any).headers || {},
-                              body: (func as any).body || {},
-                              url: (func as any).url || '',
-                              method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
-                            });
-                          }}
-                          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                        >
-                          Configure
-                        </button>
-                        {/* Only show test button for preset integrations, not custom functions */}
-                        {!func.name.includes('custom_function') && (
+                        {/* Only show Configure button for functions that need configuration */}
+                        {func.name !== 'hangup_call' && (
+                          <button
+                            onClick={() => {
+                              setEditingFunction(index);
+                              setTestingFunction(null); // Ensure we're in Configure mode
+                              setFunctionConfig({
+                                name: func.name,
+                                description: func.description,
+                                parameters: func.parameters,
+                                headers: (func as any).headers || {},
+                                body: (func as any).body || {},
+                                url: (func as any).url || '',
+                                method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
+                              });
+                            }}
+                            className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                          >
+                            Configure
+                          </button>
+                        )}
+                        {/* Only show test button for preset integrations, not custom functions, hangup_call, or voicemail_detection */}
+                        {!func.name.includes('custom_function') && func.name !== 'hangup_call' && func.name !== 'voicemail_detection' && (
                           <button
                             onClick={() => {
                               setEditingFunction(index);
@@ -1805,6 +1814,39 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                                         placeholder="https://hook.make.com/your-webhook-url"
                                         className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                       />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Voicemail Detection Configuration */}
+                                {functionConfig.name === 'voicemail_detection' && (
+                                  <div className="space-y-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-white/70 mb-2">
+                                        Voicemail Message
+                                      </label>
+                                      <textarea
+                                        value={functionConfig.parameters?.properties?.voicemail_message?.default || ''}
+                                        onChange={(e) => setFunctionConfig(prev => prev ? { 
+                                          ...prev, 
+                                          parameters: {
+                                            ...prev.parameters,
+                                            properties: {
+                                              ...prev.parameters.properties,
+                                              voicemail_message: {
+                                                ...prev.parameters.properties.voicemail_message,
+                                                default: e.target.value
+                                              }
+                                            }
+                                          }
+                                        } : null)}
+                                        placeholder="Hello, I noticed this call went to voicemail. I'll leave a brief message and follow up later."
+                                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        rows={3}
+                                      />
+                                      <p className="text-xs text-white/50 mt-1">
+                                        This message will be spoken when the AI detects that the call has gone to voicemail.
+                                      </p>
                                     </div>
                                   </div>
                                 )}

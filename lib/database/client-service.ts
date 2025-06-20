@@ -355,6 +355,62 @@ export class ClientDatabaseService {
     if (error) throw error;
     return data;
   }
+
+  // Custom Voice Management for User Plans
+  async getUserCustomVoices(): Promise<Array<{ id: string; displayName: string; createdAt: string }>> {
+    const userPlan = await this.getUserPlan();
+    return userPlan?.custom_voices || [];
+  }
+
+  async addCustomVoiceToUserPlan(voice: { id: string; displayName: string; createdAt: string }): Promise<UserPlan> {
+    const userId = await this.getCurrentUserId();
+    const userPlan = await this.getUserPlan();
+    
+    if (!userPlan) {
+      throw new Error('User plan not found');
+    }
+
+    const currentVoices = userPlan.custom_voices || [];
+    const updatedVoices = [...currentVoices, voice];
+
+    const { data, error } = await this.supabase
+      .from('user_plans')
+      .update({ 
+        custom_voices: updatedVoices,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  async removeCustomVoiceFromUserPlan(voiceId: string): Promise<UserPlan> {
+    const userId = await this.getCurrentUserId();
+    const userPlan = await this.getUserPlan();
+    
+    if (!userPlan) {
+      throw new Error('User plan not found');
+    }
+
+    const currentVoices = userPlan.custom_voices || [];
+    const updatedVoices = currentVoices.filter(voice => voice.id !== voiceId);
+
+    const { data, error } = await this.supabase
+      .from('user_plans')
+      .update({ 
+        custom_voices: updatedVoices,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
 }
 
 // Export a singleton instance for convenience

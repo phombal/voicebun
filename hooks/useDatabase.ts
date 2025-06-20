@@ -186,6 +186,22 @@ export function useDatabase() {
     return await dbInstance.updateConversationMinutes(user.id, minutesUsed);
   }, [user]);
 
+  // Custom Voice Management
+  const getUserCustomVoices = useCallback(async () => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.getUserCustomVoices();
+  }, [user]);
+
+  const addCustomVoiceToUserPlan = useCallback(async (voice: { id: string; displayName: string; createdAt: string }) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.addCustomVoiceToUserPlan(voice);
+  }, [user]);
+
+  const removeCustomVoiceFromUserPlan = useCallback(async (voiceId: string) => {
+    if (!user) throw new Error('User not authenticated');
+    return await dbInstance.removeCustomVoiceFromUserPlan(voiceId);
+  }, [user]);
+
   const deleteProject = async (projectId: string) => {
     if (!user) {
       throw new Error('User not authenticated');
@@ -225,6 +241,9 @@ export function useDatabase() {
     getUserPlan,
     updateUserPlan,
     updateConversationMinutes,
+    getUserCustomVoices,
+    addCustomVoiceToUserPlan,
+    removeCustomVoiceFromUserPlan,
     deleteProject,
     currentProject,
     currentSession,

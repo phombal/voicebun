@@ -144,8 +144,8 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     sttProcessingMode: 'streaming' as 'streaming' | 'batch',
     sttNoiseSuppression: true,
     sttAutoPunctuation: true,
-    ttsProvider: 'cartesia' as 'cartesia' | 'openai',
-    ttsVoice: 'neutral' as 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female',
+    ttsProvider: 'cartesia' as 'cartesia' | 'openai' | 'clone_voice',
+    ttsVoice: 'neutral' as string,
 
     phoneNumber: null as string | null,
     phoneInboundEnabled: true,
@@ -189,17 +189,35 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     createProjectData,
     getProjectData,
     updateProjectData,
-    getProjectPhoneNumbers
+    getProjectPhoneNumbers,
+    getUserPlan,
+    getUserCustomVoices
   } = useDatabase();
   
   // Project title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [titleValue, setTitleValue] = useState(project.name);
+  const [tempTitle, setTempTitle] = useState(project?.name || 'Untitled Project');
   const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
   const [leftPanelExpanded, setLeftPanelExpanded] = useState(false);
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   
+  // Audio recording state for Clone Voice
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  
+  // Voice cloning state
+  const [voiceName, setVoiceName] = useState('');
+  const [isCloning, setIsCloning] = useState(false);
+  const [customVoices, setCustomVoices] = useState<{id: string, displayName: string}[]>([]);
+  const [showCloneVoiceModal, setShowCloneVoiceModal] = useState(false);
+
   // Ref for debouncing file saves
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -248,7 +266,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   // Update edited title when project prop changes
   useEffect(() => {
     if (project?.name && !isEditingTitle) {
-      setTitleValue(project.name);
+      setTempTitle(project.name);
     }
   }, [project?.name, isEditingTitle]);
 
@@ -277,23 +295,23 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
 
   // Handle project title update
   const updateProjectTitle = async () => {
-    if (!project || !titleValue.trim() || titleValue === project.name) {
+    if (!project || !tempTitle.trim() || tempTitle === project.name) {
       setIsEditingTitle(false);
-      setTitleValue(project?.name || '');
+      setTempTitle(project?.name || '');
       return;
     }
 
     setIsUpdatingTitle(true);
     try {
       await dbService.updateProject(project.id, { 
-        name: titleValue.trim(),
+        name: tempTitle.trim(),
         updated_at: new Date().toISOString()
       });
       
       // Create updated project object
       const updatedProject: Project = {
         ...project,
-        name: titleValue.trim(),
+        name: tempTitle.trim(),
         updated_at: new Date().toISOString()
       };
       
@@ -307,7 +325,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     } catch (error) {
       console.error('❌ Failed to update project title:', error);
       // Reset to original title on error
-      setTitleValue(project.name);
+      setTempTitle(project.name);
       alert('Failed to update project title. Please try again.');
     } finally {
       setIsUpdatingTitle(false);
@@ -318,14 +336,14 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   const startEditingTitle = () => {
     if (project) {
       setIsEditingTitle(true);
-      setTitleValue(project.name);
+      setTempTitle(project.name);
     }
   };
 
   // Handle title edit cancel
   const cancelEditingTitle = () => {
     setIsEditingTitle(false);
-    setTitleValue(project?.name || '');
+    setTempTitle(project?.name || '');
   };
 
   // Handle Enter key press in title input
@@ -550,6 +568,16 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     console.log('🔍 Loading project configuration for:', projectToUse.id);
     
     try {
+      // Load custom voices from the user plan instead of project
+      try {
+        const customVoicesFromPlan = await getUserCustomVoices();
+        setCustomVoices(customVoicesFromPlan);
+        console.log('🎵 Loaded custom voices from user plan:', customVoicesFromPlan.length);
+      } catch (error) {
+        console.error('❌ Failed to load custom voices from user plan:', error);
+        setCustomVoices([]);
+      }
+
       const projectData = await getProjectData(projectToUse.id);
       console.log('📥 Project data from database:', projectData ? 'found' : 'not found');
       
@@ -571,7 +599,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
           sttNoiseSuppression: projectData.stt_noise_suppression,
           sttAutoPunctuation: projectData.stt_auto_punctuation,
           ttsProvider: (projectData.tts_provider as any) === 'elevenlabs' ? 'cartesia' : projectData.tts_provider,
-          ttsVoice: projectData.tts_voice,
+          ttsVoice: projectData.tts_voice || 'neutral',
           phoneNumber: projectData.phone_number,
           phoneInboundEnabled: projectData.phone_inbound_enabled,
           phoneOutboundEnabled: projectData.phone_outbound_enabled,
@@ -604,8 +632,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       }
       } catch (error) {
       console.error('❌ Failed to load project configuration:', error);
+      setCustomVoices([]);
     }
-  }, [project, currentProject, getProjectData]);
+  }, [project, currentProject, getProjectData, getUserCustomVoices]);
 
   // Save project configuration to database
   const saveProjectConfiguration = useCallback(async () => {
@@ -641,6 +670,14 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       console.log('🔍 Checking for existing project data...');
       const existingData = await getProjectData(projectToUse.id);
       console.log('📥 Existing data found:', existingData ? 'yes' : 'no');
+      if (existingData) {
+        console.log('📋 Current active record details:', {
+          id: existingData.id,
+          version: existingData.version,
+          is_active: existingData.is_active,
+          created_at: existingData.created_at
+        });
+      }
       
       const configData = {
         system_prompt: projectConfig.systemPrompt,
@@ -683,14 +720,23 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
 
       console.log('💾 Attempting to save config data:', {
         projectId: projectToUse.id,
-        configData: Object.keys(configData)
+        configData: Object.keys(configData),
+        operation: existingData ? 'UPDATE' : 'CREATE'
       });
 
       if (existingData) {
         // Update existing configuration
         console.log('🔄 Updating existing configuration...');
-        await updateProjectData(projectToUse.id, configData);
+        const result = await updateProjectData(projectToUse.id, configData);
         console.log('✅ Updated project configuration in database');
+        console.log('📋 New active record details:', {
+          id: result.id,
+          version: result.version,
+          is_active: result.is_active,
+          created_at: result.created_at,
+          updated_at: result.updated_at
+        });
+        
         // Show success notification
         const notification = document.createElement('div');
         notification.textContent = 'Changes saved successfully!';
@@ -704,8 +750,14 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       } else {
         // Create new configuration
         console.log('🆕 Creating new configuration...');
-        await createProjectData(projectToUse.id, configData);
+        const result = await createProjectData(projectToUse.id, configData);
         console.log('✅ Created new project configuration in database');
+        console.log('📋 New active record details:', {
+          id: result.id,
+          version: result.version,
+          is_active: result.is_active,
+          created_at: result.created_at
+        });
         
         // Show success notification
         const notification = document.createElement('div');
@@ -718,7 +770,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
           }
         }, 3000);
       }
-      } catch (error) {
+    } catch (error) {
       console.error('❌ Failed to save project configuration:', error);
       console.error('❌ Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -2049,6 +2101,265 @@ For now, you can still manually configure your voice agent using the tabs above.
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
+  // Audio recording functions for Clone Voice
+  const startRecording = async () => {
+    try {
+      // Request high-quality audio with specific constraints for voice recording
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 48000,
+          channelCount: 1, // Mono recording for voice
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+      
+      // Try to use MP4/AAC format first (better compatibility), fallback to WebM
+      let mimeType = 'audio/webm';
+      let fileExtension = 'webm';
+      
+      if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+        fileExtension = 'mp4';
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+        fileExtension = 'webm';
+      } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+        mimeType = 'audio/wav';
+        fileExtension = 'wav';
+      }
+      
+      console.log('Using audio format:', mimeType);
+      
+      const recorder = new MediaRecorder(stream, { 
+        mimeType: mimeType,
+        audioBitsPerSecond: 128000 // 128 kbps for good quality
+      });
+      
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        setRecordedAudio(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      // Start timer
+      const timer = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      setRecordingTimer(timer);
+
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      alert('Unable to access microphone. Please check your permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      setMediaRecorder(null);
+      
+      if (recordingTimer) {
+        clearInterval(recordingTimer);
+        setRecordingTimer(null);
+      }
+    }
+  };
+
+  const clearRecording = () => {
+    setRecordedAudio(null);
+    setRecordingDuration(0);
+    // Stop any playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      setIsPlaying(false);
+      setCurrentAudio(null);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handlePlayPause = () => {
+    if (!recordedAudio) return;
+
+    if (isPlaying && currentAudio) {
+      // Pause the audio
+      currentAudio.pause();
+      setIsPlaying(false);
+    } else {
+      // Play the audio
+      const audio = new Audio(URL.createObjectURL(recordedAudio));
+      setCurrentAudio(audio);
+      setIsPlaying(true);
+      
+      audio.onended = () => {
+        setIsPlaying(false);
+        setCurrentAudio(null);
+      };
+      
+      audio.onerror = () => {
+        setIsPlaying(false);
+        setCurrentAudio(null);
+      };
+      
+      audio.play();
+    }
+  };
+
+  const handleCloneVoice = async () => {
+    if (!recordedAudio || !voiceName.trim()) return;
+
+    setIsCloning(true);
+    try {
+      const projectToUse = project || currentProject;
+      if (!projectToUse) {
+        throw new Error('No project available to save custom voice to');
+      }
+
+      const formData = new FormData();
+      formData.append('audioFile', recordedAudio, 'voice-recording.mp3');
+      formData.append('voiceName', voiceName.trim());
+      formData.append('userEmail', 'phombal@stanford.edu'); // TODO: Get from actual user context
+      formData.append('userName', 'Pratham Hombal'); // TODO: Get from actual user context
+      formData.append('projectId', projectToUse.id); // Add project ID to ensure voice is saved to correct project
+
+      const response = await fetch('/api/clone-voice', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        // Show success notification that auto-hides
+        const notification = document.createElement('div');
+        notification.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+              <div class="font-medium">Voice Clone Created!</div>
+              <div class="text-sm opacity-90">Your voice "${voiceName}" has been successfully cloned and is now available for selection.</div>
+            </div>
+          </div>
+        `;
+        notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+        document.body.appendChild(notification);
+
+        // Auto-hide notification after 5 seconds
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 5000);
+
+        // Clear the form
+        setVoiceName('');
+        setRecordedAudio(null);
+        setRecordingDuration(0);
+
+        // Reload project configuration to get updated custom voices from user plan
+        await loadProjectConfiguration();
+
+      } else {
+        // Show error notification that auto-hides
+        const notification = document.createElement('div');
+        notification.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+              <div class="font-medium">Voice Clone Failed</div>
+              <div class="text-sm opacity-90">${result.error || 'Failed to create voice clone. Please try again.'}</div>
+            </div>
+          </div>
+        `;
+        notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+        document.body.appendChild(notification);
+
+        // Auto-hide error notification after 8 seconds
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 8000);
+      }
+    } catch (error) {
+      console.error('Voice cloning error:', error);
+      
+      // Show error notification
+      const notification = document.createElement('div');
+      notification.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div>
+            <div class="font-medium">Voice Clone Error</div>
+            <div class="text-sm opacity-90">An unexpected error occurred. Please try again.</div>
+          </div>
+        </div>
+      `;
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+      document.body.appendChild(notification);
+
+      // Auto-hide error notification after 8 seconds
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 8000);
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  // Effect to auto-select first custom voice when switching to clone_voice provider
+  useEffect(() => {
+    if (projectConfig.ttsProvider === 'clone_voice' && customVoices.length > 0) {
+      // If no voice is selected or current selection is not valid, select the first custom voice
+      const currentVoiceExists = customVoices.some(voice => voice.id === projectConfig.ttsVoice);
+      if (!projectConfig.ttsVoice || !currentVoiceExists) {
+        setProjectConfig(prev => ({ ...prev, ttsVoice: customVoices[0].id }));
+      }
+    }
+  }, [projectConfig.ttsProvider, customVoices, projectConfig.ttsVoice, setProjectConfig]);
+
+  // VoiceAssistantNotification component
+  function VoiceAssistantNotification() {
+    return (
+      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg">
+        <div className="flex items-center space-x-2">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Voice clone created successfully!</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <RoomContext.Provider value={room}>
       <style jsx global>{`
@@ -2212,68 +2523,70 @@ For now, you can still manually configure your voice agent using the tabs above.
             <div className="flex items-center space-x-4">
               {/* VoiceBun Logo and Project Title */}
               <div className="flex items-center space-x-3">
-                <button
-                  onClick={onBackToHome}
-                  className="hover:opacity-80 transition-opacity cursor-pointer"
-                  title="Go to home page"
-                >
-                  <img
-                    src="/VoiceBun-BunOnly.png"
-                    alt="VoiceBun" 
-                    className="w-8 h-8"
-                  />
-                </button>
-                
-                {/* Project Title */}
-                <div className="flex items-center space-x-2">
-                  {isEditingTitle ? (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        ref={titleInputRef}
-                        type="text"
-                        value={titleValue}
-                        onChange={(e) => setTitleValue(e.target.value)}
-                        onKeyDown={handleTitleKeyPress}
-                        onBlur={updateProjectTitle}
-                        className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent"
-                        placeholder="Project name"
-                        disabled={isUpdatingTitle}
-                      />
-                      <button
-                        onClick={updateProjectTitle}
-                        disabled={isUpdatingTitle}
-                        className="p-1 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300"
-                        title="Save title"
-                      >
-                        {isUpdatingTitle ? (
-                          <LoadingSpinner size="md" color="green" />
-                        ) : (
-                          <Check className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={cancelEditingTitle}
-                        disabled={isUpdatingTitle}
-                        className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300"
-                        title="Cancel editing"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <h1 className="text-white font-medium text-sm" title={project.name}>
-                        {project.name}
-                      </h1>
-                      <button
-                        onClick={startEditingTitle}
-                        className="p-1 hover:bg-white/10 rounded transition-colors text-white/60 hover:text-white"
-                        title="Edit project title"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={onBackToHome}
+                    className="hover:opacity-80 transition-opacity cursor-pointer"
+                    title="Go to home page"
+                  >
+                    <img
+                      src="/VoiceBun-BunOnly.png"
+                      alt="VoiceBun" 
+                      className="w-8 h-8"
+                    />
+                  </button>
+                  
+                  {/* Project Title */}
+                  <div className="flex items-center space-x-2">
+                    {isEditingTitle ? (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          ref={titleInputRef}
+                          type="text"
+                          value={tempTitle}
+                          onChange={(e) => setTempTitle(e.target.value)}
+                          onKeyDown={handleTitleKeyPress}
+                          onBlur={updateProjectTitle}
+                          className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent"
+                          placeholder="Project name"
+                          disabled={isUpdatingTitle}
+                        />
+                        <button
+                          onClick={updateProjectTitle}
+                          disabled={isUpdatingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-green-400 hover:text-green-300"
+                          title="Save title"
+                        >
+                          {isUpdatingTitle ? (
+                            <LoadingSpinner size="md" color="green" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelEditingTitle}
+                          disabled={isUpdatingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 hover:text-red-300"
+                          title="Cancel editing"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <h1 className="text-white font-medium text-sm" title={project.name}>
+                          {project.name}
+                        </h1>
+                        <button
+                          onClick={startEditingTitle}
+                          className="p-1 hover:bg-white/10 rounded transition-colors text-white/60 hover:text-white"
+                          title="Edit project title"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2748,6 +3061,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                               className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="en" className="bg-gray-700 text-white">English</option>
+                              <option value="multi" className="bg-gray-700 text-white">Multilingual</option>
                               <option value="es" className="bg-gray-700 text-white">Spanish</option>
                               <option value="fr" className="bg-gray-700 text-white">French</option>
                               <option value="de" className="bg-gray-700 text-white">German</option>
@@ -2820,13 +3134,16 @@ For now, you can still manually configure your voice agent using the tabs above.
                                   ...prev, 
                                   ttsProvider: newProvider as any,
                                   // If switching to OpenAI and current voice is british_male, switch to neutral
-                                  ttsVoice: newProvider === 'openai' && prev.ttsVoice === 'british_male' ? 'neutral' : prev.ttsVoice
+                                  // If switching to Clone Voice, switch to custom
+                                  ttsVoice: newProvider === 'openai' && prev.ttsVoice === 'british_male' ? 'neutral' : 
+                                           newProvider === 'clone_voice' ? 'custom' : prev.ttsVoice
                                 }));
                               }}
                               className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
                               <option value="cartesia" className="bg-gray-700 text-white">Cartesia</option>
                               <option value="openai" className="bg-gray-700 text-white">OpenAI</option>
+                              <option value="clone_voice" className="bg-gray-700 text-white">Clone Voice</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                               <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2847,14 +3164,28 @@ For now, you can still manually configure your voice agent using the tabs above.
                               onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsVoice: e.target.value as any }))}
                               className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                             >
-                              <option value="neutral" className="bg-gray-700 text-white">Neutral</option>
-                              <option value="male" className="bg-gray-700 text-white">Male</option>
-                              {projectConfig.ttsProvider !== 'openai' && (
-                                <option value="british_male" className="bg-gray-700 text-white">British Male</option>
+                              {projectConfig.ttsProvider === 'clone_voice' ? (
+                                customVoices.length > 0 ? (
+                                  customVoices.map((voice) => (
+                                    <option key={voice.id} value={voice.id} className="bg-gray-700 text-white">
+                                      {voice.displayName}
+                                    </option>
+                                  ))
+                                ) : (
+                                  <option value="" className="bg-gray-700 text-white">Create a custom voice below</option>
+                                )
+                              ) : (
+                                <>
+                                  <option value="neutral" className="bg-gray-700 text-white">Neutral</option>
+                                  <option value="male" className="bg-gray-700 text-white">Male</option>
+                                  {projectConfig.ttsProvider !== 'openai' && (
+                                    <option value="british_male" className="bg-gray-700 text-white">British Male</option>
+                                  )}
+                                  <option value="deep_male" className="bg-gray-700 text-white">Deep Male</option>
+                                  <option value="female" className="bg-gray-700 text-white">Female</option>
+                                  <option value="soft_female" className="bg-gray-700 text-white">Soft Female</option>
+                                </>
                               )}
-                              <option value="deep_male" className="bg-gray-700 text-white">Deep Male</option>
-                              <option value="female" className="bg-gray-700 text-white">Female</option>
-                              <option value="soft_female" className="bg-gray-700 text-white">Soft Female</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                               <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2863,9 +3194,22 @@ For now, you can still manually configure your voice agent using the tabs above.
                             </div>
                           </div>
                         </div>
-
-
                       </div>
+
+                      {/* Clone Voice Button */}
+                      {projectConfig.ttsProvider === 'clone_voice' && (
+                        <div className="mt-6 flex justify-center">
+                          <button
+                            onClick={() => setShowCloneVoiceModal(true)}
+                            className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span>Clone New Voice</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3255,12 +3599,173 @@ For now, you can still manually configure your voice agent using the tabs above.
           </div>
         </div>
       )}
+
+      {/* Clone Voice Modal */}
+      {showCloneVoiceModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={(e) => {
+            // Close modal when clicking outside
+            if (e.target === e.currentTarget) {
+              setShowCloneVoiceModal(false);
+              // Reset recording state when closing
+              if (isRecording) {
+                stopRecording();
+              }
+              clearRecording();
+              setVoiceName('');
+            }
+          }}
+        >
+          <div className="bg-gray-900 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl border border-white/20">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center space-x-2">
+                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                <h3 className="text-xl font-semibold text-white">Clone New Voice</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCloneVoiceModal(false);
+                  // Reset recording state when closing
+                  if (isRecording) {
+                    stopRecording();
+                  }
+                  clearRecording();
+                  setVoiceName('');
+                }}
+                className="text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="p-4 bg-blue-600/20 border border-blue-600/30 rounded-xl">
+                <h4 className="text-white font-medium mb-2">Sample Text to Read:</h4>
+                <p className="text-white/90 text-sm leading-relaxed">
+                  "Welcome to VoiceBun, the innovative platform that transforms how we interact with artificial intelligence through natural voice conversations. Our advanced technology creates seamless communication experiences that feel authentic and engaging. By recording this sample, you're helping us capture the unique characteristics of your voice to create a personalized clone that will represent you in future interactions."
+                </p>
+              </div>
+
+              {!recordedAudio ? (
+                <div className="space-y-4">
+                  {!isRecording ? (
+                    <button
+                      onClick={startRecording}
+                      className="w-full px-6 py-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                      <span>Start Recording</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-center space-x-4 p-6 bg-red-600/20 border border-red-600/30 rounded-xl">
+                        <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
+                        <span className="text-white font-medium">Recording...</span>
+                        <span className="text-white/70 font-mono">{formatDuration(recordingDuration)}</span>
+                      </div>
+                      <button
+                        onClick={stopRecording}
+                        className="w-full px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-xl transition-colors"
+                      >
+                        Stop Recording
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-600/20 border border-green-600/30 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-white font-medium">Recording Complete</span>
+                        <span className="text-white/70 text-sm">({formatDuration(recordingDuration)})</span>
+                      </div>
+                      <button
+                        onClick={clearRecording}
+                        className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={handlePlayPause}
+                      className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
+                    >
+                      {isPlaying ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8m-5-4v4" />
+                        </svg>
+                      )}
+                      <span>{isPlaying ? 'Pause' : 'Play'}</span>
+                    </button>
+                  </div>
+                  
+                  {/* Voice Clone Form */}
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <label className="block text-white/70 text-sm font-medium mb-2">
+                        Voice Name
+                      </label>
+                      <input
+                        type="text"
+                        value={voiceName}
+                        onChange={(e) => setVoiceName(e.target.value)}
+                        placeholder="Enter a name for your voice clone"
+                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => {
+                          setShowCloneVoiceModal(false);
+                          clearRecording();
+                          setVoiceName('');
+                        }}
+                        className="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-xl transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await handleCloneVoice();
+                          setShowCloneVoiceModal(false);
+                        }}
+                        disabled={isCloning || !voiceName.trim() || !recordedAudio}
+                        className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
+                      >
+                        {isCloning && (
+                          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        )}
+                        <span>{isCloning ? 'Creating...' : 'Create Voice Clone'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </RoomContext.Provider>
   );
 } 
-
-// Voice Assistant Notification Component
-function VoiceAssistantNotification() {
-  const { state: agentState } = useVoiceAssistant();
-  return <NoAgentNotification state={agentState} />;
-}

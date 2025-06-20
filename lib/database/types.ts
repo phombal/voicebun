@@ -56,6 +56,12 @@ export interface UserPlan {
   phone_number_limit: number;
   created_at: string;
   updated_at: string;
+  // Custom Voice Clones for the user
+  custom_voices?: Array<{
+    id: string;
+    displayName: string;
+    createdAt: string;
+  }>;
 }
 
 export interface AgentConfiguration {
@@ -326,8 +332,8 @@ export interface ProjectData {
   stt_auto_punctuation: boolean;
   
   // Text-to-Speech Configuration
-  tts_provider: 'cartesia' | 'openai';
-  tts_voice: 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female';
+  tts_provider: 'cartesia' | 'openai' | 'clone_voice';
+  tts_voice: string;
   
   // Phone Configuration
   phone_number: string | null;
@@ -377,6 +383,13 @@ export interface ProjectData {
   show_branding?: boolean;
   custom_branding_text?: string;
   custom_branding_url?: string;
+  
+  // Custom Voice Clones
+  // custom_voices?: Array<{
+  //   id: string;
+  //   displayName: string;
+  //   createdAt: string;
+  // }>;
 }
 
 // Configuration input type (without metadata fields)
@@ -394,8 +407,8 @@ export interface ProjectDataConfig {
   stt_processing_mode?: 'streaming' | 'batch';
   stt_noise_suppression?: boolean;
   stt_auto_punctuation?: boolean;
-  tts_provider?: 'cartesia' | 'openai';
-  tts_voice?: 'neutral' | 'male' | 'british_male' | 'deep_male' | 'female' | 'soft_female';
+  tts_provider?: 'cartesia' | 'openai' | 'clone_voice';
+  tts_voice?: string;
   phone_number?: string;
   phone_inbound_enabled?: boolean;
   phone_outbound_enabled?: boolean;
@@ -429,6 +442,13 @@ export interface ProjectDataConfig {
   show_branding?: boolean;
   custom_branding_text?: string;
   custom_branding_url?: string;
+  
+  // Custom Voice Clones
+  // custom_voices?: Array<{
+  //   id: string;
+  //   displayName: string;
+  //   createdAt: string;
+  // }>;
 }
 
 // Request types for creating entities
