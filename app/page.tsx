@@ -8,6 +8,8 @@ import { Project as DatabaseProject } from '@/lib/database/types';
 import { GeneratedCodeDisplay } from "@/components/GeneratedCodeDisplay";
 import UserProfile from "@/components/auth/UserProfile";
 import PublicLanding from "@/components/LandingPage";
+import PublicNavigation from "@/components/PublicNavigation";
+import CommunityProjectsSection from "@/components/CommunityProjectsSection";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   BarVisualizer,
@@ -26,31 +28,8 @@ import { useDatabase } from "@/hooks/useDatabase";
 import { useRouter } from "next/navigation";
 import { ClientDatabaseService } from "@/lib/database/client-service";
 import { LoadingBun, LoadingPageWithTips } from '@/components/LoadingBun';
-
-// Audio bars visualization component
-function AudioBars() {
-  return (
-    <div className="flex items-end justify-center space-x-1 mt-8 mb-12 h-12">
-      {[...Array(12)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="bg-white/60 rounded-full"
-          style={{ width: '4px' }}
-          animate={{
-            height: [8, 24, 12, 32, 16, 28, 8, 20, 36, 14, 26, 18],
-            opacity: [0.4, 1, 0.6, 1, 0.8, 1, 0.5, 0.9, 1, 0.7, 1, 0.8]
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            delay: i * 0.2,
-            ease: "easeInOut"
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+import { Mic, Sparkles, ArrowRight, Users, Play, Clock, User } from 'lucide-react';
+import Link from 'next/link';
 
 // Typewriter effect component
 function TypewriterEffect() {
@@ -70,20 +49,19 @@ function TypewriterEffect() {
   
   useEffect(() => {
     const currentRole = roles[currentRoleIndex];
-    const fullText = `Your Next ${currentRole}`;
     
     const timer = setTimeout(() => {
       if (!isDeleting) {
         // Typing
-        if (currentText.length < fullText.length) {
-          setCurrentText(fullText.slice(0, currentText.length + 1));
+        if (currentText.length < currentRole.length) {
+          setCurrentText(currentRole.slice(0, currentText.length + 1));
         } else {
           // Pause before deleting
           setTimeout(() => setIsDeleting(true), 2000);
         }
       } else {
         // Deleting
-        if (currentText.length > 10) { // Keep "Your Next "
+        if (currentText.length > 0) {
           setCurrentText(currentText.slice(0, -1));
         } else {
           setIsDeleting(false);
@@ -97,7 +75,7 @@ function TypewriterEffect() {
   
   return (
     <span>
-      {currentText}
+      Your Next {currentText}
       <span className="animate-pulse">|</span>
     </span>
   );
@@ -123,16 +101,92 @@ interface Project {
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const { getUserProjects } = useDatabase();
   const [prompt, setPrompt] = useState("");
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string>("");
+  const [userProjects, setUserProjects] = useState<Project[]>([]);
+  const [userProjectsLoading, setUserProjectsLoading] = useState(true);
 
-  // Redirect authenticated users to dashboard
+  // Load user projects for authenticated users
   useEffect(() => {
-    if (!loading && user) {
-      router.push('/dashboard');
+    if (!user) {
+      setUserProjectsLoading(false);
+      return;
     }
-  }, [user, loading, router]);
+    
+    const loadUserProjects = async () => {
+      try {
+        setUserProjectsLoading(true);
+        const projects = await getUserProjects();
+        // Map database projects to local Project interface
+        const mappedProjects = projects.map(project => ({
+          ...project,
+          description: project.description || undefined
+        }));
+        setUserProjects(mappedProjects.slice(0, 8)); // Show first 8 projects
+      } catch (err) {
+        console.error('Failed to load user projects:', err);
+        setUserProjects([]);
+      } finally {
+        setUserProjectsLoading(false);
+      }
+    };
+
+    loadUserProjects();
+  }, [user, getUserProjects]);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const UserProjectCard = ({ project }: { project: Project }) => {
+    const viewCount = Math.floor(Math.random() * 1000) + 50; // Random view count between 50-1049
+    
+    return (
+      <div className="bg-gray-100 rounded-xl overflow-hidden hover:scale-105 transition-all duration-300 group cursor-pointer text-left">
+        {/* Preview Image Area */}
+        <div className="aspect-video bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 relative overflow-hidden">
+          <div className="absolute inset-0 bg-black/20"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-4xl opacity-80">🤖</div>
+          </div>
+          {/* Play Button Overlay */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
+              <Play className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        </div>
+        
+        {/* Content Area */}
+        <div className="p-3">
+          <div className="flex items-start space-x-3">
+            <div className="w-6 h-6 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+              {(user?.user_metadata?.name || user?.email || 'Y')[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 text-sm mb-1 line-clamp-2">
+                {project.name}
+              </h3>
+              <div className="flex items-center space-x-1 mb-1">
+                <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span className="text-gray-400 text-xs">{viewCount.toLocaleString() + ' views'}</span>
+              </div>
+              <div className="text-xs text-gray-500">{formatDate(project.created_at)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const handleSubmit = () => {
     if (!prompt.trim()) return;
@@ -141,6 +195,9 @@ export default function LandingPage() {
       // Store the prompt and show auth prompt
       setPendingPrompt(prompt.trim());
       setShowAuthPrompt(true);
+    } else {
+      // User is authenticated, redirect to dashboard with prompt
+      router.push(`/dashboard?prompt=${encodeURIComponent(prompt.trim())}`);
     }
   };
 
@@ -169,37 +226,7 @@ export default function LandingPage() {
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}>
       {/* Header */}
-      <header className="">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center">
-              <img 
-                src="/VoiceBun-White.png" 
-                alt="VoiceBun" 
-                className="h-10 w-auto"
-              />
-          </div>
-          <div className="flex items-center space-x-4">
-            <a
-              href="/pricing"
-              className="text-white/70 hover:text-white transition-colors"
-            >
-              Pricing
-            </a>
-            <a
-              href="/auth"
-              className="text-white/70 hover:text-white transition-colors"
-            >
-              Sign In
-            </a>
-            <a
-                href="/auth?mode=signup"
-                className="bg-white text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-            >
-              Get Started for Free
-            </a>
-          </div>
-        </div>
-      </header>
+      <PublicNavigation />
 
         {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-6 py-20">
@@ -229,27 +256,46 @@ export default function LandingPage() {
             transition={{ delay: 0.3 }}
             className="relative max-w-4xl mx-auto mb-8"
           >
-              <div className="bg-white rounded-3xl p-4 shadow-2xl shadow-white/10">
-              <div className="flex items-center gap-4">
-                <div className="flex-1 relative">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Describe the voice agent you want to create..."
-                    className="w-full h-16 p-4 bg-transparent text-black placeholder-gray-500 focus:outline-none resize-none text-lg text-left"
-                  />
+            {/* Animated gradient border */}
+            <div className="relative">
+              <div 
+                className="absolute -inset-1 rounded-3xl"
+                style={{
+                  background: 'conic-gradient(from 0deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6)',
+                  animation: 'gradient-spin 3s linear infinite'
+                }}
+              />
+              <style jsx>{`
+                @keyframes gradient-spin {
+                  0% { background: conic-gradient(from 0deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6); }
+                  25% { background: conic-gradient(from 90deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6); }
+                  50% { background: conic-gradient(from 180deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6); }
+                  75% { background: conic-gradient(from 270deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6); }
+                  100% { background: conic-gradient(from 360deg, #3b82f6, #8b5cf6, #ec4899, #f59e0b, #3b82f6); }
+                }
+              `}</style>
+              <div className="relative bg-white rounded-3xl p-4 shadow-2xl shadow-white/10">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 relative">
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Describe the voice agent you want to create..."
+                      className="w-full h-16 p-4 bg-transparent text-black placeholder-gray-500 focus:outline-none resize-none text-lg text-left"
+                    />
+                  </div>
+                  
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!prompt.trim()}
+                    className="w-10 h-10 bg-black hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                  </button>
                 </div>
-                
-                <button
-                  onClick={handleSubmit}
-                  disabled={!prompt.trim()}
-                  className="w-10 h-10 bg-black hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
-                >
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                  </svg>
-                </button>
               </div>
             </div>
           </motion.div>
@@ -272,22 +318,13 @@ export default function LandingPage() {
               ))}
           </motion.div>
 
-          {/* Audio Bars */}
+          {/* Credits Box */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45 }}
           >
-            <AudioBars />
-          </motion.div>
-
-          {/* Credits Box */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-4 max-w-md mx-auto">
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-4 max-w-md mx-auto mb-16">
               <p className="text-white/80 text-sm text-center mb-3">
                 Created by a team of researchers<br />
                 and builders from
@@ -306,6 +343,111 @@ export default function LandingPage() {
               </div>
             </div>
           </motion.div>
+
+          {/* Your Projects Section - Only for authenticated users */}
+          {user && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55 }}
+              className="bg-white rounded-3xl p-8 shadow-2xl shadow-white/10 w-full max-w-none mx-auto mb-8"
+            >
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+                    Your Projects
+                  </h2>
+                  <div className="flex items-center space-x-4">
+                    <select className="bg-gray-100 text-gray-900 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500 text-sm">
+                      <option>Recent</option>
+                      <option>Alphabetical</option>
+                      <option>Most Used</option>
+                    </select>
+                    <Link
+                      href="/dashboard"
+                      className="text-blue-600 hover:text-blue-700 transition-colors font-medium text-sm"
+                    >
+                      View All
+                    </Link>
+                  </div>
+                </div>
+                
+                {/* Category Filter for User Projects */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {['All', 'Recent', 'Favorites', 'Public', 'Private', 'Draft', 'Active', 'Archived'].map((category) => (
+                    <button
+                      key={category}
+                      className="px-3 py-1 rounded-lg text-sm font-medium transition-colors border border-gray-300 text-gray-600 hover:text-gray-900 hover:border-gray-400"
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {userProjectsLoading ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[...Array(8)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.65 + i * 0.1 }}
+                      className="bg-gray-100 rounded-xl overflow-hidden animate-pulse"
+                    >
+                      <div className="aspect-video bg-gray-200"></div>
+                      <div className="p-4">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
+                          <div>
+                            <div className="h-4 w-24 bg-gray-200 rounded mb-1"></div>
+                            <div className="h-3 w-16 bg-gray-200 rounded"></div>
+                          </div>
+                        </div>
+                        <div className="space-y-1 mb-3">
+                          <div className="h-3 bg-gray-200 rounded w-full"></div>
+                          <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : userProjects.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.65 }}
+                  className="text-center py-12"
+                >
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No projects yet
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    Create your first voice agent using the form above!
+                  </p>
+                </motion.div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {userProjects.slice(0, 8).map((project, index) => (
+                    <motion.div
+                      key={project.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.65 + index * 0.1 }}
+                    >
+                      <Link href={`/projects/${project.id}`}>
+                        <UserProjectCard project={project} />
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Community Projects Card */}
+          <CommunityProjectsSection delay={user ? 0.75 : 0.6} />
         </div>
       </section>
 

@@ -6,6 +6,7 @@ import { Check } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import PublicNavigation from '@/components/PublicNavigation';
 
 interface PricingPlan {
   id: string;
@@ -32,6 +33,7 @@ const plans: PricingPlan[] = [
     features: [
       'Voice agent creation',
       'Provision 1 phone number',
+      'Unlimited Voice Cloning',
       'Access to community support'
     ],
     stripePriceId: '',
@@ -175,7 +177,7 @@ export default function PricingPage() {
 
   const getCurrentPrice = (plan: PricingPlan) => {
     if (typeof plan.price === 'string') return plan.price;
-    return plan.price;
+    return `$${plan.price}`;
   };
 
   if (loading) {
@@ -189,41 +191,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-black text-white font-sans">
       {/* Header */}
-      <header className="">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Link href="/">
-              <Image
-                src="/VoiceBun-White.png"
-                alt="VoiceBun"
-                width={120}
-                height={40}
-                className="h-10 w-auto cursor-pointer"
-              />
-            </Link>
-          </div>
-          <div className="flex items-center space-x-6">
-            <Link
-              href="/pricing"
-              className="text-gray-300 hover:text-white transition-colors"
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/auth"
-              className="text-gray-300 hover:text-white transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/auth?mode=signup"
-              className="bg-white text-black px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors"
-            >
-              Get Started for Free
-            </Link>
-          </div>
-        </div>
-      </header>
+      <PublicNavigation />
 
       <div className="max-w-6xl mx-auto px-6 py-16">
         {/* Header */}
@@ -264,7 +232,10 @@ export default function PricingPage() {
                   </span>
                   <span className="text-gray-400 ml-1">/{plan.interval}</span>
                 </div>
-                <p className="text-gray-400 text-sm">{plan.callMinutes}</p>
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-4">
+                  <p className="text-white font-semibold text-lg">{plan.callMinutes}</p>
+                  <p className="text-gray-400 text-sm">Call time included</p>
+                </div>
               </div>
 
               <ul className="space-y-4 mb-8">

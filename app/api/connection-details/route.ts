@@ -37,6 +37,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     
     // Extract project ID and other parameters
     const projectId = url.searchParams.get('projectId');
+    const userId = url.searchParams.get('userId');
     const agentConfigParam = url.searchParams.get('agentConfig');
     const generatedCode = url.searchParams.get('generatedCode');
     
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     // Generate participant token
-    const participantIdentity = `user_${Math.floor(Math.random() * 10_000)}`;
+    const participantIdentity = userId ? `user_${userId}` : `user_${Math.floor(Math.random() * 10_000)}`;
     // Use a generic room name since project ID will be passed in participant metadata
     const roomName = `voice_agent_room_${Math.floor(Math.random() * 10_000)}`;
     
@@ -84,9 +85,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     console.log('Generated connection details for dynamic agent:', {
       projectId,
+      userId,
       roomName,
       participantName: participantIdentity,
-      note: 'Project ID will be passed via participant metadata',
+      note: 'Project ID and User ID will be passed via participant metadata',
       hasConfig: !!agentConfig,
       hasGeneratedCode: !!generatedCode,
       configKeys: agentConfig ? Object.keys(agentConfig) : [],

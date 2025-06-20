@@ -9,6 +9,7 @@ import { Project as DatabaseProject } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
 import UserProfile from '@/components/auth/UserProfile';
 import { LoadingPageWithTips } from '@/components/LoadingBun';
+import CommunityProjectsSection from '@/components/CommunityProjectsSection';
 
 interface Project {
   id: string;
@@ -418,6 +419,12 @@ if __name__ == "__main__":
             >
               Projects
             </a>
+            <a
+              href="/community"
+              className="text-white/70 hover:text-white transition-colors"
+            >
+              Community
+            </a>
             <UserProfile />
           </div>
         </div>
@@ -523,64 +530,24 @@ if __name__ == "__main__":
               ))}
             </div>
           </motion.div>
-
-          {/* Audio Bars */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.45 }}
-          >
-            <AudioBars />
-          </motion.div>
         </div>
       </section>
 
       {/* Recent Projects Section */}
       {projects.length > 0 && (
-        <section className="bg-white">
-          <div className="max-w-7xl mx-auto px-6 py-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-            >
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold text-black">Your Projects</h2>
-                <button 
-                  onClick={() => router.push('/projects')}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                >
-                  View All
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {projects.slice(0, 6).map((project, index) => (
-                  <motion.div
-                    key={project.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 + index * 0.1 }}
-                    className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-lg transition-all duration-200 cursor-pointer group"
-                    onClick={() => router.push(`/projects/${project.id}`)}
-                  >
-                    <div className="aspect-video bg-gradient-to-br from-blue-500 to-purple-600 relative">
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-4xl">🤖</div>
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      <h3 className="text-black font-medium text-sm group-hover:text-blue-600 transition-colors mb-1">
-                        {project.name}
-                      </h3>
-                      <p className="text-gray-500 text-xs">
-                        Created {new Date(project.created_at).toLocaleDateString()} at {new Date(project.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
+        <section className="bg-black px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <CommunityProjectsSection 
+              variant="card"
+              theme="light"
+              title="Your Projects"
+              showSearch={false}
+              showFilters={false}
+              delay={0.5}
+              limit={6}
+              gridCols={3}
+              projectType="user"
+            />
           </div>
         </section>
       )}

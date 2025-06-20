@@ -40,17 +40,39 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
   
   const { user } = useAuth();
 
+  // Add error handler for uncaught errors
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('🚨 Uncaught error in PhoneNumberManager:', event.error);
+    };
+    
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('🚨 Unhandled promise rejection in PhoneNumberManager:', event.reason);
+    };
+    
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
   // Load user's phone numbers
   const loadPhoneNumbers = async () => {
-    if (!user) return;
-    
     setIsLoading(true);
     try {
+      if (!user) {
+        setPhoneNumbers([]);
+        return;
+      }
+      
       const numbers = await clientDb.getUserPhoneNumbers();
-      console.log('📱 Loaded phone numbers:', numbers);
       setPhoneNumbers(numbers);
     } catch (error) {
       console.error('❌ Error loading phone numbers:', error);
+      setPhoneNumbers([]);
     } finally {
       setIsLoading(false);
     }
@@ -62,35 +84,79 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
 
   // Connect phone number to project using the assign endpoint
   const connectPhoneNumber = async (phoneNumber: PhoneNumber) => {
+    console.log('🔗 connectPhoneNumber function called with:', {
+      phoneNumber: phoneNumber,
+      projectId: projectId,
+      user: user ? { id: user.id, email: user.email } : 'No user'
+    });
+
     if (!projectId || !user) {
       console.error('❌ Missing projectId or user for connection');
+      console.error('   ProjectId:', projectId);
+      console.error('   User:', user ? 'Present' : 'Missing');
+      
+      // Show error notification to user
+      const notification = document.createElement('div');
+      notification.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="font-medium">Cannot Connect Phone Number</div>
+            <div class="text-sm opacity-90">${!projectId ? 'No project ID available' : 'User not logged in'}</div>
+          </div>
+        </div>
+      `;
+      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 6000);
       return;
     }
 
+    console.log('✅ All requirements met, proceeding with connection...');
     setIsConnecting(phoneNumber.id);
 
     try {
       console.log('🔗 Connecting phone number to project:', {
         phoneNumberId: phoneNumber.id,
         projectId,
-        phoneNumber: phoneNumber.phone_number
+        phoneNumber: phoneNumber.phone_number,
+        userId: user.id
       });
+
+      const requestBody = {
+        phoneNumberId: phoneNumber.id,
+        projectId: projectId,
+        userId: user.id,
+        sipHost: '6ckp7xx52cn.sip.livekit.cloud'
+      };
+
+      console.log('📤 Making API request to /api/assign-phone-number with body:', requestBody);
 
       const response = await fetch('/api/assign-phone-number', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          phoneNumberId: phoneNumber.id,
-          projectId: projectId,
-          userId: user.id,
-          sipHost: '6ckp7xx52cn.sip.livekit.cloud'
-        }),
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('📥 API response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ API request failed:', errorData);
         throw new Error(errorData.details || errorData.error || 'Connection failed');
       }
 
@@ -108,6 +174,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
 
       // Notify parent component
       if (onPhoneNumberAssigned) {
+        console.log('📞 Notifying parent component of phone number assignment');
         onPhoneNumberAssigned(phoneNumber.phone_number, phoneNumber.id);
       }
 
@@ -160,6 +227,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
         }
       }, 6000);
     } finally {
+      console.log('🏁 Setting isConnecting to null (cleanup)');
       setIsConnecting(null);
     }
   };
@@ -504,18 +572,23 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
 
   if (phoneNumbers.length === 0) {
     return (
-      <div className="text-center py-8">
-        <p className="text-white/70">No phone numbers purchased yet</p>
-        <p className="text-white/50 text-sm mt-1 mb-4">Purchase a phone number first to connect it to your project</p>
+      <div className="text-center py-12">
+        <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          </svg>
+        </div>
+        <p className="text-white/70 text-lg font-medium mb-2">No phone numbers purchased yet</p>
+        <p className="text-white/50 text-sm mb-6">Purchase a phone number to enable inbound calling for your voice agent</p>
         {onPurchaseNumber && (
           <button
             onClick={onPurchaseNumber}
-            className="px-6 py-3 bg-white hover:bg-gray-100 text-black font-medium rounded-lg transition-colors flex items-center space-x-2 mx-auto"
+            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center space-x-2 mx-auto"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span>Purchase Phone Number</span>
+            <span>Get New Number</span>
           </button>
         )}
       </div>
@@ -523,7 +596,24 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Get New Number Button */}
+      <div className="flex justify-end">
+        {onPurchaseNumber && (
+          <button
+            onClick={() => {
+              onPurchaseNumber();
+            }}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Get New Number
+          </button>
+        )}
+      </div>
+
       <div className="space-y-3">
         {phoneNumbers.map((phoneNumber) => {
           const isConnectedToCurrentProject = phoneNumber.project_id === projectId;
@@ -532,7 +622,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
           return (
             <div
               key={phoneNumber.id}
-              className="bg-white/5 rounded-lg p-4 border border-white/20"
+              className="bg-white/5 rounded-lg p-4 border border-white/10 hover:border-white/20 transition-colors duration-200"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
@@ -568,54 +658,88 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
                     {phoneNumber.project_id === projectId ? (
                       <>
                         <button
-                          onClick={() => disconnectPhoneNumber(phoneNumber)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try {
+                              disconnectPhoneNumber(phoneNumber);
+                            } catch (error) {
+                              console.error('❌ Error in disconnect handler:', error);
+                            }
+                          }}
                           disabled={isDisconnecting === phoneNumber.id}
-                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded disabled:opacity-50"
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
                         >
                           {isDisconnecting === phoneNumber.id ? (
-                            <div className="flex items-center gap-2">
+                            <>
                               <LoadingSpinner size="sm" color="white" />
-                              Disconnecting...
-                            </div>
+                              <span>Disconnecting...</span>
+                            </>
                           ) : (
-                            'Disconnect'
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              <span>Disconnect</span>
+                            </>
                           )}
                         </button>
                       </>
                     ) : phoneNumber.project_id ? (
                       // Phone number is connected to another project - show only move to project button
                       <button
-                        onClick={() => reconnectPhoneNumber(phoneNumber)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          try {
+                            reconnectPhoneNumber(phoneNumber);
+                          } catch (error) {
+                            console.error('❌ Error in reconnect handler:', error);
+                          }
+                        }}
                         disabled={isReconnecting === phoneNumber.id}
-                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded disabled:opacity-50"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
                       >
                         {isReconnecting === phoneNumber.id ? (
-                          <div className="flex items-center gap-2">
+                          <>
                             <LoadingSpinner size="sm" color="white" />
-                            Moving...
-                          </div>
+                            <span>Moving...</span>
+                          </>
                         ) : (
-                          'Move to this Project'
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            <span>Move to this Project</span>
+                          </>
                         )}
                       </button>
                     ) : (
                       // Phone number is available - show connect button
                       <button
-                        onClick={() => connectPhoneNumber(phoneNumber)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          try {
+                            connectPhoneNumber(phoneNumber);
+                          } catch (error) {
+                            console.error('❌ Error in connect handler:', error);
+                          }
+                        }}
                         disabled={isConnecting === phoneNumber.id}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
                       >
                         {isConnecting === phoneNumber.id ? (
                           <>
-                            <LoadingSpinner size="md" color="white" />
-                            Connecting...
+                            <LoadingSpinner size="sm" color="white" />
+                            <span>Connecting...</span>
                           </>
                         ) : (
                           <>
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9.5H7a1 1 0 000 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                             </svg>
-                            Connect
+                            <span>Connect</span>
                           </>
                         )}
                       </button>

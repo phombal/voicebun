@@ -223,9 +223,15 @@ export default function ProjectsPage() {
           <div className="flex items-center space-x-4">
             <a
               href="/projects"
-              className="text-white/70 hover:text-white transition-colors"
+              className="text-white hover:text-white transition-colors"
             >
               Projects
+            </a>
+            <a
+              href="/community"
+              className="text-white/70 hover:text-white transition-colors"
+            >
+              Community
             </a>
             <UserProfile />
           </div>
@@ -289,21 +295,20 @@ export default function ProjectsPage() {
               </button>
             </motion.div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4">
               {projects.map((project, index) => (
                 <motion.div
                   key={project.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl hover:border-white/30 transition-all duration-200 group relative"
-                  style={{ overflow: 'visible' }}
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl hover:border-white/30 transition-all duration-200 group relative mt-2"
                 >
                   <div 
                     className="cursor-pointer"
                     onClick={() => router.push(`/projects/${project.id}`)}
                   >
-                    <div className="aspect-video bg-gradient-to-br from-blue-500 to-purple-600 relative overflow-hidden">
+                    <div className="aspect-video bg-gradient-to-br from-blue-500 to-purple-600 relative overflow-hidden rounded-t-xl">
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="text-4xl">🤖</div>
                       </div>

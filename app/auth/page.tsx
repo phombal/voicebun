@@ -93,13 +93,23 @@ function AuthPageContent() {
   useEffect(() => {
     if (user && !loading) {
       console.log('User authenticated, redirecting to dashboard')
-      router.push('/dashboard')
+      const returnUrl = searchParams.get('returnUrl')
+      if (returnUrl) {
+        router.push(decodeURIComponent(returnUrl))
+      } else {
+        router.push('/dashboard')
+      }
     }
-  }, [user, loading, router])
+  }, [user, loading, router, searchParams])
 
   const handleAuthSuccess = () => {
     console.log('Auth success, redirecting to dashboard')
-    router.push('/dashboard')
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) {
+      router.push(decodeURIComponent(returnUrl))
+    } else {
+      router.push('/dashboard')
+    }
   }
 
   if (loading) {

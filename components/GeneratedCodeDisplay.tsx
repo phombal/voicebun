@@ -1,5 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { type VoiceAgentConfig } from './VoiceAgentConfig';
+import TranscriptionView from "./TranscriptionView";
+import { AnimatePresence, motion } from "framer-motion";
+import { useDatabase } from '@/hooks/useDatabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { ChatSession, Project } from '@/lib/database/types';
+import { TelnyxNumbersModal } from './TelnyxNumbersModal';
+import { PhoneNumbersTab } from './PhoneNumbersTab';
+import { Edit2, Check, X } from 'lucide-react';
+import { ClientDatabaseService } from '@/lib/database/client-service';
+import { LoadingSpinner } from './LoadingBun';
+import { FunctionsTab } from './FunctionsTab';
+import { TestTypeModal } from './TestTypeModal';
+import { ModelsTab } from './ModelsTab';
+import { CloneVoiceModal } from './CloneVoiceModal';
+import { ChatPanel } from './ChatPanel';
+import { InstructionsTab } from './InstructionsTab';
+import { MobileNavigation } from './MobileNavigation';
+import { VoiceConversationModal } from './VoiceConversationModal';
+import { Room, RoomEvent, VideoPresets } from "livekit-client";
 import {
   BarVisualizer,
   DisconnectButton,
@@ -9,22 +28,7 @@ import {
   VoiceAssistantControlBar,
   useVoiceAssistant,
 } from "@livekit/components-react";
-import TranscriptionView from "./TranscriptionView";
 import { CloseIcon } from "./CloseIcon";
-import { NoAgentNotification } from "./NoAgentNotification";
-import { AnimatePresence, motion } from "framer-motion";
-import { Room, RoomEvent } from "livekit-client";
-import Editor from '@monaco-editor/react';
-import { useDatabase } from '@/hooks/useDatabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { ChatSession, Project } from '@/lib/database/types';
-import { TelnyxNumbersModal } from './TelnyxNumbersModal';
-import { FunctionsTab } from './FunctionsTab';
-import { VideoPresets } from "livekit-client";
-import { PhoneNumberManager } from './PhoneNumberManager';
-import { Edit2, Check, X } from 'lucide-react';
-import { ClientDatabaseService } from '@/lib/database/client-service';
-import { LoadingSpinner } from './LoadingBun';
 
 interface GeneratedCodeDisplayProps {
   code: string;
@@ -67,15 +71,11 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   const [inputMessage, setInputMessage] = useState('');
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [availableCheckpoints, setAvailableCheckpoints] = useState<ChatMessage[]>([]);
-  const [showCheckpointModal, setShowCheckpointModal] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [showTelephonyModal, setShowTelephonyModal] = useState(false);
   const [showTelnyxNumbersModal, setShowTelnyxNumbersModal] = useState(false);
   const [phoneNumberRefreshKey, setPhoneNumberRefreshKey] = useState(0);
   const [availableNumbers, setAvailableNumbers] = useState<Array<{
     id: string; 
-    number: string;
+    phone_number: string;
     features?: PhoneNumberFeature[];
     region_information?: Array<{ region_name?: string }>;
     cost_information?: {
@@ -85,7 +85,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   }>>([]);
   const [selectedNumber, setSelectedNumber] = useState<{
     id: string; 
-    number: string;
+    phone_number: string;
     features?: PhoneNumberFeature[];
     region_information?: Array<{ region_name?: string }>;
     cost_information?: {
@@ -93,41 +93,24 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       upfront_cost?: string;
     };
   } | null>(null);
-  const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
-  const [isAssigningNumber, setIsAssigningNumber] = useState(false);
   const [assignedPhoneNumber, setAssignedPhoneNumber] = useState<string | null>(null);
   const [assignedPhoneNumberId, setAssignedPhoneNumberId] = useState<string | null>(null);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [historyFile, setHistoryFile] = useState<string | null>(null);
-  const [isInConversation, setIsInConversation] = useState(false);
   const [activeTab, setActiveTab] = useState<'test' | 'agent' | 'config'>('test');
   
   // Add debug logging for state changes
   useEffect(() => {
-    console.log('🔄 STATE CHANGE - isConnecting:', isConnecting);
-  }, [isConnecting]);
-  
-  useEffect(() => {
-    console.log('🔄 STATE CHANGE - isInConversation:', isInConversation);
-  }, [isInConversation]);
-  
-  useEffect(() => {
     console.log('🔄 STATE CHANGE - activeTab:', activeTab);
   }, [activeTab]);
   const [activeMenu, setActiveMenu] = useState<'instructions' | 'models' | 'phone' | 'functions' | 'other'>('instructions');
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [currentConfigurationId, setCurrentConfigurationId] = useState<string | null>(null);
 
-  // Context menu state
-  const [contextMenuPath, setContextMenuPath] = useState<string | null>(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  
-  // Model configuration state
-  const [isModelSectionExpanded, setIsModelSectionExpanded] = useState(true);
-  const [selectedProvider, setSelectedProvider] = useState('openai');
   const [selectedModel, setSelectedModel] = useState('gpt-4-turbo');
-  const [firstMessageMode, setFirstMessageMode] = useState('greeting');
+
+  // Voice conversation modal state
+  const [showVoiceConversationModal, setShowVoiceConversationModal] = useState(false);
+  const [isInConversation, setIsInConversation] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Project configuration state
   const [projectConfig, setProjectConfig] = useState({
@@ -170,14 +153,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     customBrandingUrl: null as string | null
   });
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-
-  // New file modal state
-  const [showNewFileModal, setShowNewFileModal] = useState(false);
-  const [newFileName, setNewFileName] = useState('');
-  const [newFileType, setNewFileType] = useState<'file' | 'folder'>('file');
-  const [newFileParentPath, setNewFileParentPath] = useState('/');
-
   // Database integration state
   const [codeEditSession, setCodeEditSession] = useState<ChatSession | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -199,25 +174,23 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   const [tempTitle, setTempTitle] = useState(project?.name || 'Untitled Project');
   const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
   const [leftPanelExpanded, setLeftPanelExpanded] = useState(false);
-  const leftPanelRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   
   // Audio recording state for Clone Voice
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  // const [isRecording, setIsRecording] = useState(false);
+  // const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  // const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
+  // const [recordingDuration, setRecordingDuration] = useState(0);
+  // const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null);
+  // const [isPlaying, setIsPlaying] = useState(false);
+  // const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   
   // Voice cloning state
-  const [voiceName, setVoiceName] = useState('');
-  const [isCloning, setIsCloning] = useState(false);
-  const [customVoices, setCustomVoices] = useState<{id: string, displayName: string}[]>([]);
+  // const [voiceName, setVoiceName] = useState('');
+  // const [isCloning, setIsCloning] = useState(false);
+  const [customVoices, setCustomVoices] = useState<Array<{ id: string; displayName: string; createdAt: string; }>>([]);
   const [showCloneVoiceModal, setShowCloneVoiceModal] = useState(false);
-
+  
   // Ref for debouncing file saves
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -229,12 +202,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
 
   // State for test type selection modal
   const [showTestTypeModal, setShowTestTypeModal] = useState(false);
-  const [testType, setTestType] = useState<'web' | 'outbound' | null>(null);
-  const [outboundPhoneNumber, setOutboundPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+1');
-  const [isLoadingOutboundTest, setIsLoadingOutboundTest] = useState(false);
-  const [selectedFromPhoneNumber, setSelectedFromPhoneNumber] = useState('');
-  const [availablePhoneNumbers, setAvailablePhoneNumbers] = useState<any[]>([]);
 
   // Function dropdown state
   const [showFunctionDropdown, setShowFunctionDropdown] = useState(false);
@@ -354,68 +321,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       cancelEditingTitle();
     }
   };
-
-  // Close emoji picker when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        setShowEmojiPicker(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Handle project photo upload
-  const handlePhotoUpload = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      alert('File size must be less than 5MB');
-      return;
-    }
-
-    setIsUploadingPhoto(true);
-    try {
-      // Convert to base64 for storage
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64String = e.target?.result as string;
-        setProjectConfig(prev => ({
-          ...prev,
-          projectPhoto: base64String
-        }));
-        setIsUploadingPhoto(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      alert('Failed to upload photo. Please try again.');
-      setIsUploadingPhoto(false);
-    }
-  };
-
-  // Remove project photo
-  const removeProjectPhoto = () => {
-    setProjectConfig(prev => ({
-      ...prev,
-      projectPhoto: null
-    }));
-  };
-
-  // Common emojis for projects
-  const commonEmojis = [
-    '🤖', '🎯', '💬', '🚀', '💡', '🔥', '⭐', '🎉',
-    '📞', '🎵', '🎮', '📚', '💼', '🏠', '🍕', '☕',
-    '🌟', '💎', '🏆', '🎨', '🔧', '💻', '📱', '⚡',
-    '🌍', '🎭', '🎪', '🎬', '📺', '🎸', '🎤', '🎧'
-  ];
 
   // Load agent configurations function (simplified - using project_data)
   const loadAgentConfigurations = useCallback(async () => {
@@ -770,7 +675,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
           }
         }, 3000);
       }
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Failed to save project configuration:', error);
       console.error('❌ Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -813,23 +718,6 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     }
   }, [project, currentProject, loadAgentConfigurations, loadProjectConfiguration, loadAssignedPhoneNumber]);
 
-  // Save file changes to database
-  const saveFileChangesToDatabase = async (changeDescription?: string) => {
-    if (currentProject && codeEditSession) {
-      try {
-        console.log('💾 File changes tracked locally (database file storage removed)');
-        console.log('   • Project ID:', currentProject.id);
-        console.log('   • Session ID:', codeEditSession.id);
-        console.log('   • Change description:', changeDescription || 'No description');
-        console.log('✅ File changes logged successfully');
-      } catch (error) {
-        console.error('❌ Failed to log file changes:', error);
-      }
-    } else {
-      console.log('⏭️ Skipping file change logging - missing project or session');
-    }
-  };
-
   // Debug logging for conversation state
   useEffect(() => {
     console.log('🔄 Conversation state changed:', isInConversation);
@@ -865,302 +753,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
     };
     
     setMessages([welcomeMessage]);
-    setAvailableCheckpoints([welcomeMessage]);
   }, [code, config, createFilesSnapshot]);
-
-  // Restore files from a checkpoint snapshot
-  const restoreFromCheckpoint = (snapshot: Map<string, string>) => {
-    // Restore the main voice agent code from snapshot
-    const voiceAgentContent = snapshot.get('/voice_agent.py');
-    if (voiceAgentContent) {
-      setCurrentCode(voiceAgentContent);
-    }
-  };
-
-
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(currentCode);
-      
-      // Show success notification
-      const notification = document.createElement('div');
-      notification.textContent = 'Copied to clipboard!';
-      notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 2000);
-    } catch (error) {
-      // Show error notification
-      const notification = document.createElement('div');
-      notification.textContent = 'Failed to copy. Please try again.';
-      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 3000);
-    }
-  };
-
-  const handlePublish = async () => {
-    // Prevent multiple simultaneous publish operations
-    if (isPublishing) {
-      console.log('🔒 Publishing already in progress, ignoring duplicate request');
-      return;
-    }
-
-    console.log('🚀 Publishing voice agent...');
-    
-    const projectToUse = project || currentProject;
-    if (!projectToUse) {
-      console.error('❌ No project selected for publishing');
-      
-      // Show error notification
-      const notification = document.createElement('div');
-      notification.textContent = 'Please select a project to publish.';
-      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 5000);
-      return;
-    }
-
-    setIsPublishing(true);
-    
-    try {
-      // First, automatically save the configuration
-      console.log('💾 Auto-saving configuration before publishing...');
-      await saveProjectConfiguration();
-      console.log('✅ Configuration saved successfully');
-      
-      // Get phone numbers for this project
-      console.log('📞 Fetching phone numbers for project:', projectToUse.id);
-      const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
-      console.log('📞 Found phone numbers:', phoneNumbers?.length || 0);
-      
-      if (!phoneNumbers || phoneNumbers.length === 0) {
-        console.log('⚠️ No phone numbers found for project');
-        
-        // Show notification to purchase phone number
-        const notification = document.createElement('div');
-        notification.innerHTML = `
-          <div>
-            <strong>No phone number connected</strong><br>
-            Please purchase a phone number first to publish your voice agent.
-          </div>
-        `;
-        notification.className = 'fixed bottom-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-        document.body.appendChild(notification);
-        setTimeout(() => {
-          if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-          }
-        }, 7000);
-        return;
-      }
-
-      // Update dispatch rules for each phone number
-      const updatePromises = phoneNumbers.map(async (phoneNumber: any) => {
-        try {
-          console.log('🔄 Updating dispatch rules for:', phoneNumber.phone_number);
-          
-          const response = await fetch('/api/update-dispatch-rule', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              phoneNumberId: phoneNumber.id,
-              projectId: projectToUse.id,
-              userId: user?.id,
-            }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to update dispatch rule');
-          }
-          
-          const result = await response.json();
-          console.log('✅ Successfully updated dispatch rules for:', phoneNumber.phone_number);
-          return { success: true, phoneNumber: phoneNumber.phone_number, result };
-        } catch (error) {
-          console.error('❌ Failed to update dispatch rules for:', phoneNumber.phone_number, error);
-          return { success: false, phoneNumber: phoneNumber.phone_number, error };
-        }
-      });
-
-      const results = await Promise.all(updatePromises);
-      const successful = results.filter((r: any) => r.success);
-      const failed = results.filter((r: any) => !r.success);
-
-      console.log('📊 Publishing results:', {
-        total: results.length,
-        successful: successful.length,
-        failed: failed.length
-      });
-
-      // Show summary notification
-      if (failed.length === 0) {
-        // All successful
-        const notification = document.createElement('div');
-        notification.innerHTML = `
-          <div>
-            <strong>🎉 Voice agent published successfully!</strong><br>
-            Updated ${successful.length} phone number${successful.length > 1 ? 's' : ''}
-          </div>
-        `;
-        notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-        document.body.appendChild(notification);
-        setTimeout(() => {
-          if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-          }
-        }, 5000);
-      } else if (successful.length > 0) {
-        // Partial success
-        const notification = document.createElement('div');
-        notification.innerHTML = `
-          <div>
-            <strong>⚠️ Partially published</strong><br>
-            ${successful.length} successful, ${failed.length} failed
-          </div>
-        `;
-        notification.className = 'fixed bottom-4 right-4 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-        document.body.appendChild(notification);
-        setTimeout(() => {
-          if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-          }
-        }, 7000);
-      } else {
-        // All failed
-        const notification = document.createElement('div');
-        notification.innerHTML = `
-          <div>
-            <strong>❌ Publishing failed</strong><br>
-            Could not update any phone numbers
-          </div>
-        `;
-        notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-        document.body.appendChild(notification);
-        setTimeout(() => {
-          if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-          }
-        }, 7000);
-      }
-
-    } catch (error) {
-      console.error('❌ Publishing failed:', error);
-      
-      // Show error notification
-      const notification = document.createElement('div');
-      notification.textContent = 'Publishing failed. Please try again.';
-      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 5000);
-    } finally {
-      setIsPublishing(false);
-    }
-  };
-
-  const fetchAvailableNumbers = async () => {
-    setIsLoadingNumbers(true);
-    try {
-      const response = await fetch('/api/telnyx-numbers');
-      if (!response.ok) {
-        throw new Error('Failed to fetch phone numbers');
-      }
-      const data = await response.json();
-      setAvailableNumbers(data.phone_numbers || []);
-      console.log('📱 Available phone numbers:', data.phone_numbers?.length || 0);
-    } catch (error) {
-      console.error('Error fetching phone numbers:', error);
-      // Show error notification
-      const notification = document.createElement('div');
-      notification.textContent = 'Failed to load phone numbers. Please try again.';
-      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 3000);
-    } finally {
-      setIsLoadingNumbers(false);
-    }
-  };
-
-
-
-  const assignPhoneNumber = async () => {
-    if (!selectedNumber) return;
-    
-    setIsAssigningNumber(true);
-    
-    try {
-      // Here you would typically make an API call to purchase/assign the number
-      // For now, we'll simulate the assignment
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setAssignedPhoneNumber(selectedNumber.number);
-      setShowTelephonyModal(false);
-      setSelectedNumber(null);
-      
-      // Show success notification
-      const notification = document.createElement('div');
-      notification.textContent = `Phone number assigned successfully!`;
-      notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 4000);
-      
-    } catch (error) {
-      console.error('Error assigning phone number:', error);
-      
-      // Show error notification
-      const notification = document.createElement('div');
-      notification.textContent = 'Failed to assign phone number. Please try again.';
-      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 3000);
-    } finally {
-      setIsAssigningNumber(false);
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputMessage(e.target.value);
-  };
-
-  const handleKeyDownInInput = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-  };
-
-
 
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -1323,7 +916,6 @@ Just tell me what you want your voice agent to do or any issues you're experienc
                     });
 
                     // Show notification about configuration updates
-                    const updateCount = parsed.configurationUpdates.length;
                     const notification = document.createElement('div');
                     
                     // Create a more detailed notification
@@ -1409,10 +1001,10 @@ For now, you can still manually configure your voice agent using the tabs above.
 
   // Handle test agent button click - show modal to choose test type
   const handleTestAgentClick = async () => {
-    setTestType(null); // Reset to show choice popup
+    // setTestType(null); // Reset to show choice popup - not needed anymore
     setShowTestTypeModal(true);
     
-    // Load available phone numbers immediately for the info box
+    // Load available phone numbers for the modal
     try {
       let projectToUse = project || currentProject;
       
@@ -1428,53 +1020,16 @@ For now, you can still manually configure your voice agent using the tabs above.
 
       if (projectToUse) {
         const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
-        setAvailablePhoneNumbers(phoneNumbers || []);
-        
-        // Set the first phone number as default selection
-        if (phoneNumbers && phoneNumbers.length > 0) {
-          setSelectedFromPhoneNumber(phoneNumbers[0].id);
-        }
+        setAvailableNumbers(phoneNumbers || []);
       }
     } catch (error) {
       console.error('❌ Failed to load phone numbers:', error);
-      setAvailablePhoneNumbers([]);
-    }
-  };
-
-  // Handle test type selection
-  const handleTestTypeSelection = async (type: 'web' | 'outbound') => {
-    setTestType(type);
-    
-    if (type === 'web') {
-      // Proceed with normal web-based conversation
-      setShowTestTypeModal(false);
-      startConversation().catch((err) => {
-        console.error('🔥 Unhandled error in startConversation:', err);
-      });
-    } else if (type === 'outbound') {
-      // Phone numbers are already loaded when modal opened
-      // Modal stays open for phone number input
+      setAvailableNumbers([]);
     }
   };
 
   // Handle outbound test call
-  const handleOutboundTest = async () => {
-    if (!outboundPhoneNumber.trim()) {
-      alert('Please enter a phone number to call');
-      return;
-    }
-
-    // Format the phone number with country code
-    const formattedNumber = `${countryCode}${outboundPhoneNumber.replace(/\D/g, '')}`;
-    
-    if (!selectedFromPhoneNumber) {
-      alert('Please select a phone number to call from');
-      return;
-    }
-
-    setIsLoadingOutboundTest(true);
-    
-    try {
+  const handleOutboundTestAPI = async (phoneNumberId: string, toNumber: string) => {
       // Ensure project exists
       let projectToUse = project || currentProject;
       
@@ -1491,15 +1046,6 @@ For now, you can still manually configure your voice agent using the tabs above.
       if (!projectToUse) {
         throw new Error('No project available for outbound test');
       }
-
-      // Find the selected phone number from available numbers
-      const selectedPhoneNumber = availablePhoneNumbers.find(pn => pn.id === selectedFromPhoneNumber);
-      
-      if (!selectedPhoneNumber) {
-        alert('Selected phone number not found. Please select a valid phone number.');
-        setIsLoadingOutboundTest(false);
-        return;
-      }
       
       // Make outbound call using the selected phone number
       const response = await fetch('/api/make-outbound-call', {
@@ -1508,10 +1054,10 @@ For now, you can still manually configure your voice agent using the tabs above.
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phoneNumberId: selectedPhoneNumber.id,
+        phoneNumberId: phoneNumberId,
           projectId: projectToUse.id,
           userId: user?.id,
-          toNumber: formattedNumber
+        toNumber: toNumber
         }),
       });
 
@@ -1522,20 +1068,6 @@ For now, you can still manually configure your voice agent using the tabs above.
 
       const result = await response.json();
       console.log('✅ Outbound call initiated:', result);
-      
-      // Close modal and show success message
-      setShowTestTypeModal(false);
-      setOutboundPhoneNumber('');
-      setCountryCode('+1');
-      setSelectedFromPhoneNumber('');
-      alert(`Outbound call initiated from ${selectedPhoneNumber.phone_number} to ${formattedNumber}. Answer your phone to test the agent!`);
-      
-    } catch (error) {
-      console.error('❌ Outbound test failed:', error);
-      alert(`Failed to initiate outbound call: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsLoadingOutboundTest(false);
-    }
   };
 
   const startConversation = async () => {
@@ -1796,70 +1328,6 @@ For now, you can still manually configure your voice agent using the tabs above.
     };
   }, [room]);
 
-  // Voice Assistant Components
-  function SimpleVoiceAssistant() {
-    const { state: agentState } = useVoiceAssistant();
-
-    return (
-      <>
-        <AnimatePresence mode="wait">
-          {agentState === "disconnected" ? (
-            <motion.div
-              key="disconnected"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.3, ease: [0.09, 1.04, 0.245, 1.055] }}
-              className="grid items-center justify-center h-full"
-            >
-              {isConnecting ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
-                  className="flex items-center justify-center text-white text-lg"
-                >
-                  <LoadingSpinner size="lg" color="white" className="mr-2" />
-                  Creating Agent Session...
-                </motion.div>
-              ) : (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
-                  className="px-8 py-4 bg-black hover:bg-gray-900 text-white font-medium rounded-lg transition-colors text-lg border border-white/20"
-                  onClick={() => startConversation()}
-                >
-                  Start Conversation
-                </motion.button>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="connected"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3, ease: [0.09, 1.04, 0.245, 1.055] }}
-              className="flex flex-col items-center h-full bg-black"
-              style={{ '--lk-bg': '#000000' } as React.CSSProperties}
-            >
-        <AgentVisualizer />
-        <div className="flex-1 w-full bg-black">
-          <TranscriptionView />
-        </div>
-        <div className="w-full bg-black">
-          <ConversationControlBar />
-        </div>
-        <RoomAudioRenderer />
-        <NoAgentNotification state={agentState} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </>
-    );
-  }
-
   function AgentVisualizer() {
     const { state: agentState, videoTrack, audioTrack } = useVoiceAssistant();
 
@@ -1932,407 +1400,8 @@ For now, you can still manually configure your voice agent using the tabs above.
     };
   }, []); // Empty dependency array means this runs once on mount
 
-  // Dynamic provider mapping based on model
-  const modelProviderMapping: { [key: string]: string } = {
-    'gpt-4o-mini': 'openai',
-    'gpt-4o': 'openai',
-    'gpt-4.1': 'openai',
-    'gpt-4.1-mini': 'openai',
-    'gpt-4.1-nano': 'openai',
-    'claude-opus-4': 'anthropic',
-    'claude-sonnet-4': 'anthropic',
-    'claude-3-5-haiku': 'anthropic',
-    'grok-2': 'xai'
-  };
-
-  const providers = [
-    { value: 'openai', label: 'OpenAI' },
-    { value: 'anthropic', label: 'Anthropic' },
-    { value: 'xai', label: 'xAI' }
-  ];
-
-  const modelsByProvider: { [key: string]: { value: string; label: string }[] } = {
-    openai: [
-      { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-      { value: 'gpt-4o', label: 'GPT-4o' },
-      { value: 'gpt-4.1', label: 'GPT-4.1' },
-      { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-      { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' }
-    ],
-    anthropic: [
-      { value: 'claude-opus-4', label: 'Claude Opus 4' },
-      { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
-      { value: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' }
-    ],
-    xai: [
-      { value: 'grok-2', label: 'Grok-2' }
-    ]
-  };
-
-  const firstMessageModeOptions = [
-    { value: 'greeting', label: 'Assistant speaks first' },
-    { value: 'wait', label: 'Wait for User' },
-    { value: 'custom', label: 'Custom' }
-  ];
-
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
-  };
-
-  // Function to add different integration types
-  const addCalComIntegration = () => {
-    const calcomFunction = {
-      name: 'schedule_meeting',
-      description: 'Schedule a meeting using Cal.com',
-      parameters: {
-        type: 'object',
-        properties: {
-          attendee_name: {
-            type: 'string',
-            description: 'Name of the person scheduling the meeting'
-          },
-          attendee_email: {
-            type: 'string',
-            description: 'Email address of the attendee'
-          },
-          event_type: {
-            type: 'string',
-            description: 'Type of meeting to schedule'
-          },
-          preferred_time: {
-            type: 'string',
-            description: 'Preferred time for the meeting (ISO format)'
-          }
-        },
-        required: ['attendee_name', 'attendee_email', 'event_type']
-      }
-    };
-    setProjectConfig(prev => ({
-      ...prev,
-      customFunctions: [...prev.customFunctions, calcomFunction]
-    }));
-    setShowFunctionDropdown(false);
-  };
-
-  const addGoogleSheetsIntegration = () => {
-    const googleSheetsFunction = {
-      name: 'update_spreadsheet',
-      description: 'Add or update data in a Google Sheets spreadsheet',
-      parameters: {
-        type: 'object',
-        properties: {
-          spreadsheet_id: {
-            type: 'string',
-            description: 'ID of the Google Sheets spreadsheet'
-          },
-          sheet_name: {
-            type: 'string',
-            description: 'Name of the sheet within the spreadsheet'
-          },
-          data: {
-            type: 'object',
-            description: 'Data to add or update in the spreadsheet'
-          },
-          row_number: {
-            type: 'integer',
-            description: 'Row number to update (optional, for updates)'
-          }
-        },
-        required: ['spreadsheet_id', 'sheet_name', 'data']
-      }
-    };
-    setProjectConfig(prev => ({
-      ...prev,
-      customFunctions: [...prev.customFunctions, googleSheetsFunction]
-    }));
-    setShowFunctionDropdown(false);
-  };
-
-  const addMakeComIntegration = () => {
-    const makecomFunction = {
-      name: 'trigger_automation',
-      description: 'Trigger a Make.com automation workflow',
-      parameters: {
-        type: 'object',
-        properties: {
-          webhook_url: {
-            type: 'string',
-            description: 'Make.com webhook URL to trigger'
-          },
-          workflow_data: {
-            type: 'object',
-            description: 'Data to send to the Make.com workflow'
-          },
-          workflow_id: {
-            type: 'string',
-            description: 'ID of the Make.com workflow to trigger'
-          }
-        },
-        required: ['webhook_url', 'workflow_data']
-      }
-    };
-    setProjectConfig(prev => ({
-      ...prev,
-      customFunctions: [...prev.customFunctions, makecomFunction]
-    }));
-    setShowFunctionDropdown(false);
-  };
-
-  // Add phone number formatting function
-  const formatPhoneNumber = (value: string) => {
-    // Remove all non-digit characters
-    const cleaned = value.replace(/\D/g, '');
-    
-    // Apply formatting based on length - support longer international numbers
-    if (cleaned.length <= 3) {
-      return cleaned;
-    } else if (cleaned.length <= 6) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
-    } else if (cleaned.length <= 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    } else {
-      // For numbers longer than 10 digits, don't apply US formatting
-      return cleaned;
-    }
-  };
-
-  // File upload state for project photo
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-
-  // Audio recording functions for Clone Voice
-  const startRecording = async () => {
-    try {
-      // Request high-quality audio with specific constraints for voice recording
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          sampleRate: 48000,
-          channelCount: 1, // Mono recording for voice
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
-      
-      // Try to use MP4/AAC format first (better compatibility), fallback to WebM
-      let mimeType = 'audio/webm';
-      let fileExtension = 'webm';
-      
-      if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        mimeType = 'audio/mp4';
-        fileExtension = 'mp4';
-      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        mimeType = 'audio/webm;codecs=opus';
-        fileExtension = 'webm';
-      } else if (MediaRecorder.isTypeSupported('audio/wav')) {
-        mimeType = 'audio/wav';
-        fileExtension = 'wav';
-      }
-      
-      console.log('Using audio format:', mimeType);
-      
-      const recorder = new MediaRecorder(stream, { 
-        mimeType: mimeType,
-        audioBitsPerSecond: 128000 // 128 kbps for good quality
-      });
-      
-      const chunks: BlobPart[] = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeType });
-        setRecordedAudio(blob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      recorder.start();
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-      setRecordingDuration(0);
-
-      // Start timer
-      const timer = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-      setRecordingTimer(timer);
-
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      alert('Unable to access microphone. Please check your permissions.');
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      setIsRecording(false);
-      setMediaRecorder(null);
-      
-      if (recordingTimer) {
-        clearInterval(recordingTimer);
-        setRecordingTimer(null);
-      }
-    }
-  };
-
-  const clearRecording = () => {
-    setRecordedAudio(null);
-    setRecordingDuration(0);
-    // Stop any playing audio
-    if (currentAudio) {
-      currentAudio.pause();
-      setIsPlaying(false);
-      setCurrentAudio(null);
-    }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handlePlayPause = () => {
-    if (!recordedAudio) return;
-
-    if (isPlaying && currentAudio) {
-      // Pause the audio
-      currentAudio.pause();
-      setIsPlaying(false);
-    } else {
-      // Play the audio
-      const audio = new Audio(URL.createObjectURL(recordedAudio));
-      setCurrentAudio(audio);
-      setIsPlaying(true);
-      
-      audio.onended = () => {
-        setIsPlaying(false);
-        setCurrentAudio(null);
-      };
-      
-      audio.onerror = () => {
-        setIsPlaying(false);
-        setCurrentAudio(null);
-      };
-      
-      audio.play();
-    }
-  };
-
-  const handleCloneVoice = async () => {
-    if (!recordedAudio || !voiceName.trim()) return;
-
-    setIsCloning(true);
-    try {
-      const projectToUse = project || currentProject;
-      if (!projectToUse) {
-        throw new Error('No project available to save custom voice to');
-      }
-
-      const formData = new FormData();
-      formData.append('audioFile', recordedAudio, 'voice-recording.mp3');
-      formData.append('voiceName', voiceName.trim());
-      formData.append('userEmail', 'phombal@stanford.edu'); // TODO: Get from actual user context
-      formData.append('userName', 'Pratham Hombal'); // TODO: Get from actual user context
-      formData.append('projectId', projectToUse.id); // Add project ID to ensure voice is saved to correct project
-
-      const response = await fetch('/api/clone-voice', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        // Show success notification that auto-hides
-        const notification = document.createElement('div');
-        notification.innerHTML = `
-          <div class="flex items-center space-x-3">
-            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <div>
-              <div class="font-medium">Voice Clone Created!</div>
-              <div class="text-sm opacity-90">Your voice "${voiceName}" has been successfully cloned and is now available for selection.</div>
-            </div>
-          </div>
-        `;
-        notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
-        document.body.appendChild(notification);
-
-        // Auto-hide notification after 5 seconds
-        setTimeout(() => {
-          if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-          }
-        }, 5000);
-
-        // Clear the form
-        setVoiceName('');
-        setRecordedAudio(null);
-        setRecordingDuration(0);
-
-        // Reload project configuration to get updated custom voices from user plan
-        await loadProjectConfiguration();
-
-      } else {
-        // Show error notification that auto-hides
-        const notification = document.createElement('div');
-        notification.innerHTML = `
-          <div class="flex items-center space-x-3">
-            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <div>
-              <div class="font-medium">Voice Clone Failed</div>
-              <div class="text-sm opacity-90">${result.error || 'Failed to create voice clone. Please try again.'}</div>
-            </div>
-          </div>
-        `;
-        notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
-        document.body.appendChild(notification);
-
-        // Auto-hide error notification after 8 seconds
-        setTimeout(() => {
-          if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-          }
-        }, 8000);
-      }
-    } catch (error) {
-      console.error('Voice cloning error:', error);
-      
-      // Show error notification
-      const notification = document.createElement('div');
-      notification.innerHTML = `
-        <div class="flex items-center space-x-3">
-          <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-          <div>
-            <div class="font-medium">Voice Clone Error</div>
-            <div class="text-sm opacity-90">An unexpected error occurred. Please try again.</div>
-          </div>
-        </div>
-      `;
-      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
-      document.body.appendChild(notification);
-
-      // Auto-hide error notification after 8 seconds
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 8000);
-    } finally {
-      setIsCloning(false);
-    }
   };
 
   // Effect to auto-select first custom voice when switching to clone_voice provider
@@ -2345,20 +1414,6 @@ For now, you can still manually configure your voice agent using the tabs above.
       }
     }
   }, [projectConfig.ttsProvider, customVoices, projectConfig.ttsVoice, setProjectConfig]);
-
-  // VoiceAssistantNotification component
-  function VoiceAssistantNotification() {
-    return (
-      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg">
-        <div className="flex items-center space-x-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Voice clone created successfully!</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <RoomContext.Provider value={room}>
@@ -2405,137 +1460,36 @@ For now, you can still manually configure your voice agent using the tabs above.
       `}</style>
       <div data-lk-theme="default" className="w-full h-screen bg-black flex relative" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
         {/* Auto-hiding Left Panel */}
-        <div 
-          ref={leftPanelRef}
-          className={`fixed left-0 top-0 h-full z-20 transition-all duration-300 ease-in-out ${
-            leftPanelExpanded ? 'w-80' : 'w-12'
-          } bg-neutral-800 border-r border-white/20 flex flex-col`}
-          onMouseEnter={() => setLeftPanelExpanded(true)}
-          onMouseLeave={() => setLeftPanelExpanded(false)}
-        >
-          {/* Collapsed state - menu icons */}
-          {!leftPanelExpanded && (
-            <div className="w-full h-full bg-neutral-800 flex flex-col items-center py-4 space-y-4">
-            </div>
-          )}
-
-          {/* Expanded state - full panel content */}
-          {leftPanelExpanded && (
-            <>
-              {/* Chat History */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent bg-neutral-800">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    AI Assistant
-                  </h3>
-                </div>
-                {messages.map((message) => (
-                  <div key={message.id} className="flex flex-col items-start">
-                    {message.role === 'assistant' ? (
-                      <div className="mb-2">
-                        <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>Bun</p>
-                      </div>
-                    ) : (
-                      <div className="mb-2">
-                        <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>You</p>
-                      </div>
-                    )}
-                    <div className="max-w-[95%]">
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-white/90">{message.content}</p>
-                      <div className="flex items-center justify-between mt-3">
-                        <p className="text-xs opacity-70 text-white/70">
-                          {message.timestamp.toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit',
-                            hour12: false 
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {isGenerating && (
-                  <div className="flex flex-col items-start">
-                    <div className="mb-2">
-                      <p className="text-sm font-black text-white" style={{ fontWeight: '900', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>Bun</p>
-                    </div>
-                    <div className="max-w-[95%]">
-                      <div className="flex items-center space-x-3">
-                        <LoadingSpinner size="lg" color="blue" className="mr-2" />
-                        <span className="text-sm text-white/90">Thinking...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Chat Input */}
-              <div className="p-6 border-t border-white/20 bg-neutral-800">
-                <div className="relative bg-white/5 rounded-3xl p-4 border border-white/20">
-                  <div className="flex items-center space-x-3">
-                    <button className="w-8 h-8 bg-white hover:bg-gray-100 rounded-full flex items-center justify-center transition-colors">
-                      <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </button>
-                    
-                    <div className="flex-1">
-                      <textarea
-                        ref={textareaRef}
-                        value={inputMessage}
-                        onChange={handleInputChange}
-                        onKeyDown={handleKeyDownInInput}
-                        placeholder="Ask Bun to modify your code..."
-                        className="w-full bg-transparent text-white placeholder-white/50 resize-none border-none outline-none text-sm leading-relaxed"
-                        rows={1}
-                        style={{
-                          minHeight: '20px',
-                          maxHeight: '120px',
-                          scrollbarWidth: 'none',
-                          msOverflowStyle: 'none',
-                          lineHeight: '1.5',
-                          padding: '0',
-                          margin: '0'
-                        }}
-                      />
-                    </div>
-                    
-                    <button
-                      onClick={sendMessage}
-                      disabled={!inputMessage.trim() || isGenerating}
-                      className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors"
-                    >
-                      <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <ChatPanel
+          isExpanded={leftPanelExpanded}
+          onExpandedChange={setLeftPanelExpanded}
+          messages={messages}
+          inputMessage={inputMessage}
+          onInputChange={setInputMessage}
+          onSendMessage={sendMessage}
+          isGenerating={isGenerating}
+        />
 
         {/* Main Content Area - now takes full width */}
         <div className={`flex-1 bg-black flex flex-col transition-all duration-300 ${leftPanelExpanded ? 'ml-80' : 'ml-12'}`}>
           {/* Header with toggle and actions */}
           <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
-            <div className="flex items-center space-x-4">
-              {/* VoiceBun Logo and Project Title */}
+            {/* Left side - VoiceBun Logo and Project Title */}
+            <div className="flex items-center space-x-4 flex-1">
               <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={onBackToHome}
-                    className="hover:opacity-80 transition-opacity cursor-pointer"
-                    title="Go to home page"
-                  >
-                    <img
-                      src="/VoiceBun-BunOnly.png"
-                      alt="VoiceBun" 
-                      className="w-8 h-8"
-                    />
-                  </button>
-                  
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={onBackToHome}
+                  className="hover:opacity-80 transition-opacity cursor-pointer"
+                  title="Go to home page"
+                >
+                  <img 
+                    src="/VoiceBun-BunOnly.png" 
+                    alt="VoiceBun" 
+                    className="w-8 h-8"
+                  />
+                </button>
+                
                   {/* Project Title */}
                   <div className="flex items-center space-x-2">
                     {isEditingTitle ? (
@@ -2587,69 +1541,61 @@ For now, you can still manually configure your voice agent using the tabs above.
                       </div>
                     )}
                   </div>
-                </div>
               </div>
+            </div>
+          </div>
 
-              {/* Tab Navigation - moved to the right */}
-              <div className="hidden md:flex space-x-1 bg-white/10 rounded-lg p-1 ml-8">
+            {/* Center - Tab Navigation */}
+            <div className="hidden md:flex justify-center flex-1">
+              <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
                 <button
                 onClick={() => setActiveMenu('instructions')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'instructions' 
                     ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Instructions
-              </button>
-              <button
+                </button>
+                <button
                 onClick={() => setActiveMenu('models')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'models' 
                     ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Models
-              </button>
-              <button
+                </button>
+                <button
                 onClick={() => setActiveMenu('phone')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'phone' 
                     ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
-                Phone
-              </button>
-              <button
+                  Phone
+                </button>
+                <button
                 onClick={() => setActiveMenu('functions')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'functions' 
                     ? 'bg-white text-black' 
-                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Functions
-              </button>
-              </div>
-
-              {/* Mobile Menu Button */}
-              <div className="md:hidden">
-                <button
-                  onClick={() => setShowMobileMenu(!showMobileMenu)}
-                  className="w-8 h-8 hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center"
-                  title="Menu"
-                >
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
                 </button>
               </div>
             </div>
             
-            {/* Action buttons - reorganized for mobile */}
-            <div className="flex items-center space-x-2">
+            {/* Mobile Menu Button */}
+            {/* Mobile menu is now handled by the MobileNavigation component */}
+            
+            {/* Right side - Action buttons */}
+            <div className="flex items-center space-x-2 flex-1 justify-end">
               <button
                 onClick={saveProjectConfiguration}
                 disabled={isSavingConfig}
@@ -2669,7 +1615,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 <button
                   onClick={handleTestAgentClick}
                   disabled={isConnecting}
-                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
                 >
                   {isConnecting ? (
                     <>
@@ -2678,10 +1624,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                      </svg>
-                      <span className="hidden sm:inline">Test Agent</span>
+                      <span className="hidden sm:inline">Test</span>
                       <span className="sm:hidden">Test</span>
                     </>
                   )}
@@ -2701,562 +1644,44 @@ For now, you can still manually configure your voice agent using the tabs above.
             </div>
           </div>
 
-          {/* Mobile Menu Sidebar */}
-          {showMobileMenu && (
-            <div className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setShowMobileMenu(false)}>
-              <div className="absolute top-0 left-0 w-64 h-full bg-neutral-800 border-r border-white/20" onClick={(e) => e.stopPropagation()}>
-                <div className="p-4 border-b border-white/20">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white">Menu</h3>
-                    <button
-                      onClick={() => setShowMobileMenu(false)}
-                      className="p-1 hover:bg-white/10 rounded transition-colors"
-                    >
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-4 space-y-2">
-                  <button
-                    onClick={() => {
-                      setActiveMenu('instructions');
-                      setShowMobileMenu(false);
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                      activeMenu === 'instructions' 
-                        ? 'bg-white text-black' 
-                        : 'text-white/70 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>Instructions</span>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setActiveMenu('models');
-                      setShowMobileMenu(false);
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                      activeMenu === 'models' 
-                        ? 'bg-white text-black' 
-                        : 'text-white/70 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      <span>Models</span>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setActiveMenu('phone');
-                      setShowMobileMenu(false);
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                      activeMenu === 'phone' 
-                        ? 'bg-white text-black' 
-                        : 'text-white/70 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                      <span>Phone Numbers</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveMenu('functions');
-                      setShowMobileMenu(false);
-                    }}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                      activeMenu === 'functions' 
-                        ? 'bg-white text-black' 
-                        : 'text-white/70 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                      </svg>
-                      <span>Functions</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <MobileNavigation
+            activeMenu={activeMenu}
+            setActiveMenu={setActiveMenu}
+          />
 
           {/* Content area */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-auto">
             {activeMenu === 'instructions' ? (
-              <div className="h-full bg-black p-6 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-8">
-                  {/* System Prompt Section */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      System Prompt
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-sm font-medium text-white/70">
-                          Define your agent's behavior and personality
-                        </label>
-                      </div>
-                      
-                      <textarea 
-                        rows={8}
-                        value={projectConfig.systemPrompt}
-                        onChange={(e) => setProjectConfig(prev => ({ ...prev, systemPrompt: e.target.value }))}
-                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
-                        placeholder="Enter your system prompt here. For example: 'You are a helpful customer service representative for an e-commerce company. You should be friendly, professional, and knowledgeable about products and policies. Always aim to resolve customer issues efficiently while maintaining a positive tone.'"
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Welcome Message Section */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                      </svg>
-                      Welcome Message
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-sm font-medium text-white/70">
-                          First message users will hear when they call
-                        </label>
-                      </div>
-                      
-                      <textarea 
-                        rows={3}
-                        value={projectConfig.publicWelcomeMessage}
-                        onChange={(e) => setProjectConfig(prev => ({ ...prev, publicWelcomeMessage: e.target.value }))}
-                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 resize-none"
-                        placeholder="Hello! I'm here to help you with..."
-                      />
-                      
-                      {/* Assistant Speaks First Toggle */}
-                      <div className="flex items-center justify-between p-4 bg-white/5 border border-white/20 rounded-lg">
-                        <div className="flex flex-col">
-                          <label className="text-sm font-medium text-white">
-                            Assistant speaks first
-                          </label>
-                          <span className="text-xs text-white/60 mt-1">
-                            When enabled, the assistant will greet users immediately when they call
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setProjectConfig(prev => ({ 
-                            ...prev, 
-                            firstMessageMode: prev.firstMessageMode === 'wait' ? 'speak_first' : 'wait'
-                          }))}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            projectConfig.firstMessageMode !== 'wait' 
-                              ? 'bg-green-600' 
-                              : 'bg-white/20'
-                          }`}
-                          aria-pressed={projectConfig.firstMessageMode !== 'wait'}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              projectConfig.firstMessageMode !== 'wait' 
-                                ? 'translate-x-6' 
-                                : 'translate-x-1'
-                            }`}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <InstructionsTab
+                projectConfig={projectConfig}
+                setProjectConfig={setProjectConfig}
+              />
             ) : activeMenu === 'models' ? (
-              <div className="h-full bg-black p-6 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-8">
-                  {/* Base Model Configuration */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      Base Model
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      <p className="text-white/70">
-                        Choose the AI model that will power your voice agent's conversations and responses.
-                      </p>
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Provider Selection */}
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-white/70">
-                          Provider
-                        </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.llmProvider}
-                              onChange={(e) => {
-                                const newProvider = e.target.value;
-                                // Get the first available model for the new provider
-                                const firstModel = modelsByProvider[newProvider]?.[0]?.value;
-                                setProjectConfig(prev => ({ 
-                                  ...prev, 
-                                  llmProvider: newProvider as any,
-                                  llmModel: firstModel || prev.llmModel
-                                }));
-                                setSelectedProvider(newProvider);
-                                if (firstModel) {
-                                  handleModelChange(firstModel);
-                                }
-                              }}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
-                            >
-                              {providers.map(provider => (
-                                <option key={provider.value} value={provider.value} className="bg-gray-700 text-white">
-                                  {provider.label}
-                                </option>
-                              ))}
-                        </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                      </div>
-
-                        {/* Model Selection */}
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-white/70">
-                          Model
-                        </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.llmModel}
-                              onChange={(e) => {
-                                setProjectConfig(prev => ({ ...prev, llmModel: e.target.value }));
-                                handleModelChange(e.target.value);
-                              }}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
-                            >
-                              {modelsByProvider[projectConfig.llmProvider]?.map(model => (
-                                <option key={model.value} value={model.value} className="bg-gray-700 text-white">
-                                  {model.label}
-                                </option>
-                              ))}
-                        </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                      </div>
-
-                        {/* Temperature */}
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-white/70">
-                            Temperature
-                        </label>
-                          <div className="space-y-2">
-                            <input
-                              type="range"
-                              min="0"
-                              max="2"
-                              step="0.1"
-                              value={projectConfig.llmTemperature}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, llmTemperature: parseFloat(e.target.value) }))}
-                              className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
-                            />
-                            <div className="flex justify-between text-xs text-white/50">
-                              <span>Conservative (0)</span>
-                              <span>Balanced (1)</span>
-                              <span>Creative (2)</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Max Tokens */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-white/70">
-                            Max Response Length
-                          </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.llmMaxResponseLength}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, llmMaxResponseLength: parseInt(e.target.value) as any }))}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
-                            >
-                              <option value="150" className="bg-gray-700 text-white">Short (150 tokens)</option>
-                              <option value="300" className="bg-gray-700 text-white">Medium (300 tokens)</option>
-                              <option value="500" className="bg-gray-700 text-white">Long (500 tokens)</option>
-                              <option value="1000" className="bg-gray-700 text-white">Very Long (1000 tokens)</option>
-                        </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Transcriber Configuration */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                      </svg>
-                      Speech-to-Text (Transcriber)
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      <p className="text-white/70">
-                        Configure how your agent converts speech to text for processing.
-                      </p>
-                      
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Transcriber Provider */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-white/70">
-                            Transcriber Provider
-                          </label>
-                          <div className="bg-white/5 border border-white/20 rounded-xl px-4 py-3">
-                            <span className="text-white">Deepgram</span>
-                          </div>
-                      </div>
-
-                      {/* Language */}
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-white/70">
-                          Language
-                        </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.sttLanguage}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, sttLanguage: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
-                            >
-                              <option value="en" className="bg-gray-700 text-white">English</option>
-                              <option value="multi" className="bg-gray-700 text-white">Multilingual</option>
-                              <option value="es" className="bg-gray-700 text-white">Spanish</option>
-                              <option value="fr" className="bg-gray-700 text-white">French</option>
-                              <option value="de" className="bg-gray-700 text-white">German</option>
-                              <option value="it" className="bg-gray-700 text-white">Italian</option>
-                              <option value="pt" className="bg-gray-700 text-white">Portuguese</option>
-                              <option value="ja" className="bg-gray-700 text-white">Japanese</option>
-                              <option value="ko" className="bg-gray-700 text-white">Korean</option>
-                              <option value="zh" className="bg-gray-700 text-white">Chinese</option>
-                        </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                      </div>
-
-                        {/* Model Quality */}
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium text-white/70">
-                            Transcription Quality
-                        </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.sttQuality}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, sttQuality: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
-                            >
-                              <option value="standard" className="bg-gray-700 text-white">Standard (Faster, Lower Cost)</option>
-                              <option value="enhanced" className="bg-gray-700 text-white">Enhanced (Balanced)</option>
-                              <option value="premium" className="bg-gray-700 text-white">Premium (Highest Accuracy)</option>
-                        </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                      </div>
-                    </div>
-                    </div>
-                    </div>
-                  </div>
-
-                  {/* Voice Configuration */}
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-                      <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                      </svg>
-                      Text-to-Speech (Voice)
-                    </h3>
-                    
-                    <div className="space-y-6">
-                      <p className="text-white/70">
-                        Configure how your agent's responses are converted to speech.
-                      </p>
-                      
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Voice Provider */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-white/70">
-                            Voice Provider
-                          </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.ttsProvider}
-                              onChange={(e) => {
-                                const newProvider = e.target.value;
-                                setProjectConfig(prev => ({ 
-                                  ...prev, 
-                                  ttsProvider: newProvider as any,
-                                  // If switching to OpenAI and current voice is british_male, switch to neutral
-                                  // If switching to Clone Voice, switch to custom
-                                  ttsVoice: newProvider === 'openai' && prev.ttsVoice === 'british_male' ? 'neutral' : 
-                                           newProvider === 'clone_voice' ? 'custom' : prev.ttsVoice
-                                }));
-                              }}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
-                            >
-                              <option value="cartesia" className="bg-gray-700 text-white">Cartesia</option>
-                              <option value="openai" className="bg-gray-700 text-white">OpenAI</option>
-                              <option value="clone_voice" className="bg-gray-700 text-white">Clone Voice</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Voice Selection */}
-                        <div className="space-y-3">
-                          <label className="block text-sm font-medium text-white/70">
-                            Voice
-                          </label>
-                          <div className="relative">
-                            <select 
-                              value={projectConfig.ttsVoice}
-                              onChange={(e) => setProjectConfig(prev => ({ ...prev, ttsVoice: e.target.value as any }))}
-                              className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
-                            >
-                              {projectConfig.ttsProvider === 'clone_voice' ? (
-                                customVoices.length > 0 ? (
-                                  customVoices.map((voice) => (
-                                    <option key={voice.id} value={voice.id} className="bg-gray-700 text-white">
-                                      {voice.displayName}
-                                    </option>
-                                  ))
-                                ) : (
-                                  <option value="" className="bg-gray-700 text-white">Create a custom voice below</option>
-                                )
-                              ) : (
-                                <>
-                                  <option value="neutral" className="bg-gray-700 text-white">Neutral</option>
-                                  <option value="male" className="bg-gray-700 text-white">Male</option>
-                                  {projectConfig.ttsProvider !== 'openai' && (
-                                    <option value="british_male" className="bg-gray-700 text-white">British Male</option>
-                                  )}
-                                  <option value="deep_male" className="bg-gray-700 text-white">Deep Male</option>
-                                  <option value="female" className="bg-gray-700 text-white">Female</option>
-                                  <option value="soft_female" className="bg-gray-700 text-white">Soft Female</option>
-                                </>
-                              )}
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                              <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Clone Voice Button */}
-                      {projectConfig.ttsProvider === 'clone_voice' && (
-                        <div className="mt-6 flex justify-center">
-                          <button
-                            onClick={() => setShowCloneVoiceModal(true)}
-                            className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            <span>Clone New Voice</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ModelsTab
+                projectConfig={projectConfig}
+                setProjectConfig={setProjectConfig}
+                customVoices={customVoices}
+                onShowCloneVoiceModal={() => setShowCloneVoiceModal(true)}
+                onModelChange={handleModelChange}
+              />
             ) : activeMenu === 'phone' ? (
-              <div className="h-full bg-black p-6 overflow-y-auto">
-                <div className="max-w-4xl mx-auto space-y-8">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center">
-                        <svg className="w-6 h-6 mr-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        <h3 className="text-xl font-semibold text-white">Phone Numbers</h3>
-                      </div>
-                      <button
-                        onClick={() => setShowTelnyxNumbersModal(true)}
-                        className="px-4 py-2 bg-white hover:bg-gray-100 text-black font-medium rounded-lg transition-colors flex items-center space-x-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>Purchase Number</span>
-                      </button>
-                    </div>
-                    
-                    <div className="space-y-6">
-                      <p className="text-sm text-gray-600 mb-4">
-                        Configure phone numbers for your voice agent to handle inbound and outbound calls.
-                      </p>
-                      
-                      {/* Phone Number Manager */}
-                      <PhoneNumberManager
-                        key={phoneNumberRefreshKey}
-                        projectId={project?.id || currentProject?.id}
-                        onPhoneNumberAssigned={(phoneNumber, phoneNumberId) => {
-                          setAssignedPhoneNumber(phoneNumber);
-                          setAssignedPhoneNumberId(phoneNumberId);
-                          // Update project config with the assigned phone number
-                          setProjectConfig(prev => ({ ...prev, phoneNumber }));
-                        }}
+              <PhoneNumbersTab
+                project={project}
+                currentProject={currentProject}
+                user={user}
+                getProjectPhoneNumbers={getProjectPhoneNumbers}
+                onTestAgentClick={() => setShowTestTypeModal(true)}
+                onOutboundTestAPI={async (phoneNumberId: string, toNumber: string) => {
+                  // This will be handled internally by PhoneNumbersTab
+                }}
+                setAssignedPhoneNumber={setAssignedPhoneNumber}
+                setAssignedPhoneNumberId={setAssignedPhoneNumberId}
+                setAvailableNumbers={setAvailableNumbers}
+                createProject={createProject}
+                config={config}
+                code={code}
                         onPurchaseNumber={() => setShowTelnyxNumbersModal(true)}
                       />
-                    </div>
-                  </div>
-                </div>
-              </div>
             ) : activeMenu === 'functions' ? (
               <FunctionsTab 
                 projectConfig={projectConfig}
@@ -3292,69 +1717,17 @@ For now, you can still manually configure your voice agent using the tabs above.
         </div>
 
         {/* Voice Assistant Overlay - Only show when connected */}
-        {isInConversation && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 flex items-center justify-center p-2 sm:p-4">
-            <div className="pointer-events-auto w-full max-w-sm sm:max-w-2xl max-h-[85vh] sm:max-h-[90vh] overflow-hidden">
-              <div className="bg-black/90 backdrop-blur-sm rounded-xl sm:rounded-2xl border border-white/20 relative h-full flex flex-col">
-                {/* Mobile-friendly Header */}
-                <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/20 flex-shrink-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-white flex items-center">
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                    <span className="hidden sm:inline">Voice Agent Test</span>
-                    <span className="sm:hidden">Voice Test</span>
-                  </h3>
-                  <button
-                    onClick={endConversation}
-                    className="w-7 h-7 sm:w-8 sm:h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors group"
-                    title="End conversation"
-                  >
-                    <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                
-                {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-                  <div className="space-y-3 sm:space-y-6">
-                    {/* Agent Visualizer - Reduced size for mobile */}
-                    <div className="flex justify-center">
-                      <div className="w-full max-w-xs sm:max-w-md">
-                        <AgentVisualizer />
-                      </div>
-                    </div>
-                    
-                    {/* Live Transcription */}
-                    <div className="w-full">
-                      <div className="bg-black rounded-lg p-2 sm:p-4 border border-white/20">
-                        <h4 className="text-white font-medium mb-2 sm:mb-3 flex items-center justify-center text-xs sm:text-base">
-                          <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                          </svg>
-                          Live Transcription
-                        </h4>
-                        <div className="max-h-24 sm:max-h-40 overflow-y-auto text-sm sm:text-base">
-                          <TranscriptionView />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Controls Footer */}
-                <div className="border-t border-white/20 p-2 sm:p-4 flex-shrink-0">
-                  <div className="space-y-2 sm:space-y-3">
-                    <ConversationControlBar />
-                    <RoomAudioRenderer />
-                    <VoiceAssistantNotification />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <VoiceConversationModal
+          isOpen={isInConversation}
+          onClose={endConversation}
+          config={config}
+          project={project}
+          currentProject={currentProject}
+          projectConfig={projectConfig}
+          user={user}
+          createProject={createProject}
+          code={code}
+        />
       </div>
 
       {/* Telnyx Numbers Modal */}
@@ -3371,401 +1744,29 @@ For now, you can still manually configure your voice agent using the tabs above.
       />
       
       {/* Test Type Selection Modal */}
-      {showTestTypeModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={(e) => {
-            // Close modal when clicking outside
-            if (e.target === e.currentTarget) {
-              setShowTestTypeModal(false);
-              setTestType(null);
-              setOutboundPhoneNumber('');
-              setCountryCode('+1');
-              setSelectedFromPhoneNumber('');
-            }
-          }}
-        >
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Choose Test Type</h3>
-              <button
-                onClick={() => {
-                  setShowTestTypeModal(false);
-                  setTestType(null);
-                  setOutboundPhoneNumber('');
-                  setCountryCode('+1');
-                  setSelectedFromPhoneNumber('');
-                }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            {testType === null ? (
-              <div className="space-y-4">
-                <p className="text-gray-600 mb-4">How would you like to test your agent?</p>
-                
-                <div className="space-y-3">
-                  {/* Quick Test Option - styled like other options */}
-                  {availablePhoneNumbers.length > 0 && (
-                    <div className="w-full p-4 border-2 border-gray-200 rounded-lg bg-gray-50">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">Call Your Agent</h4>
-                          <p className="text-sm text-gray-500">Call your assigned number directly</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {availablePhoneNumbers.map((phoneNumber) => (
-                              <span key={phoneNumber.id} className="text-xs font-mono text-gray-700 bg-gray-200 px-2 py-1 rounded">
-                                {phoneNumber.phone_number}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => handleTestTypeSelection('outbound')}
-                    className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200">
-                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">Have the Agent Call You</h4>
-                        <p className="text-sm text-gray-500">Test by calling your phone number</p>
-                      </div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => handleTestTypeSelection('web')}
-                    className="w-full p-4 text-left border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">Web-based Conversation</h4>
-                        <p className="text-sm text-gray-500">Test directly in your browser using your microphone</p>
-                      </div>
-                    </div>
-                  </button>
-                  
-                </div>
-                
-                <div className="flex justify-end mt-6">
-                  <button
-                    onClick={() => {
-                      setShowTestTypeModal(false);
-                      setTestType(null);
-                      setOutboundPhoneNumber('');
-                      setCountryCode('+1');
-                      setSelectedFromPhoneNumber('');
-                    }}
-                    className="px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : testType === 'outbound' ? (
-              <div className="space-y-4">
-                <p className="text-gray-600 mb-4">Configure your outbound test call:</p>
-                
-                {/* Phone Number Selection Dropdown */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Call From
-                  </label>
-                  {availablePhoneNumbers.length > 0 ? (
-                    <select
-                      value={selectedFromPhoneNumber}
-                      onChange={(e) => setSelectedFromPhoneNumber(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      disabled={isLoadingOutboundTest}
-                    >
-                      {availablePhoneNumbers.map((phoneNumber) => (
-                        <option key={phoneNumber.id} value={phoneNumber.id}>
-                          {phoneNumber.phone_number} {phoneNumber.status === 'assigned' ? '(Assigned)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
-                      No phone numbers available. Please assign a phone number to this project first.
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-500">Select which phone number to use for the outbound call</p>
-                </div>
-                
-                {/* Target Phone Number Input */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Call To
-                  </label>
-                  <div className="flex space-x-2">
-                    <select
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                      disabled={isLoadingOutboundTest}
-                    >
-                      <option value="+1">🇺🇸 +1</option>
-                      <option value="+44">🇬🇧 +44</option>
-                      <option value="+33">🇫🇷 +33</option>
-                      <option value="+49">🇩🇪 +49</option>
-                      <option value="+39">🇮🇹 +39</option>
-                      <option value="+34">🇪🇸 +34</option>
-                      <option value="+31">🇳🇱 +31</option>
-                      <option value="+32">🇧🇪 +32</option>
-                      <option value="+41">🇨🇭 +41</option>
-                      <option value="+43">🇦🇹 +43</option>
-                      <option value="+45">🇩🇰 +45</option>
-                      <option value="+46">🇸🇪 +46</option>
-                      <option value="+47">🇳🇴 +47</option>
-                      <option value="+358">🇫🇮 +358</option>
-                      <option value="+61">🇦🇺 +61</option>
-                      <option value="+64">🇳🇿 +64</option>
-                      <option value="+81">🇯🇵 +81</option>
-                      <option value="+82">🇰🇷 +82</option>
-                      <option value="+86">🇨🇳 +86</option>
-                      <option value="+91">🇮🇳 +91</option>
-                      <option value="+55">🇧🇷 +55</option>
-                      <option value="+52">🇲🇽 +52</option>
-                      <option value="+54">🇦🇷 +54</option>
-                      <option value="+56">🇨🇱 +56</option>
-                      <option value="+57">🇨🇴 +57</option>
-                      <option value="+51">🇵🇪 +51</option>
-                      <option value="+27">🇿🇦 +27</option>
-                    </select>
-                    <input
-                      type="tel"
-                      value={formatPhoneNumber(outboundPhoneNumber)}
-                      onChange={(e) => {
-                        // Store raw digits only, let formatPhoneNumber handle display
-                        const rawDigits = e.target.value.replace(/\D/g, '');
-                        setOutboundPhoneNumber(rawDigits);
-                      }}
-                      placeholder="123-456-7890"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      disabled={isLoadingOutboundTest}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500">Enter your phone number to receive the test call</p>
-                </div>
-                
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={() => {
-                      setTestType(null);
-                      setOutboundPhoneNumber('');
-                      setCountryCode('+1');
-                      setSelectedFromPhoneNumber('');
-                    }}
-                    className="px-4 py-2 text-gray-500 hover:text-gray-700 transition-colors"
-                    disabled={isLoadingOutboundTest}
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleOutboundTest}
-                    disabled={isLoadingOutboundTest || !outboundPhoneNumber.trim() || !selectedFromPhoneNumber || availablePhoneNumbers.length === 0}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white rounded-lg transition-colors flex items-center space-x-2"
-                  >
-                    {isLoadingOutboundTest && (
-                      <LoadingSpinner size="md" color="white" />
-                    )}
-                    <span>{isLoadingOutboundTest ? 'Calling...' : 'Call Me'}</span>
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+      <TestTypeModal
+        isOpen={showTestTypeModal}
+        onClose={() => setShowTestTypeModal(false)}
+        availablePhoneNumbers={availableNumbers}
+        user={user}
+        onWebTest={() => {
+          startConversation().catch((err) => {
+            console.error('🔥 Unhandled error in startConversation:', err);
+          });
+        }}
+        onOutboundTest={handleOutboundTestAPI}
+      />
 
       {/* Clone Voice Modal */}
-      {showCloneVoiceModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={(e) => {
-            // Close modal when clicking outside
-            if (e.target === e.currentTarget) {
-              setShowCloneVoiceModal(false);
-              // Reset recording state when closing
-              if (isRecording) {
-                stopRecording();
-              }
-              clearRecording();
-              setVoiceName('');
-            }
-          }}
-        >
-          <div className="bg-gray-900 rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl border border-white/20">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center space-x-2">
-                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                </svg>
-                <h3 className="text-xl font-semibold text-white">Clone New Voice</h3>
-              </div>
-              <button
-                onClick={() => {
-                  setShowCloneVoiceModal(false);
-                  // Reset recording state when closing
-                  if (isRecording) {
-                    stopRecording();
-                  }
-                  clearRecording();
-                  setVoiceName('');
-                }}
-                className="text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="space-y-6">
-              <div className="p-4 bg-blue-600/20 border border-blue-600/30 rounded-xl">
-                <h4 className="text-white font-medium mb-2">Sample Text to Read:</h4>
-                <p className="text-white/90 text-sm leading-relaxed">
-                  "Welcome to VoiceBun, the innovative platform that transforms how we interact with artificial intelligence through natural voice conversations. Our advanced technology creates seamless communication experiences that feel authentic and engaging. By recording this sample, you're helping us capture the unique characteristics of your voice to create a personalized clone that will represent you in future interactions."
-                </p>
-              </div>
-
-              {!recordedAudio ? (
-                <div className="space-y-4">
-                  {!isRecording ? (
-                    <button
-                      onClick={startRecording}
-                      className="w-full px-6 py-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                      </svg>
-                      <span>Start Recording</span>
-                    </button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-center space-x-4 p-6 bg-red-600/20 border border-red-600/30 rounded-xl">
-                        <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
-                        <span className="text-white font-medium">Recording...</span>
-                        <span className="text-white/70 font-mono">{formatDuration(recordingDuration)}</span>
-                      </div>
-                      <button
-                        onClick={stopRecording}
-                        className="w-full px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-xl transition-colors"
-                      >
-                        Stop Recording
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-green-600/20 border border-green-600/30 rounded-xl">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-white font-medium">Recording Complete</span>
-                        <span className="text-white/70 text-sm">({formatDuration(recordingDuration)})</span>
-                      </div>
-                      <button
-                        onClick={clearRecording}
-                        className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={handlePlayPause}
-                      className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
-                    >
-                      {isPlaying ? (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8m-5-4v4" />
-                        </svg>
-                      )}
-                      <span>{isPlaying ? 'Pause' : 'Play'}</span>
-                    </button>
-                  </div>
-                  
-                  {/* Voice Clone Form */}
-                  <div className="mt-4 space-y-4">
-                    <div>
-                      <label className="block text-white/70 text-sm font-medium mb-2">
-                        Voice Name
-                      </label>
-                      <input
-                        type="text"
-                        value={voiceName}
-                        onChange={(e) => setVoiceName(e.target.value)}
-                        placeholder="Enter a name for your voice clone"
-                        className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => {
-                          setShowCloneVoiceModal(false);
-                          clearRecording();
-                          setVoiceName('');
-                        }}
-                        className="flex-1 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-xl transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={async () => {
-                          await handleCloneVoice();
-                          setShowCloneVoiceModal(false);
-                        }}
-                        disabled={isCloning || !voiceName.trim() || !recordedAudio}
-                        className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white font-medium rounded-xl transition-colors flex items-center justify-center space-x-2"
-                      >
-                        {isCloning && (
-                          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                        )}
-                        <span>{isCloning ? 'Creating...' : 'Create Voice Clone'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <CloneVoiceModal
+        isOpen={showCloneVoiceModal}
+        onClose={() => setShowCloneVoiceModal(false)}
+        onVoiceCloned={() => {
+          // Refresh custom voices list if needed
+          // This could trigger a re-fetch of custom voices
+        }}
+        projectId={project?.id || currentProject?.id}
+      />
     </RoomContext.Provider>
   );
-} 
+}
