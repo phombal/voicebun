@@ -831,17 +831,47 @@ export class DatabaseService {
 
   // Server-side version for API routes
   async incrementPhoneNumberCountWithServiceRole(userId: string): Promise<UserPlan> {
-    const { data, error } = await supabaseServiceRole
-      .rpc('increment_phone_number_count', { input_user_id: userId });
-    
-    if (error) throw error;
-    
-    // Return updated user plan
-    const userPlan = await this.getUserPlanWithServiceRole(userId);
-    if (!userPlan) {
-      throw new Error('User plan not found after incrementing phone number count');
+    try {
+      const { data, error } = await supabaseServiceRole
+        .rpc('increment_phone_number_count', { input_user_id: userId });
+      
+      if (error) {
+        // If the function doesn't exist, handle it gracefully
+        if (error.code === 'PGRST202' && error.message.includes('Could not find the function')) {
+          console.warn('⚠️ increment_phone_number_count function not found, falling back to manual update');
+          
+          // Fallback: manually update or create user plan
+          const existingPlan = await this.getUserPlanWithServiceRole(userId);
+          if (existingPlan) {
+            return await this.updateUserPlanWithServiceRole(userId, {
+              phone_number_count: Math.min((existingPlan.phone_number_count || 0) + 1, existingPlan.phone_number_limit || 1),
+              updated_at: new Date().toISOString()
+            });
+          } else {
+            return await this.createUserPlanWithServiceRole(userId, {
+              phone_number_count: 1,
+              phone_number_limit: 1,
+              plan_name: 'free',
+              subscription_status: 'active',
+              conversation_minutes_used: 0,
+              conversation_minutes_limit: 5,
+              cancel_at_period_end: false
+            });
+          }
+        }
+        throw error;
+      }
+      
+      // Return updated user plan
+      const userPlan = await this.getUserPlanWithServiceRole(userId);
+      if (!userPlan) {
+        throw new Error('User plan not found after incrementing phone number count');
+      }
+      return userPlan;
+    } catch (error) {
+      console.error('Error in incrementPhoneNumberCountWithServiceRole:', error);
+      throw error;
     }
-    return userPlan;
   }
 
   async decrementPhoneNumberCount(userId: string): Promise<UserPlan> {
