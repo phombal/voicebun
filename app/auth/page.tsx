@@ -114,7 +114,8 @@ function AuthPageContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black" style={{ 
+      <div className="min-h-screen flex items-center justify-center" style={{ 
+        background: 'radial-gradient(circle, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 61%, rgba(33, 33, 33, 1) 100%)',
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
       }}>
         <div className="text-center">
@@ -130,7 +131,8 @@ function AuthPageContent() {
   }
 
   return (
-    <div className="min-h-screen flex bg-black" style={{ 
+    <div className="min-h-screen flex" style={{ 
+      background: 'radial-gradient(circle, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 61%, rgba(33, 33, 33, 1) 100%)',
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     }}>
       {/* Left side - Branding */}
@@ -190,7 +192,8 @@ function AuthPageContent() {
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black" style={{ 
+    <div className="min-h-screen flex items-center justify-center" style={{ 
+      background: 'radial-gradient(circle, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 61%, rgba(33, 33, 33, 1) 100%)',
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     }}>
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>

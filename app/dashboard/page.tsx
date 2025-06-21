@@ -51,58 +51,6 @@ function AudioBars() {
   );
 }
 
-// Typewriter effect component
-function TypewriterEffect() {
-  const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
-  const [currentText, setCurrentText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
-  
-  const roles = [
-    'Customer Support',
-    'Sales Rep',
-    'Therapist',
-    'Personal Assistant',
-    'Receptionist',
-    'Teacher',
-    'Fitness Coach',
-    'Travel Agent'
-  ];
-  
-  useEffect(() => {
-    const currentRole = roles[currentRoleIndex];
-    const fullText = `Your Next ${currentRole}`;
-    
-    const timer = setTimeout(() => {
-      if (!isDeleting) {
-        // Typing
-        if (currentText.length < fullText.length) {
-          setCurrentText(fullText.slice(0, currentText.length + 1));
-        } else {
-          // Pause before deleting
-          setTimeout(() => setIsDeleting(true), 2000);
-        }
-      } else {
-        // Deleting
-        if (currentText.length > 10) { // Keep "Your Next "
-          setCurrentText(currentText.slice(0, -1));
-        } else {
-          setIsDeleting(false);
-          setCurrentRoleIndex((prev) => (prev + 1) % roles.length);
-        }
-      }
-    }, isDeleting ? 50 : 100);
-    
-    return () => clearTimeout(timer);
-  }, [currentText, isDeleting, currentRoleIndex, roles]);
-  
-  return (
-    <span>
-      {currentText}
-      <span className="animate-pulse">|</span>
-    </span>
-  );
-}
-
 // Component that uses useSearchParams and needs to be wrapped in Suspense
 function DashboardContent() {
   const { user, loading } = useAuth();
@@ -511,8 +459,9 @@ if __name__ == "__main__":
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen bg-black"
+      className="min-h-screen"
       style={{ 
+        background: 'radial-gradient(circle, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 61%, rgba(33, 33, 33, 1) 100%)',
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' 
       }}
     >
@@ -555,7 +504,7 @@ if __name__ == "__main__":
             className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
             style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
           >
-            <TypewriterEffect />
+            Give your idea a voice
           </motion.h1>
           
           <motion.p
@@ -573,7 +522,7 @@ if __name__ == "__main__":
             transition={{ delay: 0.3 }}
             className="relative max-w-4xl mx-auto mb-8"
           >
-            <div className="bg-white rounded-3xl p-4 shadow-2xl shadow-white/10">
+            <div className="bg-gray-800 rounded-3xl p-4 shadow-2xl shadow-white/10">
               <div className="flex items-center gap-4">
                 <div className="flex-1 relative">
                   <textarea
@@ -581,7 +530,7 @@ if __name__ == "__main__":
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Describe the voice agent you want to create..."
-                    className="w-full h-16 p-4 bg-transparent text-black placeholder-gray-500 focus:outline-none resize-none text-lg text-left"
+                    className="w-full h-16 p-4 bg-transparent text-white placeholder-gray-500 focus:outline-none resize-none text-lg text-left"
                     disabled={isGenerating}
                   />
                 </div>
@@ -592,7 +541,7 @@ if __name__ == "__main__":
                   className={`px-4 py-2 rounded-full font-medium text-sm transition-all duration-200 ${
                     isPublic 
                       ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {isPublic ? '🌍 Public' : '🔒 Private'}
@@ -601,12 +550,12 @@ if __name__ == "__main__":
                 <button
                   onClick={generateAgent}
                   disabled={!prompt.trim() || isGenerating}
-                  className="w-10 h-10 bg-black hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
+                  className="w-10 h-10 bg-white hover:bg-gray-100 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-all duration-200"
                 >
                   {isGenerating ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black"></div>
                   ) : (
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                     </svg>
                   )}
@@ -637,7 +586,7 @@ if __name__ == "__main__":
                 <button
                   key={index}
                   onClick={() => setPrompt(example)}
-                  className="bg-white rounded-lg px-4 py-2 hover:bg-gray-100 transition-colors cursor-pointer text-black hover:text-gray-800 text-sm"
+                  className="bg-black border border-gray-600 rounded-lg px-4 py-2 hover:bg-gray-800 transition-colors cursor-pointer text-gray-300 hover:text-white text-sm"
                   disabled={isGenerating}
                 >
                   {example}

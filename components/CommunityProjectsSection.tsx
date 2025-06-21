@@ -367,8 +367,8 @@ export default function CommunityProjectsSection({
     return `grid gap-4 ${gridCols === 2 ? 'md:grid-cols-2' : gridCols === 3 ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2 lg:grid-cols-4'}`;
   };
 
-  // Always use white card container
-  const containerClasses = "bg-white rounded-3xl p-8 shadow-2xl shadow-white/10 w-full max-w-none mx-auto";
+  // Always use gray card container with white text
+  const containerClasses = "bg-gray-800 rounded-3xl p-8 shadow-2xl shadow-white/10 w-full max-w-none mx-auto";
 
   return (
     <motion.div
@@ -377,36 +377,19 @@ export default function CommunityProjectsSection({
       transition={{ delay }}
       className={containerClasses}
     >
-      {/* Title inside the white card */}
+      {/* Title inside the gray card */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+            <h2 className="text-2xl md:text-3xl font-bold text-white">
               {title}
             </h2>
-            {projectType === 'community' && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={handleManualRefresh}
-                  className="flex items-center space-x-1 px-3 py-1 text-sm text-gray-600 hover:text-blue-600 transition-colors"
-                  title="Refresh projects"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Refresh</span>
-                </button>
-                <span className="text-xs text-gray-400">
-                  Updated {lastRefreshTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            )}
           </div>
           {variant === 'card' && (
             <div className="flex items-center space-x-4">
               <Link
                 href={projectType === 'user' ? '/projects' : '/community'}
-                className="text-blue-600 hover:text-blue-700 transition-colors font-medium text-sm"
+                className="text-blue-400 hover:text-blue-300 transition-colors font-medium text-sm"
               >
                 View All
               </Link>
@@ -431,7 +414,7 @@ export default function CommunityProjectsSection({
                     placeholder="Search projects..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-gray-100 border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors"
                   />
                 </div>
               )}
@@ -445,7 +428,7 @@ export default function CommunityProjectsSection({
                       className={`flex items-center px-4 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
                         selectedCategory === category
                           ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 text-gray-600 hover:text-gray-900 hover:border-gray-400'
+                          : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
                       }`}
                     >
                       {category}
@@ -466,7 +449,7 @@ export default function CommunityProjectsSection({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: delay + 0.1 + i * 0.1 }}
-              className="bg-gray-100 rounded-xl overflow-hidden animate-pulse"
+              className="bg-gray-200 rounded-xl overflow-hidden animate-pulse"
             >
               <div className="aspect-video bg-gray-200"></div>
               <div className="p-4">
@@ -495,10 +478,10 @@ export default function CommunityProjectsSection({
           className="text-center py-12"
         >
           <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-medium mb-2 text-gray-900">
+          <h3 className="text-lg font-medium mb-2 text-white">
             {searchQuery ? 'No projects found' : 'No community projects available'}
           </h3>
-          <p className="mb-6 text-gray-600">
+          <p className="mb-6 text-gray-300">
             {searchQuery 
               ? 'Try adjusting your search terms'
               : 'Be the first to share your voice agent with the community!'
