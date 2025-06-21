@@ -429,20 +429,40 @@ export default function CommunityProjectsSection({
               )}
               
               {showFilters && (
-                <div className="flex items-center space-x-2 overflow-x-auto">
-                  {['All', 'Healthcare', 'Education', 'Customer Service', 'Personal Assistant', 'Sales & Marketing', 'Entertainment', 'Productivity'].map((category) => (
-                    <button
-                      key={category}
-                      onClick={() => setSelectedCategory(category)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
-                        selectedCategory === category
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
+                <div className="w-full">
+                  {/* Mobile: Show limited categories in a wrapped layout */}
+                  <div className="flex md:hidden flex-wrap gap-2">
+                    {['All', 'Healthcare', 'Education', 'Customer Service'].map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`flex items-center px-3 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
+                          selectedCategory === category
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Desktop: Show all categories in horizontal scroll */}
+                  <div className="hidden md:flex items-center space-x-2 overflow-x-auto">
+                    {['All', 'Healthcare', 'Education', 'Customer Service', 'Personal Assistant', 'Sales & Marketing', 'Entertainment', 'Productivity'].map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`flex items-center px-3 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
+                          selectedCategory === category
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

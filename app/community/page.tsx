@@ -67,12 +67,12 @@ export default function CommunityPage() {
       )}
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-6 py-12">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-16 sm:pt-12 md:pt-8 pb-12">
         <div className="mb-12">
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-5xl font-bold text-white mb-4"
+            className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4"
           >
             Community Voice Agents
           </motion.h1>
