@@ -26,6 +26,44 @@ export function PhoneNumbersTab({
   onPurchaseNumber
 }: PhoneNumbersTabProps) {
   
+  const phoneTabContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Prevent scroll propagation to parent elements
+  const handleScroll = (e: React.UIEvent) => {
+    e.stopPropagation();
+  };
+
+  // Enhanced wheel event handling to completely isolate scrolling
+  const handleWheel = (e: React.WheelEvent) => {
+    const container = phoneTabContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isAtTop = scrollTop === 0;
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+
+    // Always prevent propagation first
+    e.stopPropagation();
+
+    // Only prevent default if we're at boundaries and trying to scroll beyond
+    if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+      e.preventDefault();
+    }
+  };
+
+  // Prevent touch events from propagating
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
   // Load assigned phone number for the project
   const loadAssignedPhoneNumber = useCallback(async () => {
     const projectToUse = project || currentProject;
@@ -102,28 +140,39 @@ export function PhoneNumbersTab({
   const projectToUse = project || currentProject;
 
   return (
-    <div className="h-full bg-black p-6 overflow-y-auto">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Phone Numbers Configuration */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-          <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
-            <svg className="w-6 h-6 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
-            Phone Numbers
-          </h3>
+    <div 
+      ref={phoneTabContainerRef}
+      className="h-full bg-black overflow-y-auto"
+      onScroll={handleScroll}
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        overscrollBehavior: 'contain',
+        isolation: 'isolate',
+        touchAction: 'pan-y'
+      }}
+    >
+      {/* Combined Phone Numbers Configuration Section */}
+      <div className="bg-white/10 backdrop-blur-sm min-h-full p-8 pb-24 w-full">
+        <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
+          <svg className="w-6 h-6 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          </svg>
+          Phone Numbers
+        </h3>
+        
+        <div className="space-y-6">
+          <p className="text-white/70">
+            Manage phone numbers for your voice agent. Connect numbers to enable inbound calling.
+          </p>
           
-          <div className="space-y-6">
-            <p className="text-white/70">
-              Manage phone numbers for your voice agent. Connect numbers to enable inbound calling.
-            </p>
-            
-            <PhoneNumberManager 
-              projectId={projectToUse?.id}
-              onPhoneNumberAssigned={handlePhoneNumberAssigned}
-              onPurchaseNumber={onPurchaseNumber}
-            />
-          </div>
+          <PhoneNumberManager 
+            projectId={projectToUse?.id}
+            onPhoneNumberAssigned={handlePhoneNumberAssigned}
+            onPurchaseNumber={onPurchaseNumber}
+          />
         </div>
       </div>
     </div>

@@ -1477,37 +1477,60 @@ For now, you can still manually configure your voice agent using the tabs above.
           font-size: 0 !important;
           text-indent: -9999px !important;
         }
+        
+        /* Custom scrollbar styling for consistent appearance */
+        .scrollbar-thin {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(107, 114, 128, 0.8) transparent;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+          background-color: rgba(107, 114, 128, 0.8);
+          border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(107, 114, 128, 1);
+        }
+        
+        /* Ensure smooth scrolling behavior */
+        .smooth-scroll {
+          scroll-behavior: smooth;
+          overscroll-behavior: contain;
+        }
       `}</style>
-      <div data-lk-theme="default" className="w-full h-screen bg-black flex relative" style={{ fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif' }}>
-        {/* Auto-hiding Left Panel */}
-        <ChatPanel
-          isExpanded={true}
-          onExpandedChange={() => {}} // No-op since panel is always static
-          messages={messages}
-          inputMessage={inputMessage}
-          onInputChange={setInputMessage}
-          onSendMessage={sendMessage}
-          isGenerating={isGenerating}
-          onBackToHome={onBackToHome}
-        />
-
-        {/* Main Content Area - now takes full width */}
-        <div className="flex-1 bg-black flex flex-col transition-all duration-300 ml-80">
-          {/* Header with toggle and actions */}
-          <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/10 backdrop-blur-sm">
-            {/* Left side - VoiceBun Logo and Project Title */}
-            <div className="flex items-center space-x-4 flex-1">
-              <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-3">
-                  {/* Project Title */}
+      <div data-lk-theme="default" className="w-full h-screen bg-black flex flex-col relative" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+        {/* Full-width Header Navigation Bar */}
+        <div className="sticky top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-black/80 backdrop-blur-md">
+          {/* Left side - VoiceBun Logo and Project Title */}
+          <div className="flex items-center space-x-4 flex-1">
+            {/* VoiceBun Logo */}
+            <div className="flex items-center">
+              <img 
+                src="/VoiceBun-White.png" 
+                alt="VoiceBun" 
+                className="h-8 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => window.location.href = '/dashboard'}
+              />
+            </div>
+                
+            {/* Project Title */}
                   <div className="flex items-center space-x-2">
                     {isEditingTitle ? (
                       <div className="flex items-center space-x-2">
                         <input
                           ref={titleInputRef}
                           type="text"
-                          value={tempTitle}
-                          onChange={(e) => setTempTitle(e.target.value)}
+                    value={tempTitle}
+                    onChange={(e) => setTempTitle(e.target.value)}
                           onKeyDown={handleTitleKeyPress}
                           onBlur={updateProjectTitle}
                           className="bg-white/10 text-white border border-white/30 rounded-md px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent"
@@ -1537,7 +1560,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2">
-                        <h1 className="text-white font-medium text-sm" title={project.name}>
+                  <h1 className="text-white font-medium text-sm" title={project.name}>
                           {project.name}
                         </h1>
                         <button
@@ -1549,50 +1572,48 @@ For now, you can still manually configure your voice agent using the tabs above.
                         </button>
                       </div>
                     )}
-                  </div>
-              </div>
             </div>
           </div>
 
-            {/* Center - Tab Navigation */}
-            <div className="hidden md:flex justify-center flex-1">
-              <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
+          {/* Center - Tab Navigation */}
+          <div className="hidden md:flex justify-center flex-1">
+            <div className="flex space-x-1 bg-white/10 rounded-lg p-1">
                 <button
                 onClick={() => setActiveMenu('instructions')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'instructions' 
                     ? 'bg-white text-black' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Instructions
                 </button>
                 <button
                 onClick={() => setActiveMenu('models')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'models' 
                     ? 'bg-white text-black' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Models
                 </button>
                 <button
                 onClick={() => setActiveMenu('phone')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'phone' 
                     ? 'bg-white text-black' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
-                  Phone
+                Phone
                 </button>
                 <button
                 onClick={() => setActiveMenu('functions')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeMenu === 'functions' 
                     ? 'bg-white text-black' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Functions
@@ -1600,11 +1621,8 @@ For now, you can still manually configure your voice agent using the tabs above.
               </div>
             </div>
             
-            {/* Mobile Menu Button */}
-            {/* Mobile menu is now handled by the MobileNavigation component */}
-            
-            {/* Right side - Action buttons */}
-            <div className="flex items-center space-x-2 flex-1 justify-end">
+          {/* Right side - Action buttons */}
+          <div className="flex items-center space-x-2 flex-1 justify-end">
               <button
                 onClick={saveProjectConfiguration}
                 disabled={isSavingConfig}
@@ -1624,7 +1642,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 <button
                   onClick={handleTestAgentClick}
                   disabled={isConnecting}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
                 >
                   {isConnecting ? (
                     <>
@@ -1633,8 +1651,8 @@ For now, you can still manually configure your voice agent using the tabs above.
                     </>
                   ) : (
                     <>
-                      <span className="hidden sm:inline">Test</span>
-                      <span className="sm:hidden">Test</span>
+                    <span className="hidden sm:inline">Talk to Agent</span>
+                    <span className="sm:hidden">Talk to Agent</span>
                     </>
                   )}
                 </button>
@@ -1653,75 +1671,96 @@ For now, you can still manually configure your voice agent using the tabs above.
             </div>
           </div>
 
-          <MobileNavigation
-            activeMenu={activeMenu}
-            setActiveMenu={setActiveMenu}
-          />
+        <MobileNavigation
+          activeMenu={activeMenu}
+          setActiveMenu={setActiveMenu}
+        />
 
-          {/* Content area */}
-          <div className="flex-1 overflow-auto">
-            {activeMenu === 'instructions' ? (
-              <InstructionsTab
-                projectConfig={projectConfig}
-                setProjectConfig={setProjectConfig}
-              />
-            ) : activeMenu === 'models' ? (
-              <ModelsTab
-                projectConfig={projectConfig}
-                setProjectConfig={setProjectConfig}
-                customVoices={customVoices}
-                onShowCloneVoiceModal={() => setShowCloneVoiceModal(true)}
-                onModelChange={handleModelChange}
-              />
-            ) : activeMenu === 'phone' ? (
-              <PhoneNumbersTab
-                project={project}
-                currentProject={currentProject}
-                user={user}
-                getProjectPhoneNumbers={getProjectPhoneNumbers}
-                onTestAgentClick={() => setShowTestTypeModal(true)}
-                onOutboundTestAPI={async (phoneNumberId: string, toNumber: string) => {
-                  // This will be handled internally by PhoneNumbersTab
-                }}
-                setAssignedPhoneNumber={setAssignedPhoneNumber}
-                setAssignedPhoneNumberId={setAssignedPhoneNumberId}
-                setAvailableNumbers={setAvailableNumbers}
-                createProject={createProject}
-                config={config}
-                code={code}
-                        onPurchaseNumber={() => setShowTelnyxNumbersModal(true)}
-                      />
-            ) : activeMenu === 'functions' ? (
-              <FunctionsTab 
-                projectConfig={projectConfig}
-                setProjectConfig={setProjectConfig}
-                projectId={project?.id || currentProject?.id || ''}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center bg-black">
-                <div className="text-center space-y-6 p-8 max-w-md mx-auto">
-                  <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
+        {/* Content area below navigation bar */}
+        <div className="flex flex-1 h-0">
+          {/* Left Panel - Fixed width with independent scrolling */}
+          <div className="w-96 flex-shrink-0 bg-black flex flex-col h-full overflow-hidden">
+            <ChatPanel
+              isExpanded={true}
+              onExpandedChange={() => {}} // No-op since panel is always static
+              messages={messages}
+              inputMessage={inputMessage}
+              onInputChange={setInputMessage}
+              onSendMessage={sendMessage}
+              isGenerating={isGenerating}
+              onBackToHome={onBackToHome}
+            />
+          </div>
+
+          {/* Main Content Area - Independent scrolling */}
+          <div className="flex-1 bg-black flex flex-col h-full overflow-hidden">
+            {/* Content area with independent scroll */}
+            <div className="flex-1 border border-white/20 rounded-lg m-4 overflow-hidden">
+              <div className="h-full overflow-y-auto scrollbar-thin smooth-scroll">
+                {activeMenu === 'instructions' ? (
+                  <InstructionsTab
+                    projectConfig={projectConfig}
+                    setProjectConfig={setProjectConfig}
+                  />
+                ) : activeMenu === 'models' ? (
+                  <ModelsTab
+                    projectConfig={projectConfig}
+                    setProjectConfig={setProjectConfig}
+                    customVoices={customVoices}
+                    onShowCloneVoiceModal={() => setShowCloneVoiceModal(true)}
+                    onModelChange={handleModelChange}
+                  />
+                ) : activeMenu === 'phone' ? (
+                  <PhoneNumbersTab
+                    project={project}
+                    currentProject={currentProject}
+                    user={user}
+                    getProjectPhoneNumbers={getProjectPhoneNumbers}
+                    onTestAgentClick={() => setShowTestTypeModal(true)}
+                    onOutboundTestAPI={async (phoneNumberId: string, toNumber: string) => {
+                      // This will be handled internally by PhoneNumbersTab
+                    }}
+                    setAssignedPhoneNumber={setAssignedPhoneNumber}
+                    setAssignedPhoneNumberId={setAssignedPhoneNumberId}
+                    setAvailableNumbers={setAvailableNumbers}
+                    createProject={createProject}
+                    config={config}
+                    code={code}
+                    onPurchaseNumber={() => setShowTelnyxNumbersModal(true)}
+                  />
+                ) : activeMenu === 'functions' ? (
+                  <FunctionsTab 
+                    projectConfig={projectConfig}
+                    setProjectConfig={setProjectConfig}
+                    projectId={project?.id || currentProject?.id || ''}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center bg-black">
+                    <div className="text-center space-y-6 p-8 max-w-md mx-auto">
+                      <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center mx-auto">
+                        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <h3 className="text-2xl font-semibold text-white mb-3">Configure Your Agent</h3>
+                        <p className="text-white/70 mb-6">Use the tabs above to configure your voice agent's instructions, models, and phone numbers. Then use the "Test Agent" button in the top right to start a conversation.</p>
+                      </div>
+                      
+                      <div className="border-t border-white/20 pt-6">
+                        <h4 className="text-md font-medium text-white mb-3">Quick Start</h4>
+                        <ul className="text-white/70 text-sm space-y-2 text-left">
+                          <li>• Set up your system prompt in the Instructions tab</li>
+                          <li>• Configure your AI models in the Models tab</li>
+                          <li>• Add a phone number in the Phone Numbers tab</li>
+                          <li>• Click "Test Agent" to start testing</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-center">
-                    <h3 className="text-2xl font-semibold text-white mb-3">Configure Your Agent</h3>
-                    <p className="text-white/70 mb-6">Use the tabs above to configure your voice agent's instructions, models, and phone numbers. Then use the "Test Agent" button in the top right to start a conversation.</p>
-                  </div>
-                  
-                  <div className="border-t border-white/20 pt-6">
-                    <h4 className="text-md font-medium text-white mb-3">Quick Start</h4>
-                    <ul className="text-white/70 text-sm space-y-2 text-left">
-                      <li>• Set up your system prompt in the Instructions tab</li>
-                      <li>• Configure your AI models in the Models tab</li>
-                      <li>• Add a phone number in the Phone Numbers tab</li>
-                      <li>• Click "Test Agent" to start testing</li>
-                    </ul>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
 

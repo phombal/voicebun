@@ -33,6 +33,31 @@ export function ChatPanel({
   onBackToHome
 }: ChatPanelProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Prevent scroll propagation to parent elements
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+  };
+
+  // Prevent wheel events from propagating to parent when scrolling at boundaries
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const { scrollTop, scrollHeight, clientHeight } = target;
+    
+    // If scrolling up and already at top, or scrolling down and already at bottom
+    const isAtTop = scrollTop === 0;
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+    
+    if ((e.deltaY < 0 && isAtTop) || (e.deltaY > 0 && isAtBottom)) {
+      // Still at boundary, but don't prevent default to allow some natural feel
+      // Just stop propagation to parent
+      e.stopPropagation();
+    } else {
+      // Normal scrolling within bounds
+      e.stopPropagation();
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onInputChange(e.target.value);
@@ -56,24 +81,19 @@ export function ChatPanel({
   };
 
   return (
-    <div 
-      className="fixed left-0 top-0 h-full z-20 w-80 bg-neutral-800 border-r border-white/20 flex flex-col"
-    >
+    <div className="w-full h-full bg-black flex flex-col" style={{ scrollBehavior: 'auto' }}>
       {/* Chat History */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent bg-neutral-800">
-        <div className="mb-4">
-          <button
-            onClick={onBackToHome}
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-            title="Go to dashboard"
-          >
-            <img 
-              src="/VoiceBun-BunOnly.png" 
-              alt="VoiceBun" 
-              className="w-8 h-8"
-            />
-          </button>
-        </div>
+      <div 
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent bg-black min-h-0 smooth-scroll"
+        onScroll={handleScroll}
+        onWheel={handleWheel}
+        style={{ 
+          scrollBehavior: 'auto',
+          overscrollBehavior: 'contain',
+          isolation: 'isolate'
+        }}
+      >
         {messages.map((message) => (
           <div key={message.id} className="flex flex-col items-start">
             {message.role === 'assistant' ? (
@@ -114,9 +134,9 @@ export function ChatPanel({
         )}
       </div>
 
-      {/* Chat Input */}
-      <div className="p-6 border-t border-white/20 bg-neutral-800">
-        <div className="relative bg-white/5 rounded-3xl p-4 border border-white/20">
+      {/* Chat Input - Sticky at bottom of sidebar */}
+      <div className="flex-shrink-0 bg-gray-800 rounded-3xl shadow-2xl shadow-black/50 m-4 mb-8">
+        <div className="p-6">
           <div className="flex items-center space-x-3">
             <div className="flex-1">
               <textarea
@@ -125,7 +145,7 @@ export function ChatPanel({
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDownInInput}
                 placeholder="Ask Bun to modify your code..."
-                className="w-full bg-transparent text-white placeholder-white/50 resize-none border-none outline-none text-sm leading-relaxed"
+                className="w-full bg-transparent text-white placeholder-white/50 resize-none outline-none text-sm leading-relaxed"
                 rows={1}
                 style={{
                   minHeight: '20px',
@@ -133,8 +153,11 @@ export function ChatPanel({
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
                   lineHeight: '1.5',
-                  padding: '0',
-                  margin: '0'
+                  padding: '8px 12px',
+                  margin: '0',
+                  borderRadius: '24px',
+                  border: 'none',
+                  boxShadow: 'none'
                 }}
               />
             </div>
@@ -142,7 +165,7 @@ export function ChatPanel({
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim() || isGenerating}
-              className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors"
+              className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors flex-shrink-0"
             >
               <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />

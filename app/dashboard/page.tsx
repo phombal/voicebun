@@ -60,9 +60,21 @@ function DashboardContent() {
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const { getUserProjects, createProject, createProjectData, updateProject } = useDatabase();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+
+  // Scroll effect for navbar
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY;
+      setScrolled(scrollPosition > 50);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Check for prompt from URL params (from landing page redirect)
   useEffect(() => {
@@ -466,7 +478,11 @@ if __name__ == "__main__":
       }}
     >
       {/* Header */}
-      <header className="">
+      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        scrolled 
+          ? 'bg-black/90 backdrop-blur-md shadow-lg' 
+          : 'bg-transparent'
+      }`}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -495,7 +511,7 @@ if __name__ == "__main__":
       </header>
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
+      <section className="max-w-7xl mx-auto px-6 pt-32 pb-20">
         <div className="text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}

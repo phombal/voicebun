@@ -82,6 +82,43 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
   const [functionViewMode, setFunctionViewMode] = useState<Record<number, 'simple' | 'complex'>>({});
   const [testResults, setTestResults] = useState<Record<number, { success: boolean; message: string; data?: any } | null>>({});
   const functionDropdownRef = useRef<HTMLDivElement>(null);
+  const functionsTabContainerRef = useRef<HTMLDivElement>(null);
+
+  // Prevent scroll propagation to parent elements
+  const handleScroll = (e: React.UIEvent) => {
+    e.stopPropagation();
+  };
+
+  // Enhanced wheel event handling to completely isolate scrolling
+  const handleWheel = (e: React.WheelEvent) => {
+    const container = functionsTabContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isAtTop = scrollTop === 0;
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+
+    // Always prevent propagation first
+    e.stopPropagation();
+
+    // Only prevent default if we're at boundaries and trying to scroll beyond
+    if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+      e.preventDefault();
+    }
+  };
+
+  // Prevent touch events from propagating
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
 
   // Helper function to get logo for function type
   const getFunctionLogo = (functionName: string) => {
@@ -1024,868 +1061,587 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
   };
 
   return (
-    <div className="h-full bg-black p-6 overflow-y-auto">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+    <div className="h-full bg-black overflow-y-auto" ref={functionsTabContainerRef} onScroll={handleScroll} onWheel={handleWheel} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+      {/* Combined Functions Configuration Section */}
+      <div className="bg-white/10 backdrop-blur-sm h-full p-8 pb-24 w-full">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center">
+            <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+            <h3 className="text-xl font-semibold text-white">Functions</h3>
+          </div>
+          <div className="relative" ref={functionDropdownRef}>
+            <button
+              onClick={() => setShowFunctionDropdown(!showFunctionDropdown)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              <h3 className="text-xl font-semibold text-white">Functions</h3>
-            </div>
-            <div className="relative" ref={functionDropdownRef}>
-              <button
-                onClick={() => setShowFunctionDropdown(!showFunctionDropdown)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Add Function</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              
-              {showFunctionDropdown && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
-                  <div className="px-4 py-2 text-sm text-gray-500 border-b border-gray-100">
-                    Choose an integration
+              <span>Add Function</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showFunctionDropdown && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+                <div className="px-4 py-2 text-sm text-gray-500 border-b border-gray-100">
+                  Choose an integration
+                </div>
+                
+                {/* Built-in Voice Agent Functions */}
+                <button
+                  onClick={addHangupCallFunction}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-100">
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 22V12h6v10" />
+                    </svg>
                   </div>
-                  
-                  {/* Built-in Voice Agent Functions */}
-                  <button
-                    onClick={addHangupCallFunction}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-100">
-                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 22V12h6v10" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Hangup Call</div>
-                      <div className="text-xs text-gray-500">End the current call immediately</div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={addVoicemailDetectionFunction}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-100">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Voicemail Detection</div>
-                      <div className="text-xs text-gray-500">Detect when call goes to voicemail</div>
-                    </div>
-                  </button>
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">Hangup Call</div>
+                    <div className="text-xs text-gray-500">End the current call immediately</div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={addVoicemailDetectionFunction}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-100">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">Voicemail Detection</div>
+                    <div className="text-xs text-gray-500">Detect when call goes to voicemail</div>
+                  </div>
+                </button>
 
-                  <div className="border-t border-gray-100 my-2"></div>
-                  
-                  <button
-                    onClick={addCalComIntegration}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                      <img src="/cal_logo.jpeg" alt="Cal.com" className="w-8 h-8 object-cover rounded-lg" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Cal.com Make Bookings</div>
-                      <div className="text-xs text-gray-500">Schedule meetings (requires API key)</div>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={addCalComGetBookingsIntegration}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                      <img src="/cal_logo.jpeg" alt="Cal.com" className="w-8 h-8 object-cover rounded-lg" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Cal.com Get Bookings</div>
-                      <div className="text-xs text-gray-500">Retrieve existing bookings (requires API key)</div>
-                    </div>
-                  </button>
+                <div className="border-t border-gray-100 my-2"></div>
+                
+                <button
+                  onClick={addCalComIntegration}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img src="/cal_logo.jpeg" alt="Cal.com" className="w-8 h-8 object-cover rounded-lg" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">Cal.com Make Bookings</div>
+                    <div className="text-xs text-gray-500">Schedule meetings (requires API key)</div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={addCalComGetBookingsIntegration}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img src="/cal_logo.jpeg" alt="Cal.com" className="w-8 h-8 object-cover rounded-lg" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">Cal.com Get Bookings</div>
+                    <div className="text-xs text-gray-500">Retrieve existing bookings (requires API key)</div>
+                  </div>
+                </button>
 
-                  <div className="border-t border-gray-100 my-2"></div>
-                  
+                <div className="border-t border-gray-100 my-2"></div>
+                
+                <button
+                  onClick={addCustomFunction}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100">
+                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">Custom Function</div>
+                    <div className="text-xs text-gray-500">Create your own API integration</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Preset Function Configuration */}
+        {configuringPreset && (
+          <div className="bg-white/5 rounded-lg border border-white/20 p-6 mb-6">
+            {configuringPreset === 'calcom' && (
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
+                      <div className="w-5 h-5 bg-orange-500 rounded"></div>
+                    </div>
+                    <h4 className="text-lg font-medium text-white">Configure Cal.com Integration</h4>
+                  </div>
                   <button
-                    onClick={addCustomFunction}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
+                    onClick={() => {
+                      setConfiguringPreset(null);
+                      setPresetConfig({});
+                    }}
+                    className="text-white/70 hover:text-white"
                   >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100">
-                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Custom Function</div>
-                      <div className="text-xs text-gray-500">Create your own API integration</div>
-                    </div>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
-              )}
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">
+                      Cal.com API Key *
+                    </label>
+                    <input
+                      type="password"
+                      value={presetConfig.calcom_api_key || ''}
+                      onChange={(e) => setPresetConfig(prev => ({ ...prev, calcom_api_key: e.target.value }))}
+                      placeholder="Enter your Cal.com API key"
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                    <p className="text-xs text-white/50 mt-1">Get this from Cal.com → Settings → Developer → API Keys</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-white/70 mb-2">
+                        Your Cal.com Username *
+                      </label>
+                      <input
+                        type="text"
+                        value={presetConfig.cal_username || ''}
+                        onChange={(e) => setPresetConfig(prev => ({ ...prev, cal_username: e.target.value }))}
+                        placeholder="your-username"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-white/70 mb-2">
+                        Event Type Slug *
+                      </label>
+                      <input
+                        type="text"
+                        value={presetConfig.event_type_slug || ''}
+                        onChange={(e) => setPresetConfig(prev => ({ ...prev, event_type_slug: e.target.value }))}
+                        placeholder="30min"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">
+                      Default Duration (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      value={presetConfig.default_duration || 30}
+                      onChange={(e) => setPresetConfig(prev => ({ ...prev, default_duration: parseInt(e.target.value) }))}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-white/70 mb-2">
+                        Default Location Type
+                      </label>
+                      <select
+                        value={presetConfig.default_location_type || 'zoom'}
+                        onChange={(e) => setPresetConfig(prev => ({ ...prev, default_location_type: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="zoom">Zoom</option>
+                        <option value="meet">Google Meet</option>
+                        <option value="teams">Microsoft Teams</option>
+                        <option value="phone">Phone Call</option>
+                        <option value="address">In Person</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-white/70 mb-2">
+                        Default Language
+                      </label>
+                      <select
+                        value={presetConfig.default_language || 'en'}
+                        onChange={(e) => setPresetConfig(prev => ({ ...prev, default_language: e.target.value }))}
+                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="zh">Chinese</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {configuringPreset === 'googlesheets' && (
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                      <div className="w-5 h-5 bg-green-500 rounded"></div>
+                    </div>
+                    <h4 className="text-lg font-medium text-white">Configure Google Sheets Integration</h4>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setConfiguringPreset(null);
+                      setPresetConfig({});
+                    }}
+                    className="text-white/70 hover:text-white"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">
+                      Google Sheets Access Token *
+                    </label>
+                    <input
+                      type="password"
+                      value={presetConfig.google_access_token || ''}
+                      onChange={(e) => setPresetConfig(prev => ({ ...prev, google_access_token: e.target.value }))}
+                      placeholder="Enter your Google Sheets access token"
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <p className="text-xs text-white/50 mt-1">Set up OAuth 2.0 in Google Cloud Console</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">
+                      Spreadsheet ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={presetConfig.spreadsheet_id || ''}
+                      onChange={(e) => setPresetConfig(prev => ({ ...prev, spreadsheet_id: e.target.value }))}
+                      placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <p className="text-xs text-white/50 mt-1">Found in the Google Sheets URL</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">
+                      Sheet Range
+                    </label>
+                    <input
+                      type="text"
+                      value={presetConfig.sheet_range || 'Sheet1!A:Z'}
+                      onChange={(e) => setPresetConfig(prev => ({ ...prev, sheet_range: e.target.value }))}
+                      placeholder="Sheet1!A:Z"
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {configuringPreset === 'makecom' && (
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                      <div className="w-5 h-5 bg-purple-500 rounded"></div>
+                    </div>
+                    <h4 className="text-lg font-medium text-white">Configure Make.com Integration</h4>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setConfiguringPreset(null);
+                      setPresetConfig({});
+                    }}
+                    className="text-white/70 hover:text-white"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white/70 mb-2">
+                      Webhook URL *
+                    </label>
+                    <input
+                      type="url"
+                      value={presetConfig.webhook_url || ''}
+                      onChange={(e) => setPresetConfig(prev => ({ ...prev, webhook_url: e.target.value }))}
+                      placeholder="https://hook.make.com/..."
+                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-white/50 mt-1">Create a scenario with a webhook trigger in Make.com</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex items-center justify-end space-x-3 pt-6 mt-6 border-t border-white/20">
+              <button
+                onClick={() => {
+                  setConfiguringPreset(null);
+                  setPresetConfig({});
+                }}
+                className="px-4 py-2 text-white/70 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePresetFunction}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Add Function
+              </button>
             </div>
           </div>
-          
-          {/* Preset Function Configuration */}
-          {configuringPreset && (
-            <div className="bg-white/5 rounded-lg border border-white/20 p-6 mb-6">
-              {configuringPreset === 'calcom' && (
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
-                        <div className="w-5 h-5 bg-orange-500 rounded"></div>
-                      </div>
-                      <h4 className="text-lg font-medium text-white">Configure Cal.com Integration</h4>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setConfiguringPreset(null);
-                        setPresetConfig({});
-                      }}
-                      className="text-white/70 hover:text-white"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-white/70 mb-2">
-                        Cal.com API Key *
-                      </label>
-                      <input
-                        type="password"
-                        value={presetConfig.calcom_api_key || ''}
-                        onChange={(e) => setPresetConfig(prev => ({ ...prev, calcom_api_key: e.target.value }))}
-                        placeholder="Enter your Cal.com API key"
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                      <p className="text-xs text-white/50 mt-1">Get this from Cal.com → Settings → Developer → API Keys</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-white/70 mb-2">
-                          Your Cal.com Username *
-                        </label>
-                        <input
-                          type="text"
-                          value={presetConfig.cal_username || ''}
-                          onChange={(e) => setPresetConfig(prev => ({ ...prev, cal_username: e.target.value }))}
-                          placeholder="your-username"
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-white/70 mb-2">
-                          Event Type Slug *
-                        </label>
-                        <input
-                          type="text"
-                          value={presetConfig.event_type_slug || ''}
-                          onChange={(e) => setPresetConfig(prev => ({ ...prev, event_type_slug: e.target.value }))}
-                          placeholder="30min"
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-white/70 mb-2">
-                        Default Duration (minutes)
-                      </label>
-                      <input
-                        type="number"
-                        value={presetConfig.default_duration || 30}
-                        onChange={(e) => setPresetConfig(prev => ({ ...prev, default_duration: parseInt(e.target.value) }))}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-white/70 mb-2">
-                          Default Location Type
-                        </label>
-                        <select
-                          value={presetConfig.default_location_type || 'zoom'}
-                          onChange={(e) => setPresetConfig(prev => ({ ...prev, default_location_type: e.target.value }))}
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        >
-                          <option value="zoom">Zoom</option>
-                          <option value="meet">Google Meet</option>
-                          <option value="teams">Microsoft Teams</option>
-                          <option value="phone">Phone Call</option>
-                          <option value="address">In Person</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-white/70 mb-2">
-                          Default Language
-                        </label>
-                        <select
-                          value={presetConfig.default_language || 'en'}
-                          onChange={(e) => setPresetConfig(prev => ({ ...prev, default_language: e.target.value }))}
-                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        >
-                          <option value="en">English</option>
-                          <option value="es">Spanish</option>
-                          <option value="fr">French</option>
-                          <option value="de">German</option>
-                          <option value="it">Italian</option>
-                          <option value="pt">Portuguese</option>
-                          <option value="ja">Japanese</option>
-                          <option value="ko">Korean</option>
-                          <option value="zh">Chinese</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {configuringPreset === 'googlesheets' && (
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                        <div className="w-5 h-5 bg-green-500 rounded"></div>
-                      </div>
-                      <h4 className="text-lg font-medium text-white">Configure Google Sheets Integration</h4>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setConfiguringPreset(null);
-                        setPresetConfig({});
-                      }}
-                      className="text-white/70 hover:text-white"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-white/70 mb-2">
-                        Google Sheets Access Token *
-                      </label>
-                      <input
-                        type="password"
-                        value={presetConfig.google_access_token || ''}
-                        onChange={(e) => setPresetConfig(prev => ({ ...prev, google_access_token: e.target.value }))}
-                        placeholder="Enter your Google Sheets access token"
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                      <p className="text-xs text-white/50 mt-1">Set up OAuth 2.0 in Google Cloud Console</p>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-white/70 mb-2">
-                        Spreadsheet ID *
-                      </label>
-                      <input
-                        type="text"
-                        value={presetConfig.spreadsheet_id || ''}
-                        onChange={(e) => setPresetConfig(prev => ({ ...prev, spreadsheet_id: e.target.value }))}
-                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                      <p className="text-xs text-white/50 mt-1">Found in the Google Sheets URL</p>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-white/70 mb-2">
-                        Sheet Range
-                      </label>
-                      <input
-                        type="text"
-                        value={presetConfig.sheet_range || 'Sheet1!A:Z'}
-                        onChange={(e) => setPresetConfig(prev => ({ ...prev, sheet_range: e.target.value }))}
-                        placeholder="Sheet1!A:Z"
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {configuringPreset === 'makecom' && (
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                        <div className="w-5 h-5 bg-purple-500 rounded"></div>
-                      </div>
-                      <h4 className="text-lg font-medium text-white">Configure Make.com Integration</h4>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setConfiguringPreset(null);
-                        setPresetConfig({});
-                      }}
-                      className="text-white/70 hover:text-white"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-white/70 mb-2">
-                        Webhook URL *
-                      </label>
-                      <input
-                        type="url"
-                        value={presetConfig.webhook_url || ''}
-                        onChange={(e) => setPresetConfig(prev => ({ ...prev, webhook_url: e.target.value }))}
-                        placeholder="https://hook.make.com/..."
-                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                      <p className="text-xs text-white/50 mt-1">Create a scenario with a webhook trigger in Make.com</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex items-center justify-end space-x-3 pt-6 mt-6 border-t border-white/20">
-                <button
-                  onClick={() => {
-                    setConfiguringPreset(null);
-                    setPresetConfig({});
-                  }}
-                  className="px-4 py-2 text-white/70 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={savePresetFunction}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  Add Function
-                </button>
+        )}
+        
+        {/* Functions Content Area */}
+        <div className="space-y-6">
+          {(projectConfig.customFunctions || []).length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
               </div>
+              <h4 className="text-lg font-medium text-white mb-2">No Functions Yet</h4>
+              <p className="text-white/70 mb-6">Add your first function using the dropdown above to get started.</p>
             </div>
-          )}
-          
-          {/* Functions Content Area */}
-          <div className="space-y-6">
-            {(projectConfig.customFunctions || []).length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                </div>
-                <h4 className="text-lg font-medium text-white mb-2">No Functions Yet</h4>
-                <p className="text-white/70 mb-6">Add your first function using the dropdown above to get started.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <h4 className="text-lg font-medium text-white">Custom Functions</h4>
-                {(projectConfig.customFunctions || []).map((func: any, index: number) => (
-                  <div key={index} className="bg-white/5 rounded-lg border border-white/20 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex-1 flex items-center space-x-3">
-                        {/* Function Logo */}
-                        {getFunctionLogo(func.name) && (
-                          <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
-                            <img 
-                              src={getFunctionLogo(func.name)!} 
-                              alt={func.name} 
-                              className="w-8 h-8 object-cover rounded-lg" 
-                            />
-                          </div>
-                        )}
-                        <div>
-                          <h5 className="text-white font-medium">{func.name}</h5>
-                          <p className="text-white/70 text-sm">{func.description}</p>
+          ) : (
+            <div className="space-y-4">
+              <h4 className="text-lg font-medium text-white">Custom Functions</h4>
+              {(projectConfig.customFunctions || []).map((func: any, index: number) => (
+                <div key={index} className="bg-white/5 rounded-lg border border-white/20 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex-1 flex items-center space-x-3">
+                      {/* Function Logo */}
+                      {getFunctionLogo(func.name) && (
+                        <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
+                          <img 
+                            src={getFunctionLogo(func.name)!} 
+                            alt={func.name} 
+                            className="w-8 h-8 object-cover rounded-lg" 
+                          />
                         </div>
+                      )}
+                      <div>
+                        <h5 className="text-white font-medium">{func.name}</h5>
+                        <p className="text-white/70 text-sm">{func.description}</p>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {/* Only show Configure button for functions that need configuration */}
-                        {func.name !== 'hangup_call' && (
-                          <button
-                            onClick={() => {
-                              setEditingFunction(index);
-                              setTestingFunction(null); // Ensure we're in Configure mode
-                              setFunctionConfig({
-                                name: func.name,
-                                description: func.description,
-                                parameters: func.parameters,
-                                headers: (func as any).headers || {},
-                                body: (func as any).body || {},
-                                url: (func as any).url || '',
-                                method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
-                              });
-                            }}
-                            className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                          >
-                            Configure
-                          </button>
-                        )}
-                        {/* Only show test button for preset integrations, not custom functions, hangup_call, or voicemail_detection */}
-                        {!func.name.includes('custom_function') && func.name !== 'hangup_call' && func.name !== 'voicemail_detection' && (
-                          <button
-                            onClick={() => {
-                              setEditingFunction(index);
-                              setTestingFunction(index); // Set to Test mode
-                              setFunctionConfig({
-                                name: func.name,
-                                description: func.description,
-                                parameters: func.parameters,
-                                headers: (func as any).headers || {},
-                                body: (func as any).body || {},
-                                url: (func as any).url || '',
-                                method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
-                              });
-                              // Initialize test params with default values
-                              const initialParams: Record<string, any> = {};
-                              if (func.parameters?.properties) {
-                                Object.entries(func.parameters.properties).forEach(([key, param]: [string, any]) => {
-                                  // First priority: use the parameter's default value if it exists
-                                  if (param.default !== undefined && param.default !== '') {
-                                    initialParams[key] = param.default;
-                                  } else if (key === 'timezone') {
-                                    initialParams[key] = 'America/New_York';
-                                  } else if (key === 'language') {
-                                    initialParams[key] = 'en';
-                                  } else if (key.includes('email')) {
-                                    initialParams[key] = 'test@example.com';
-                                  } else if (key.includes('name')) {
-                                    initialParams[key] = 'John Doe';
-                                  } else if (key.includes('phone')) {
-                                    initialParams[key] = '+1234567890';
-                                  } else if (key.includes('time') || key.includes('date') || key.includes('start')) {
-                                    const futureDate = new Date();
-                                    futureDate.setDate(futureDate.getDate() + 1);
-                                    futureDate.setHours(14, 0, 0, 0); // 2 PM tomorrow
-                                    initialParams[key] = futureDate.toISOString();
-                                  } else if (param.type === 'object') {
-                                    if (key === 'metadata') {
-                                      initialParams[key] = { source: 'voice_agent', test: true };
-                                    } else if (key.includes('custom_field')) {
-                                      initialParams[key] = { field1: 'value1' };
-                                    } else {
-                                      initialParams[key] = param.default || {};
-                                    }
-                                  } else if (param.type === 'array') {
-                                    if (key.includes('email') || key.includes('guest')) {
-                                      initialParams[key] = [];
-                                    } else {
-                                      initialParams[key] = param.default || [];
-                                    }
-                                  } else if (param.type === 'integer' || param.type === 'number') {
-                                    if (key.includes('duration')) {
-                                      initialParams[key] = 30;
-                                    } else if (key.includes('id')) {
-                                      initialParams[key] = 123456;
-                                    } else {
-                                      initialParams[key] = param.default || 0;
-                                    }
-                                  } else {
-                                    initialParams[key] = param.default || '';
-                                  }
-                                });
-                              }
-                              setTestParams(initialParams);
-                            }}
-                            className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
-                          >
-                            Test
-                          </button>
-                        )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {/* Only show Configure button for functions that need configuration */}
+                      {func.name !== 'hangup_call' && (
                         <button
                           onClick={() => {
-                            const updatedFunctions = (projectConfig.customFunctions || []).filter((_: any, i: number) => i !== index);
-                            setProjectConfig(prev => ({
-                              ...prev,
-                              customFunctions: updatedFunctions,
-                              functionsEnabled: updatedFunctions.length > 0
-                            }));
-                            // Save to database
-                            saveFunctionsToDatabase(updatedFunctions);
+                            setEditingFunction(index);
+                            setTestingFunction(null); // Ensure we're in Configure mode
+                            setFunctionConfig({
+                              name: func.name,
+                              description: func.description,
+                              parameters: func.parameters,
+                              headers: (func as any).headers || {},
+                              body: (func as any).body || {},
+                              url: (func as any).url || '',
+                              method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
+                            });
                           }}
-                          className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                         >
-                          Remove
+                          Configure
                         </button>
-                      </div>
+                      )}
+                      {/* Only show test button for preset integrations, not custom functions, hangup_call, or voicemail_detection */}
+                      {!func.name.includes('custom_function') && func.name !== 'hangup_call' && func.name !== 'voicemail_detection' && (
+                        <button
+                          onClick={() => {
+                            setEditingFunction(index);
+                            setTestingFunction(index); // Set to Test mode
+                            setFunctionConfig({
+                              name: func.name,
+                              description: func.description,
+                              parameters: func.parameters,
+                              headers: (func as any).headers || {},
+                              body: (func as any).body || {},
+                              url: (func as any).url || '',
+                              method: (func as any).method || (func.name === 'get_bookings' ? 'GET' : 'POST')
+                            });
+                            // Initialize test params with default values
+                            const initialParams: Record<string, any> = {};
+                            if (func.parameters?.properties) {
+                              Object.entries(func.parameters.properties).forEach(([key, param]: [string, any]) => {
+                                // First priority: use the parameter's default value if it exists
+                                if (param.default !== undefined && param.default !== '') {
+                                  initialParams[key] = param.default;
+                                } else if (key === 'timezone') {
+                                  initialParams[key] = 'America/New_York';
+                                } else if (key === 'language') {
+                                  initialParams[key] = 'en';
+                                } else if (key.includes('email')) {
+                                  initialParams[key] = 'test@example.com';
+                                } else if (key.includes('name')) {
+                                  initialParams[key] = 'John Doe';
+                                } else if (key.includes('phone')) {
+                                  initialParams[key] = '+1234567890';
+                                } else if (key.includes('time') || key.includes('date') || key.includes('start')) {
+                                  const futureDate = new Date();
+                                  futureDate.setDate(futureDate.getDate() + 1);
+                                  futureDate.setHours(14, 0, 0, 0); // 2 PM tomorrow
+                                  initialParams[key] = futureDate.toISOString();
+                                } else if (param.type === 'object') {
+                                  if (key === 'metadata') {
+                                    initialParams[key] = { source: 'voice_agent', test: true };
+                                  } else if (key.includes('custom_field')) {
+                                    initialParams[key] = { field1: 'value1' };
+                                  } else {
+                                    initialParams[key] = param.default || {};
+                                  }
+                                } else if (param.type === 'array') {
+                                  if (key.includes('email') || key.includes('guest')) {
+                                    initialParams[key] = [];
+                                  } else {
+                                    initialParams[key] = param.default || [];
+                                  }
+                                } else if (param.type === 'integer' || param.type === 'number') {
+                                  if (key.includes('duration')) {
+                                    initialParams[key] = 30;
+                                  } else if (key.includes('id')) {
+                                    initialParams[key] = 123456;
+                                  } else {
+                                    initialParams[key] = param.default || 0;
+                                  }
+                                } else {
+                                  initialParams[key] = param.default || '';
+                                }
+                              });
+                            }
+                            setTestParams(initialParams);
+                          }}
+                          className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                        >
+                          Test
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          const updatedFunctions = (projectConfig.customFunctions || []).filter((_: any, i: number) => i !== index);
+                          setProjectConfig(prev => ({
+                            ...prev,
+                            customFunctions: updatedFunctions,
+                            functionsEnabled: updatedFunctions.length > 0
+                          }));
+                          // Save to database
+                          saveFunctionsToDatabase(updatedFunctions);
+                        }}
+                        className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                      >
+                        Remove
+                      </button>
                     </div>
-                    
-                    {/* Tabbed Interface for Configure/Test */}
-                    {editingFunction === index && functionConfig && (
-                      <div className="mt-4 pt-4 border-t border-white/20">
-                        {/* Simple/Complex Toggle - Only show in Configure tab */}
-                        {testingFunction !== index && (
-                          <div className="flex items-center justify-between mb-6">
-                            <h6 className="text-lg font-medium text-white">Configure Function</h6>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-white/70">Simple</span>
-                              <button
-                                onClick={() => {
-                                  setFunctionViewMode(prev => ({
-                                    ...prev,
-                                    [index]: prev[index] === 'complex' ? 'simple' : 'complex'
-                                  }));
-                                }}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-black ${
-                                  functionViewMode[index] === 'complex' ? 'bg-blue-600' : 'bg-white/20'
+                  </div>
+                  
+                  {/* Tabbed Interface for Configure/Test */}
+                  {editingFunction === index && functionConfig && (
+                    <div className="mt-4 pt-4 border-t border-white/20">
+                      {/* Simple/Complex Toggle - Only show in Configure tab */}
+                      {testingFunction !== index && (
+                        <div className="flex items-center justify-between mb-6">
+                          <h6 className="text-lg font-medium text-white">Configure Function</h6>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-white/70">Simple</span>
+                            <button
+                              onClick={() => {
+                                setFunctionViewMode(prev => ({
+                                  ...prev,
+                                  [index]: prev[index] === 'complex' ? 'simple' : 'complex'
+                                }));
+                              }}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-black ${
+                                functionViewMode[index] === 'complex' ? 'bg-blue-600' : 'bg-white/20'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  functionViewMode[index] === 'complex' ? 'translate-x-6' : 'translate-x-1'
                                 }`}
-                              >
-                                <span
-                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    functionViewMode[index] === 'complex' ? 'translate-x-6' : 'translate-x-1'
-                                  }`}
+                              />
+                            </button>
+                            <span className="text-sm text-white/70">Complex</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Test Tab Header */}
+                      {testingFunction === index && (
+                        <div className="flex items-center justify-between mb-6">
+                          <h6 className="text-lg font-medium text-white">Test Function</h6>
+                        </div>
+                      )}
+
+                      {/* Configure Tab Content */}
+                      {testingFunction !== index && (
+                        <div>
+                          {/* Simple View - User-friendly form fields */}
+                          {functionViewMode[index] !== 'complex' && (
+                            <div className="space-y-4">
+                              {/* Function Name */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  Function Name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={functionConfig.name}
+                                  onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
-                              </button>
-                              <span className="text-sm text-white/70">Complex</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Test Tab Header */}
-                        {testingFunction === index && (
-                          <div className="flex items-center justify-between mb-6">
-                            <h6 className="text-lg font-medium text-white">Test Function</h6>
-                          </div>
-                        )}
-
-                        {/* Configure Tab Content */}
-                        {testingFunction !== index && (
-                          <div>
-                            {/* Simple View - User-friendly form fields */}
-                            {functionViewMode[index] !== 'complex' && (
-                              <div className="space-y-4">
-                                {/* Function Name */}
-                                <div>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    Function Name
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={functionConfig.name}
-                                    onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  />
-                                </div>
-                                
-                                {/* Function Description */}
-                                <div>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    Description
-                                  </label>
-                                  <textarea
-                                    value={functionConfig.description}
-                                    onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, description: e.target.value } : null)}
-                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    rows={2}
-                                  />
-                                </div>
-
-                                {/* API URL */}
-                                {functionConfig.url && (
-                                  <div>
-                                    <label className="block text-sm font-medium text-white/70 mb-2">
-                                      API Endpoint
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={functionConfig.url || ''}
-                                      onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, url: e.target.value } : null)}
-                                      placeholder="https://api.example.com/webhook"
-                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                  </div>
-                                )}
-
-                                {/* Simple form fields based on function type */}
-                                {(func.name.includes('schedule') || func.name.includes('calcom') || func.name === 'get_bookings') ? (
-                                  <div className="space-y-3">
-                                    <div>
-                                      <label className="block text-sm font-medium text-white/70 mb-2">
-                                        Cal.com API Key
-                                      </label>
-                                      <input
-                                        type="password"
-                                        value={functionConfig.headers?.Authorization?.replace('Bearer ', '') || ''}
-                                        onChange={(e) => setFunctionConfig(prev => prev ? { 
-                                          ...prev, 
-                                          headers: { ...prev.headers, Authorization: `Bearer ${e.target.value}` }
-                                        } : null)}
-                                        placeholder="Enter your Cal.com API key"
-                                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                    {func.name === 'schedule_meeting' && (
-                                      <>
-                                        <div className="grid grid-cols-2 gap-3">
-                                          <div>
-                                            <label className="block text-sm font-medium text-white/70 mb-2">
-                                              Cal.com Username
-                                            </label>
-                                            <input
-                                              type="text"
-                                              value={functionConfig.parameters?.properties?.cal_username?.default || ''}
-                                              onChange={(e) => setFunctionConfig(prev => prev ? { 
-                                                ...prev, 
-                                                parameters: {
-                                                  ...prev.parameters,
-                                                  properties: {
-                                                    ...prev.parameters.properties,
-                                                    cal_username: {
-                                                      ...prev.parameters.properties.cal_username,
-                                                      default: e.target.value
-                                                    }
-                                                  }
-                                                }
-                                              } : null)}
-                                              placeholder="your-username"
-                                              className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="block text-sm font-medium text-white/70 mb-2">
-                                              Event Type Slug
-                                            </label>
-                                            <input
-                                              type="text"
-                                              value={functionConfig.parameters?.properties?.event_type_slug?.default || ''}
-                                              onChange={(e) => setFunctionConfig(prev => prev ? { 
-                                                ...prev, 
-                                                parameters: {
-                                                  ...prev.parameters,
-                                                  properties: {
-                                                    ...prev.parameters.properties,
-                                                    event_type_slug: {
-                                                      ...prev.parameters.properties.event_type_slug,
-                                                      default: e.target.value
-                                                    }
-                                                  }
-                                                }
-                                              } : null)}
-                                              placeholder="30min"
-                                              className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                          <div>
-                                            <label className="block text-sm font-medium text-white/70 mb-2">
-                                              Default Duration (minutes)
-                                            </label>
-                                            <input
-                                              type="number"
-                                              value={functionConfig.parameters?.properties?.duration_minutes?.default || 30}
-                                              onChange={(e) => setFunctionConfig(prev => prev ? { 
-                                                ...prev, 
-                                                parameters: {
-                                                  ...prev.parameters,
-                                                  properties: {
-                                                    ...prev.parameters.properties,
-                                                    duration_minutes: {
-                                                      ...prev.parameters.properties.duration_minutes,
-                                                      default: parseInt(e.target.value) || 30
-                                                    }
-                                                  }
-                                                }
-                                              } : null)}
-                                              className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="block text-sm font-medium text-white/70 mb-2">
-                                              Default Location Type
-                                            </label>
-                                            <select
-                                              value={functionConfig.parameters?.properties?.location_type?.default || 'zoom'}
-                                              onChange={(e) => setFunctionConfig(prev => prev ? { 
-                                                ...prev, 
-                                                parameters: {
-                                                  ...prev.parameters,
-                                                  properties: {
-                                                    ...prev.parameters.properties,
-                                                    location_type: {
-                                                      ...prev.parameters.properties.location_type,
-                                                      default: e.target.value
-                                                    }
-                                                  }
-                                                }
-                                              } : null)}
-                                              className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            >
-                                              <option value="zoom">Zoom</option>
-                                              <option value="meet">Google Meet</option>
-                                              <option value="teams">Microsoft Teams</option>
-                                              <option value="phone">Phone Call</option>
-                                              <option value="address">In Person</option>
-                                            </select>
-                                          </div>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                ) : null}
-
-                                {/* Google Sheets Configuration */}
-                                {functionConfig.name === 'update_spreadsheet' && (
-                                  <div className="space-y-4">
-                                    <div>
-                                      <label className="block text-sm font-medium text-white/70 mb-2">
-                                        Google Sheets Access Token
-                                      </label>
-                                      <input
-                                        type="password"
-                                        value={functionConfig.headers?.Authorization?.replace('Bearer ', '') || ''}
-                                        onChange={(e) => setFunctionConfig(prev => prev ? {
-                                          ...prev,
-                                          headers: {
-                                            ...prev.headers,
-                                            Authorization: `Bearer ${e.target.value}`
-                                          }
-                                        } : null)}
-                                        placeholder="Enter your Google Sheets access token"
-                                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-white/70 mb-2">
-                                        Spreadsheet ID
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={functionConfig.url?.match(/spreadsheets\/([a-zA-Z0-9-_]+)/)?.[1] || ''}
-                                        onChange={(e) => {
-                                          const currentUrl = functionConfig.url || '';
-                                          const newUrl = currentUrl.replace(/spreadsheets\/[a-zA-Z0-9-_]+/, `spreadsheets/${e.target.value}`);
-                                          setFunctionConfig(prev => prev ? { ...prev, url: newUrl } : null);
-                                        }}
-                                        placeholder="Enter your Google Sheets spreadsheet ID"
-                                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-white/70 mb-2">
-                                        Sheet Name
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={functionConfig.url?.match(/values\/([^:]+)/)?.[1] || ''}
-                                        onChange={(e) => {
-                                          const currentUrl = functionConfig.url || '';
-                                          const newUrl = currentUrl.replace(/values\/[^:]+/, `values/${e.target.value}`);
-                                          setFunctionConfig(prev => prev ? { ...prev, url: newUrl } : null);
-                                        }}
-                                        placeholder="Sheet1"
-                                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Make.com Configuration */}
-                                {functionConfig.name === 'trigger_automation' && (
-                                  <div className="space-y-4">
-                                    <div>
-                                      <label className="block text-sm font-medium text-white/70 mb-2">
-                                        Make.com Webhook URL
-                                      </label>
-                                      <input
-                                        type="url"
-                                        value={functionConfig.url || ''}
-                                        onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, url: e.target.value } : null)}
-                                        placeholder="https://hook.make.com/your-webhook-url"
-                                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Voicemail Detection Configuration */}
-                                {functionConfig.name === 'voicemail_detection' && (
-                                  <div className="space-y-4">
-                                    <div>
-                                      <label className="block text-sm font-medium text-white/70 mb-2">
-                                        Voicemail Message
-                                      </label>
-                                      <textarea
-                                        value={functionConfig.parameters?.properties?.voicemail_message?.default || ''}
-                                        onChange={(e) => setFunctionConfig(prev => prev ? { 
-                                          ...prev, 
-                                          parameters: {
-                                            ...prev.parameters,
-                                            properties: {
-                                              ...prev.parameters.properties,
-                                              voicemail_message: {
-                                                ...prev.parameters.properties.voicemail_message,
-                                                default: e.target.value
-                                              }
-                                            }
-                                          }
-                                        } : null)}
-                                        placeholder="Hello, I noticed this call went to voicemail. I'll leave a brief message and follow up later."
-                                        className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        rows={3}
-                                      />
-                                      <p className="text-xs text-white/50 mt-1">
-                                        This message will be spoken when the AI detects that the call has gone to voicemail.
-                                      </p>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
-                            )}
+                              
+                              {/* Function Description */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  Description
+                                </label>
+                                <textarea
+                                  value={functionConfig.description}
+                                  onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, description: e.target.value } : null)}
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  rows={2}
+                                />
+                              </div>
 
-                            {/* Complex View - Raw JSON configuration */}
-                            {functionViewMode[index] === 'complex' && (
-                              <div className="space-y-4">
-                                {/* Function Name */}
+                              {/* API URL */}
+                              {functionConfig.url && (
                                 <div>
                                   <label className="block text-sm font-medium text-white/70 mb-2">
-                                    Function Name
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={functionConfig.name}
-                                    onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  />
-                                </div>
-                                
-                                {/* Function Description */}
-                                <div>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    Description
-                                  </label>
-                                  <textarea
-                                    value={functionConfig.description}
-                                    onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, description: e.target.value } : null)}
-                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    rows={2}
-                                  />
-                                </div>
-                                
-                                {/* API URL (for integrations) */}
-                                <div>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    API URL
+                                    API Endpoint
                                   </label>
                                   <input
                                     type="text"
@@ -1895,289 +1651,569 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                                     className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   />
                                 </div>
-                                
-                                {/* Headers */}
-                                <div>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    Headers (JSON)
-                                  </label>
-                                  <textarea
-                                    value={JSON.stringify(functionConfig.headers || {}, null, 2)}
-                                    onChange={(e) => {
-                                      try {
-                                        const headers = JSON.parse(e.target.value);
-                                        setFunctionConfig(prev => prev ? { ...prev, headers } : null);
-                                      } catch (error) {
-                                        // Invalid JSON, don't update
-                                      }
-                                    }}
-                                    placeholder='{\n  "Authorization": "Bearer your-token",\n  "Content-Type": "application/json"\n}'
-                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                                    rows={4}
-                                  />
-                                </div>
-                                
-                                {/* Request Body Template */}
-                                <div>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    Request Body Template (JSON)
-                                  </label>
-                                  <textarea
-                                    value={JSON.stringify(functionConfig.body || {}, null, 2)}
-                                    onChange={(e) => {
-                                      try {
-                                        const body = JSON.parse(e.target.value);
-                                        setFunctionConfig(prev => prev ? { ...prev, body } : null);
-                                      } catch (error) {
-                                        // Invalid JSON, don't update
-                                      }
-                                    }}
-                                    placeholder='{\n  "data": "{{parameter_value}}",\n  "action": "create"\n}'
-                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                                    rows={4}
-                                  />
-                                </div>
-                                
-                                {/* Parameters Schema */}
-                                <div>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    Parameters Schema (JSON Schema)
-                                  </label>
-                                  <textarea
-                                    value={JSON.stringify(functionConfig.parameters, null, 2)}
-                                    onChange={(e) => {
-                                      try {
-                                        const parameters = JSON.parse(e.target.value);
-                                        setFunctionConfig(prev => prev ? { ...prev, parameters } : null);
-                                      } catch (error) {
-                                        // Invalid JSON, don't update
-                                      }
-                                    }}
-                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                                    rows={8}
-                                  />
-                                </div>
-                              </div>
-                            )}
+                              )}
 
-                            {/* Configure Tab Action Buttons */}
-                            <div className="flex items-center justify-end space-x-3 pt-6 mt-6 border-t border-white/20">
-                              <button
-                                onClick={() => {
+                              {/* Simple form fields based on function type */}
+                              {(func.name.includes('schedule') || func.name.includes('calcom') || func.name === 'get_bookings') ? (
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="block text-sm font-medium text-white/70 mb-2">
+                                      Cal.com API Key
+                                    </label>
+                                    <input
+                                      type="password"
+                                      value={functionConfig.headers?.Authorization?.replace('Bearer ', '') || ''}
+                                      onChange={(e) => setFunctionConfig(prev => prev ? { 
+                                        ...prev, 
+                                        headers: { ...prev.headers, Authorization: `Bearer ${e.target.value}` }
+                                      } : null)}
+                                      placeholder="Enter your Cal.com API key"
+                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  {func.name === 'schedule_meeting' && (
+                                    <>
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                          <label className="block text-sm font-medium text-white/70 mb-2">
+                                            Cal.com Username
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={functionConfig.parameters?.properties?.cal_username?.default || ''}
+                                            onChange={(e) => setFunctionConfig(prev => prev ? { 
+                                              ...prev, 
+                                              parameters: {
+                                                ...prev.parameters,
+                                                properties: {
+                                                  ...prev.parameters.properties,
+                                                  cal_username: {
+                                                    ...prev.parameters.properties.cal_username,
+                                                    default: e.target.value
+                                                  }
+                                                }
+                                              }
+                                            } : null)}
+                                            placeholder="your-username"
+                                            className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-sm font-medium text-white/70 mb-2">
+                                            Event Type Slug
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={functionConfig.parameters?.properties?.event_type_slug?.default || ''}
+                                            onChange={(e) => setFunctionConfig(prev => prev ? { 
+                                              ...prev, 
+                                              parameters: {
+                                                ...prev.parameters,
+                                                properties: {
+                                                  ...prev.parameters.properties,
+                                                  event_type_slug: {
+                                                    ...prev.parameters.properties.event_type_slug,
+                                                    default: e.target.value
+                                                  }
+                                                }
+                                              }
+                                            } : null)}
+                                            placeholder="30min"
+                                            className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                          <label className="block text-sm font-medium text-white/70 mb-2">
+                                            Default Duration (minutes)
+                                          </label>
+                                          <input
+                                            type="number"
+                                            value={functionConfig.parameters?.properties?.duration_minutes?.default || 30}
+                                            onChange={(e) => setFunctionConfig(prev => prev ? { 
+                                              ...prev, 
+                                              parameters: {
+                                                ...prev.parameters,
+                                                properties: {
+                                                  ...prev.parameters.properties,
+                                                  duration_minutes: {
+                                                    ...prev.parameters.properties.duration_minutes,
+                                                    default: parseInt(e.target.value) || 30
+                                                  }
+                                                }
+                                              }
+                                            } : null)}
+                                            className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-sm font-medium text-white/70 mb-2">
+                                            Default Location Type
+                                          </label>
+                                          <select
+                                            value={functionConfig.parameters?.properties?.location_type?.default || 'zoom'}
+                                            onChange={(e) => setFunctionConfig(prev => prev ? { 
+                                              ...prev, 
+                                              parameters: {
+                                                ...prev.parameters,
+                                                properties: {
+                                                  ...prev.parameters.properties,
+                                                  location_type: {
+                                                    ...prev.parameters.properties.location_type,
+                                                    default: e.target.value
+                                                  }
+                                                }
+                                              }
+                                            } : null)}
+                                            className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          >
+                                            <option value="zoom">Zoom</option>
+                                            <option value="meet">Google Meet</option>
+                                            <option value="teams">Microsoft Teams</option>
+                                            <option value="phone">Phone Call</option>
+                                            <option value="address">In Person</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              ) : null}
+
+                              {/* Google Sheets Configuration */}
+                              {functionConfig.name === 'update_spreadsheet' && (
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-white/70 mb-2">
+                                      Google Sheets Access Token
+                                    </label>
+                                    <input
+                                      type="password"
+                                      value={functionConfig.headers?.Authorization?.replace('Bearer ', '') || ''}
+                                      onChange={(e) => setFunctionConfig(prev => prev ? {
+                                        ...prev,
+                                        headers: {
+                                          ...prev.headers,
+                                          Authorization: `Bearer ${e.target.value}`
+                                        }
+                                      } : null)}
+                                      placeholder="Enter your Google Sheets access token"
+                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-white/70 mb-2">
+                                      Spreadsheet ID
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={functionConfig.url?.match(/spreadsheets\/([a-zA-Z0-9-_]+)/)?.[1] || ''}
+                                      onChange={(e) => {
+                                        const currentUrl = functionConfig.url || '';
+                                        const newUrl = currentUrl.replace(/spreadsheets\/[a-zA-Z0-9-_]+/, `spreadsheets/${e.target.value}`);
+                                        setFunctionConfig(prev => prev ? { ...prev, url: newUrl } : null);
+                                      }}
+                                      placeholder="Enter your Google Sheets spreadsheet ID"
+                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-white/70 mb-2">
+                                      Sheet Name
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={functionConfig.url?.match(/values\/([^:]+)/)?.[1] || ''}
+                                      onChange={(e) => {
+                                        const currentUrl = functionConfig.url || '';
+                                        const newUrl = currentUrl.replace(/values\/[^:]+/, `values/${e.target.value}`);
+                                        setFunctionConfig(prev => prev ? { ...prev, url: newUrl } : null);
+                                      }}
+                                      placeholder="Sheet1"
+                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Make.com Configuration */}
+                              {functionConfig.name === 'trigger_automation' && (
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-white/70 mb-2">
+                                      Make.com Webhook URL
+                                    </label>
+                                    <input
+                                      type="url"
+                                      value={functionConfig.url || ''}
+                                      onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, url: e.target.value } : null)}
+                                      placeholder="https://hook.make.com/your-webhook-url"
+                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Voicemail Detection Configuration */}
+                              {functionConfig.name === 'voicemail_detection' && (
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-white/70 mb-2">
+                                      Voicemail Message
+                                    </label>
+                                    <textarea
+                                      value={functionConfig.parameters?.properties?.voicemail_message?.default || ''}
+                                      onChange={(e) => setFunctionConfig(prev => prev ? { 
+                                        ...prev, 
+                                        parameters: {
+                                          ...prev.parameters,
+                                          properties: {
+                                            ...prev.parameters.properties,
+                                            voicemail_message: {
+                                              ...prev.parameters.properties.voicemail_message,
+                                              default: e.target.value
+                                            }
+                                          }
+                                        }
+                                      } : null)}
+                                      placeholder="Hello, I noticed this call went to voicemail. I'll leave a brief message and follow up later."
+                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      rows={3}
+                                    />
+                                    <p className="text-xs text-white/50 mt-1">
+                                      This message will be spoken when the AI detects that the call has gone to voicemail.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Complex View - Raw JSON configuration */}
+                          {functionViewMode[index] === 'complex' && (
+                            <div className="space-y-4">
+                              {/* Function Name */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  Function Name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={functionConfig.name}
+                                  onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              
+                              {/* Function Description */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  Description
+                                </label>
+                                <textarea
+                                  value={functionConfig.description}
+                                  onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, description: e.target.value } : null)}
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  rows={2}
+                                />
+                              </div>
+                              
+                              {/* API URL (for integrations) */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  API URL
+                                </label>
+                                <input
+                                  type="text"
+                                  value={functionConfig.url || ''}
+                                  onChange={(e) => setFunctionConfig(prev => prev ? { ...prev, url: e.target.value } : null)}
+                                  placeholder="https://api.example.com/webhook"
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              
+                              {/* Headers */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  Headers (JSON)
+                                </label>
+                                <textarea
+                                  value={JSON.stringify(functionConfig.headers || {}, null, 2)}
+                                  onChange={(e) => {
+                                    try {
+                                      const headers = JSON.parse(e.target.value);
+                                      setFunctionConfig(prev => prev ? { ...prev, headers } : null);
+                                    } catch (error) {
+                                      // Invalid JSON, don't update
+                                    }
+                                  }}
+                                  placeholder='{\n  "Authorization": "Bearer your-token",\n  "Content-Type": "application/json"\n}'
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                  rows={4}
+                                />
+                              </div>
+                              
+                              {/* Request Body Template */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  Request Body Template (JSON)
+                                </label>
+                                <textarea
+                                  value={JSON.stringify(functionConfig.body || {}, null, 2)}
+                                  onChange={(e) => {
+                                    try {
+                                      const body = JSON.parse(e.target.value);
+                                      setFunctionConfig(prev => prev ? { ...prev, body } : null);
+                                    } catch (error) {
+                                      // Invalid JSON, don't update
+                                    }
+                                  }}
+                                  placeholder='{\n  "data": "{{parameter_value}}",\n  "action": "create"\n}'
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                  rows={4}
+                                />
+                              </div>
+                              
+                              {/* Parameters Schema */}
+                              <div>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  Parameters Schema (JSON Schema)
+                                </label>
+                                <textarea
+                                  value={JSON.stringify(functionConfig.parameters, null, 2)}
+                                  onChange={(e) => {
+                                    try {
+                                      const parameters = JSON.parse(e.target.value);
+                                      setFunctionConfig(prev => prev ? { ...prev, parameters } : null);
+                                    } catch (error) {
+                                      // Invalid JSON, don't update
+                                    }
+                                  }}
+                                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                  rows={8}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Configure Tab Action Buttons */}
+                          <div className="flex items-center justify-end space-x-3 pt-6 mt-6 border-t border-white/20">
+                            <button
+                              onClick={() => {
+                                setEditingFunction(null);
+                                setFunctionConfig(null);
+                                // Return to simple view when canceling
+                                setFunctionViewMode(prev => ({
+                                  ...prev,
+                                  [index]: 'simple'
+                                }));
+                              }}
+                              className="px-4 py-2 text-white/70 hover:text-white transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (functionConfig) {
+                                  const updatedFunctions = (projectConfig.customFunctions || []).map((func: any, i: number) => 
+                                    i === index ? {
+                                      ...functionConfig,
+                                      parameters: functionConfig.parameters
+                                    } : func
+                                  );
+                                  setProjectConfig(prev => ({
+                                    ...prev,
+                                    customFunctions: updatedFunctions,
+                                    functionsEnabled: updatedFunctions.length > 0
+                                  }));
+                                  // Save to database
+                                  saveFunctionsToDatabase(updatedFunctions);
                                   setEditingFunction(null);
                                   setFunctionConfig(null);
-                                  // Return to simple view when canceling
+                                  // Return to simple view after saving
                                   setFunctionViewMode(prev => ({
                                     ...prev,
                                     [index]: 'simple'
                                   }));
-                                }}
-                                className="px-4 py-2 text-white/70 hover:text-white transition-colors"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (functionConfig) {
-                                    const updatedFunctions = (projectConfig.customFunctions || []).map((func: any, i: number) => 
-                                      i === index ? {
-                                        ...functionConfig,
-                                        parameters: functionConfig.parameters
-                                      } : func
-                                    );
-                                    setProjectConfig(prev => ({
-                                      ...prev,
-                                      customFunctions: updatedFunctions,
-                                      functionsEnabled: updatedFunctions.length > 0
-                                    }));
-                                    // Save to database
-                                    saveFunctionsToDatabase(updatedFunctions);
-                                    setEditingFunction(null);
-                                    setFunctionConfig(null);
-                                    // Return to simple view after saving
-                                    setFunctionViewMode(prev => ({
-                                      ...prev,
-                                      [index]: 'simple'
-                                    }));
-                                  }
-                                }}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                              >
-                                Save Changes
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Test Tab Content */}
-                        {testingFunction === index && (
-                          <div>
-                            <div className="space-y-4">
-                              <p className="text-white/70 text-sm mb-4">
-                                Set test values for the function parameters. These will be used to make a real API call.
-                              </p>
-                              
-                              {functionConfig.parameters?.properties && Object.entries(functionConfig.parameters.properties).map(([key, param]: [string, any]) => {
-                                // Skip fields that are already configured in the function
-                                if (key === 'event_type_slug' || key === 'cal_username') {
-                                  return null;
                                 }
+                              }}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                            >
+                              Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Test Tab Content */}
+                      {testingFunction === index && (
+                        <div>
+                          <div className="space-y-4">
+                            <p className="text-white/70 text-sm mb-4">
+                              Set test values for the function parameters. These will be used to make a real API call.
+                            </p>
+                            
+                            {functionConfig.parameters?.properties && Object.entries(functionConfig.parameters.properties).map(([key, param]: [string, any]) => {
+                              // Skip fields that are already configured in the function
+                              if (key === 'event_type_slug' || key === 'cal_username') {
+                                return null;
+                              }
+                              
+                              return (
+                              <div key={key}>
+                                <label className="block text-sm font-medium text-white/70 mb-2">
+                                  {key} {functionConfig.parameters?.required?.includes(key) && <span className="text-red-400">*</span>}
+                                  <span className="text-white/50 ml-2">({param.type})</span>
+                                </label>
+                                <div className="text-xs text-white/50 mb-2">{param.description}</div>
                                 
-                                return (
-                                <div key={key}>
-                                  <label className="block text-sm font-medium text-white/70 mb-2">
-                                    {key} {functionConfig.parameters?.required?.includes(key) && <span className="text-red-400">*</span>}
-                                    <span className="text-white/50 ml-2">({param.type})</span>
-                                  </label>
-                                  <div className="text-xs text-white/50 mb-2">{param.description}</div>
-                                  
-                                  {param.type === 'boolean' ? (
-                                    <select
-                                      value={testParams[key] !== undefined ? String(testParams[key]) : ''}
-                                      onChange={(e) => setTestParams(prev => ({ ...prev, [key]: e.target.value === 'true' }))}
-                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                                    >
-                                      <option value="">Select...</option>
-                                      <option value="true">True</option>
-                                      <option value="false">False</option>
-                                    </select>
-                                  ) : param.type === 'array' || param.type === 'object' ? (
-                                    <textarea
-                                      value={testParams[key] ? JSON.stringify(testParams[key], null, 2) : ''}
-                                      onChange={(e) => {
-                                        try {
-                                          const parsed = JSON.parse(e.target.value || (param.type === 'array' ? '[]' : '{}'));
-                                          setTestParams(prev => ({ ...prev, [key]: parsed }));
-                                        } catch (error) {
-                                          // For invalid JSON, store the raw string temporarily
-                                          setTestParams(prev => ({ ...prev, [key]: e.target.value }));
-                                        }
-                                      }}
-                                      placeholder={param.type === 'array' ? 
-                                        (key.includes('email') || key.includes('guest') ? '[]' : '["item1", "item2"]') : 
-                                        '{"key": "value"}'
+                                {param.type === 'boolean' ? (
+                                  <select
+                                    value={testParams[key] !== undefined ? String(testParams[key]) : ''}
+                                    onChange={(e) => setTestParams(prev => ({ ...prev, [key]: e.target.value === 'true' }))}
+                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  >
+                                    <option value="">Select...</option>
+                                    <option value="true">True</option>
+                                    <option value="false">False</option>
+                                  </select>
+                                ) : param.type === 'array' || param.type === 'object' ? (
+                                  <textarea
+                                    value={testParams[key] ? JSON.stringify(testParams[key], null, 2) : ''}
+                                    onChange={(e) => {
+                                      try {
+                                        const parsed = JSON.parse(e.target.value || (param.type === 'array' ? '[]' : '{}'));
+                                        setTestParams(prev => ({ ...prev, [key]: parsed }));
+                                      } catch (error) {
+                                        // For invalid JSON, store the raw string temporarily
+                                        setTestParams(prev => ({ ...prev, [key]: e.target.value }));
                                       }
-                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
-                                      rows={3}
-                                    />
-                                  ) : param.type === 'integer' || param.type === 'number' ? (
-                                    <input
-                                      type="number"
-                                      value={testParams[key] || ''}
-                                      onChange={(e) => setTestParams(prev => ({ 
-                                        ...prev, 
-                                        [key]: param.type === 'integer' ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0 
-                                      }))}
-                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                                    />
+                                    }}
+                                    placeholder={param.type === 'array' ? 
+                                      (key.includes('email') || key.includes('guest') ? '[]' : '["item1", "item2"]') : 
+                                      '{"key": "value"}'
+                                    }
+                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
+                                    rows={3}
+                                  />
+                                ) : param.type === 'integer' || param.type === 'number' ? (
+                                  <input
+                                    type="number"
+                                    value={testParams[key] || ''}
+                                    onChange={(e) => setTestParams(prev => ({ 
+                                      ...prev, 
+                                      [key]: param.type === 'integer' ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0 
+                                    }))}
+                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  />
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={testParams[key] || ''}
+                                    onChange={(e) => setTestParams(prev => ({ ...prev, [key]: e.target.value }))}
+                                    className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  />
+                                )}
+                              </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Test Tab Action Buttons */}
+                          <div className="flex items-center justify-end space-x-3 pt-6 mt-6 border-t border-white/20">
+                            <button
+                              onClick={() => {
+                                setEditingFunction(null);
+                                setTestingFunction(null);
+                                setTestParams({});
+                                setFunctionConfig(null);
+                              }}
+                              className="px-4 py-2 text-white/70 hover:text-white transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => testFunction(index)}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span>Run Test</span>
+                            </button>
+                          </div>
+
+                          {/* Test Results in Test Tab */}
+                          {testResults[index] && (
+                            <div className={`mt-4 p-4 rounded-lg border ${
+                              testResults[index]?.success 
+                                ? 'bg-green-900/20 border-green-500/30 text-green-100' 
+                                : 'bg-red-900/20 border-red-500/30 text-red-100'
+                            }`}>
+                              <div className="flex items-start space-x-3">
+                                <div className="flex-shrink-0">
+                                  {testResults[index]?.success ? (
+                                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
                                   ) : (
-                                    <input
-                                      type="text"
-                                      value={testParams[key] || ''}
-                                      onChange={(e) => setTestParams(prev => ({ ...prev, [key]: e.target.value }))}
-                                      className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                                    />
+                                    <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
                                   )}
                                 </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Test Tab Action Buttons */}
-                            <div className="flex items-center justify-end space-x-3 pt-6 mt-6 border-t border-white/20">
-                              <button
-                                onClick={() => {
-                                  setEditingFunction(null);
-                                  setTestingFunction(null);
-                                  setTestParams({});
-                                  setFunctionConfig(null);
-                                }}
-                                className="px-4 py-2 text-white/70 hover:text-white transition-colors"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => testFunction(index)}
-                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center space-x-2"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span>Run Test</span>
-                              </button>
-                            </div>
-
-                            {/* Test Results in Test Tab */}
-                            {testResults[index] && (
-                              <div className={`mt-4 p-4 rounded-lg border ${
-                                testResults[index]?.success 
-                                  ? 'bg-green-900/20 border-green-500/30 text-green-100' 
-                                  : 'bg-red-900/20 border-red-500/30 text-red-100'
-                              }`}>
-                                <div className="flex items-start space-x-3">
-                                  <div className="flex-shrink-0">
-                                    {testResults[index]?.success ? (
-                                      <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                    ) : (
-                                      <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <div className="flex-1">
-                                    <h4 className="font-medium mb-2">
-                                      {testResults[index]?.success ? 'Test Successful' : 'Test Failed'}
-                                    </h4>
-                                    <p className="text-sm mb-3">{testResults[index]?.message}</p>
-                                    
-                                    {testResults[index]?.success && testResults[index]?.data && (
-                                      <div className="space-y-3">
-                                        <div>
-                                          <h5 className="text-sm font-medium mb-1">API Response:</h5>
-                                          <div className="bg-black/30 rounded p-3 text-xs font-mono">
-                                            {testResults[index]?.data?.response && (
-                                              <pre className="text-gray-300">{JSON.stringify(testResults[index]?.data?.response, null, 2)}</pre>
-                                            )}
-                                          </div>
+                                <div className="flex-1">
+                                  <h4 className="font-medium mb-2">
+                                    {testResults[index]?.success ? 'Test Successful' : 'Test Failed'}
+                                  </h4>
+                                  <p className="text-sm mb-3">{testResults[index]?.message}</p>
+                                  
+                                  {testResults[index]?.success && testResults[index]?.data && (
+                                    <div className="space-y-3">
+                                      <div>
+                                        <h5 className="text-sm font-medium mb-1">API Response:</h5>
+                                        <div className="bg-black/30 rounded p-3 text-xs font-mono">
+                                          {testResults[index]?.data?.response && (
+                                            <pre className="text-gray-300">{JSON.stringify(testResults[index]?.data?.response, null, 2)}</pre>
+                                          )}
                                         </div>
                                       </div>
-                                    )}
-                                    
-                                    {!testResults[index]?.success && testResults[index]?.data && (
-                                      <div className="space-y-3">
-                                        <div>
-                                          <h5 className="text-sm font-medium mb-1">Error Details:</h5>
-                                          <div className="bg-black/30 rounded p-3 text-xs font-mono">
-                                            {testResults[index]?.data?.response && (
-                                              <pre className="text-gray-300">{JSON.stringify(testResults[index]?.data?.response, null, 2)}</pre>
-                                            )}
-                                          </div>
+                                    </div>
+                                  )}
+                                  
+                                  {!testResults[index]?.success && testResults[index]?.data && (
+                                    <div className="space-y-3">
+                                      <div>
+                                        <h5 className="text-sm font-medium mb-1">Error Details:</h5>
+                                        <div className="bg-black/30 rounded p-3 text-xs font-mono">
+                                          {testResults[index]?.data?.response && (
+                                            <pre className="text-gray-300">{JSON.stringify(testResults[index]?.data?.response, null, 2)}</pre>
+                                          )}
                                         </div>
                                       </div>
-                                    )}
-                                  </div>
-                                  <button
-                                    onClick={() => setTestResults(prev => ({ ...prev, [index]: null }))}
-                                    className="flex-shrink-0 text-white/50 hover:text-white/70"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
+                                    </div>
+                                  )}
                                 </div>
+                                <button
+                                  onClick={() => setTestResults(prev => ({ ...prev, [index]: null }))}
+                                  className="flex-shrink-0 text-white/50 hover:text-white/70"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

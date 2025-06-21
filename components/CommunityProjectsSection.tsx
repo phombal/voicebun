@@ -98,7 +98,7 @@ export default function CommunityProjectsSection({
             category: project.category
           }
         }));
-      } else {
+      } else if (projectType === 'community') {
         // Fetch community projects with cache-busting parameter
         const cacheBuster = Date.now();
         const response = await fetch(`/api/community/projects?t=${cacheBuster}`, {
@@ -138,11 +138,19 @@ export default function CommunityProjectsSection({
 
   // Initial data fetch
   useEffect(() => {
-    fetchFeaturedProjects();
-  }, [fetchFeaturedProjects]);
+    // Only fetch if we have the necessary data
+    if (projectType === 'community' || (projectType === 'user' && user)) {
+      fetchFeaturedProjects();
+    }
+  }, [fetchFeaturedProjects, projectType, user]);
 
   // Auto-refresh every 30 seconds when page is visible
   useEffect(() => {
+    // Only auto-refresh for community projects, not user projects
+    if (projectType !== 'community') {
+      return;
+    }
+
     const interval = setInterval(() => {
       if (!document.hidden) {
         console.log('🔄 Auto-refreshing community projects...');
@@ -151,10 +159,15 @@ export default function CommunityProjectsSection({
     }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, [fetchFeaturedProjects]);
+  }, [fetchFeaturedProjects, projectType]);
 
   // Refresh when user returns to the tab
   useEffect(() => {
+    // Only auto-refresh for community projects, not user projects
+    if (projectType !== 'community') {
+      return;
+    }
+
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         console.log('👁️ Page became visible - refreshing community projects...');
@@ -164,7 +177,7 @@ export default function CommunityProjectsSection({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchFeaturedProjects]);
+  }, [fetchFeaturedProjects, projectType]);
 
   // Manual refresh function
   const handleManualRefresh = () => {
@@ -303,11 +316,7 @@ export default function CommunityProjectsSection({
     
     // Always use light theme cards inside the white container
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: delay + 0.1 + index * 0.1 }}
-      >
+      <div>
         <Link href={projectLink} onClick={handleProjectClick}>
           <div className="bg-gray-100 rounded-xl overflow-hidden hover:scale-105 transition-all duration-300 group cursor-pointer text-left">
             {/* Preview Image Area */}
@@ -355,7 +364,7 @@ export default function CommunityProjectsSection({
             </div>
           </div>
         </Link>
-      </motion.div>
+      </div>
     );
   };
 
