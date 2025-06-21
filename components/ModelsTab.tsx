@@ -80,7 +80,6 @@ interface ModelsTabProps {
 
 const providers = [
   { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
   { value: 'xai', label: 'xAI' }
 ];
 
@@ -92,13 +91,8 @@ const modelsByProvider: { [key: string]: { value: string; label: string }[] } = 
     { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
     { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' }
   ],
-  anthropic: [
-    { value: 'claude-opus-4', label: 'Claude Opus 4' },
-    { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
-    { value: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' }
-  ],
   xai: [
-    { value: 'grok-2', label: 'Grok-2' }
+    { value: 'grok-3', label: 'Grok-3' }
   ]
 };
 
@@ -316,14 +310,6 @@ export function ModelsTab({
                   >
                     <option value="en" className="bg-gray-700 text-white">English</option>
                     <option value="multi" className="bg-gray-700 text-white">Multilingual</option>
-                    <option value="es" className="bg-gray-700 text-white">Spanish</option>
-                    <option value="fr" className="bg-gray-700 text-white">French</option>
-                    <option value="de" className="bg-gray-700 text-white">German</option>
-                    <option value="it" className="bg-gray-700 text-white">Italian</option>
-                    <option value="pt" className="bg-gray-700 text-white">Portuguese</option>
-                    <option value="ja" className="bg-gray-700 text-white">Japanese</option>
-                    <option value="ko" className="bg-gray-700 text-white">Korean</option>
-                    <option value="zh" className="bg-gray-700 text-white">Chinese</option>
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                     <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">

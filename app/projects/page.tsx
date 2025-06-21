@@ -299,7 +299,7 @@ export default function ProjectsPage() {
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
     }}>
       {/* Header */}
-      <header className="">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center">
             <img 
@@ -328,7 +328,7 @@ export default function ProjectsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 pt-24">
         {projects.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -361,7 +361,7 @@ export default function ProjectsPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-12"
+              className="mb-16"
             >
               <h1 
                 className="text-4xl md:text-5xl font-bold text-white mb-4"

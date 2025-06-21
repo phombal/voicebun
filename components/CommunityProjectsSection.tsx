@@ -388,7 +388,7 @@ export default function CommunityProjectsSection({
     >
       {/* Title inside the gray card */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-4">
             <h2 className="text-2xl md:text-3xl font-bold text-white">
               {title}
@@ -414,16 +414,16 @@ export default function CommunityProjectsSection({
             transition={{ delay: delay + 0.1 }}
             className="mb-8"
           >
-            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="flex flex-col gap-4">
               {showSearch && (
-                <div className="relative flex-1 max-w-md">
+                <div className="relative w-full md:w-96 lg:w-[500px]">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search projects..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors"
+                    className="w-full pl-10 pr-4 py-4 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors text-lg"
                   />
                 </div>
               )}
@@ -518,7 +518,7 @@ export default function CommunityProjectsSection({
           </p>
           <Link
             href="/auth?mode=signup"
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium px-6 py-3 rounded-lg transition-all duration-200 inline-flex items-center space-x-2"
+            className="bg-white hover:bg-gray-100 text-black font-medium px-6 py-3 rounded-lg transition-all duration-200 inline-flex items-center space-x-2"
           >
             <span>Get Started</span>
             <ArrowRight className="w-4 h-4" />

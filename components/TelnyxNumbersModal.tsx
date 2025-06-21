@@ -159,8 +159,6 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
     }
   };
 
-
-
   const handleSelectNumber = async (phoneNumber: string) => {
     if (!userId || !projectId) {
       // Show error notification
@@ -295,15 +293,20 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden border border-gray-200">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-black border border-white/20 rounded-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <h2 className="text-xl font-semibold text-gray-900">Available Phone Numbers</h2>
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-white">Available Phone Numbers</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-600 hover:text-gray-900 transition-colors"
+            className="text-white/60 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -313,42 +316,42 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
 
         {isLoadingTelnyxNumbers ? (
           <div className="flex items-center justify-center py-12">
-            <LoadingSpinner size="lg" color="blue" className="mr-3" />
-            <span className="ml-3 text-gray-600">Loading available numbers...</span>
+            <div className="flex flex-col items-center space-y-4">
+              <LoadingSpinner size="lg" color="white" />
+              <span className="text-white/70">Loading available numbers...</span>
+            </div>
           </div>
         ) : telnyxNumbers.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200">
-              <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
+              <svg className="w-8 h-8 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </div>
-            <p className="text-gray-600">No phone numbers available</p>
-            <p className="text-gray-500 text-sm mt-1">Please try again later</p>
+            <p className="text-white/70 font-medium">No phone numbers available</p>
+            <p className="text-white/50 text-sm mt-1">Please try again later or contact support</p>
           </div>
         ) : (
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-
-            
-            <div className="text-sm text-gray-600 mb-4">
+          <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin smooth-scroll">
+            <div className="text-sm text-white/60 mb-4 px-1">
               Found {telnyxNumbers.length} available phone number{telnyxNumbers.length !== 1 ? 's' : ''} 
             </div>
             
             {telnyxNumbers.map((number, index) => (
               <div
                 key={index}
-                className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200"
+                className="bg-white/5 hover:bg-white/10 rounded-lg p-4 transition-colors border border-white/10 hover:border-white/20"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                         </svg>
                       </div>
                       <div>
-                        <p className="text-gray-900 font-medium text-lg">{formatPhoneNumber(number.phone_number)}</p>
+                        <p className="text-white font-medium text-lg">{formatPhoneNumber(number.phone_number)}</p>
                       </div>
                     </div>
                   </div>
@@ -356,15 +359,20 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
                   <button
                     onClick={() => handleSelectNumber(number.phone_number)}
                     disabled={isPurchasing === number.phone_number}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2 shadow-lg"
                   >
                     {isPurchasing === number.phone_number ? (
                       <>
-                        <LoadingSpinner size="md" color="white" />
+                        <LoadingSpinner size="sm" color="white" />
                         <span>Purchasing...</span>
                       </>
                     ) : (
-                      <span>Select</span>
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Select</span>
+                      </>
                     )}
                   </button>
                 </div>
@@ -373,14 +381,6 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           </div>
         )}
 
-        <div className="flex justify-end mt-6 pt-4 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors border border-gray-300"
-          >
-            Close
-          </button>
-        </div>
       </div>
     </div>
   );

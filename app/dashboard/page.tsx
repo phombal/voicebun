@@ -61,6 +61,7 @@ function DashboardContent() {
   const [error, setError] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { getUserProjects, createProject, createProjectData, updateProject } = useDatabase();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -484,7 +485,20 @@ if __name__ == "__main__":
           : 'bg-transparent'
       }`}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center">
+          <div className="flex items-center space-x-4">
+            {/* Mobile Menu Button - Only visible on mobile */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="w-8 h-8 hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center"
+                title="Menu"
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+
             <img 
               src="/VoiceBun-White.png" 
               alt="VoiceBun" 
@@ -492,7 +506,9 @@ if __name__ == "__main__":
               onClick={() => router.push('/dashboard')}
             />
           </div>
-          <div className="flex items-center space-x-4">
+          
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-4">
             <a
               href="/projects"
               className="text-white/70 hover:text-white transition-colors"
@@ -507,7 +523,77 @@ if __name__ == "__main__":
             </a>
             <UserProfile />
           </div>
+
+          {/* Mobile User Profile */}
+          <div className="md:hidden">
+            <UserProfile />
+          </div>
         </div>
+
+        {/* Mobile Menu Sidebar */}
+        {showMobileMenu && (
+          <div className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setShowMobileMenu(false)}>
+            <div className="absolute top-0 left-0 w-64 h-full bg-neutral-800 border-r border-white/20" onClick={(e) => e.stopPropagation()}>
+              <div className="p-4 border-b border-white/20">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">Menu</h3>
+                  <button
+                    onClick={() => setShowMobileMenu(false)}
+                    className="p-1 hover:bg-white/10 rounded transition-colors"
+                  >
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-4 space-y-2">
+                <a
+                  href="/dashboard"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="w-full text-left px-4 py-3 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10 block"
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5v4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 5v4" />
+                    </svg>
+                    <span>Dashboard</span>
+                  </div>
+                </a>
+                
+                <a
+                  href="/projects"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="w-full text-left px-4 py-3 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10 block"
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <span>Projects</span>
+                  </div>
+                </a>
+                
+                <a
+                  href="/community"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="w-full text-left px-4 py-3 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10 block"
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <span>Community</span>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Hero Section */}

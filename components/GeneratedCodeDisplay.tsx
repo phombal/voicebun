@@ -454,8 +454,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
     
     try {
       // Load custom voices from the user plan instead of project
+      let customVoicesFromPlan: any[] = [];
       try {
-        const customVoicesFromPlan = await getUserCustomVoices();
+        customVoicesFromPlan = await getUserCustomVoices();
         setCustomVoices(customVoicesFromPlan);
         console.log('🎵 Loaded custom voices from user plan:', customVoicesFromPlan.length);
       } catch (error) {
@@ -468,6 +469,12 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
       
       if (projectData) {
         console.log('📝 System prompt from database:', projectData.system_prompt ? `${projectData.system_prompt.substring(0, 100)}...` : 'empty');
+        
+        // Ensure clone_voice provider is properly preserved
+        let ttsProvider = projectData.tts_provider;
+        if ((projectData.tts_provider as string) === 'elevenlabs') {
+          ttsProvider = 'cartesia'; // Legacy conversion
+        }
         
         const newConfig = {
           systemPrompt: projectData.system_prompt,
@@ -483,7 +490,7 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
           sttProcessingMode: projectData.stt_processing_mode,
           sttNoiseSuppression: projectData.stt_noise_suppression,
           sttAutoPunctuation: projectData.stt_auto_punctuation,
-          ttsProvider: (projectData.tts_provider as any) === 'elevenlabs' ? 'cartesia' : projectData.tts_provider,
+          ttsProvider: ttsProvider,
           ttsVoice: projectData.tts_voice || 'neutral',
           phoneNumber: projectData.phone_number,
           phoneInboundEnabled: projectData.phone_inbound_enabled,
@@ -509,6 +516,22 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
         };
         
         console.log('🔧 Setting project config with system prompt length:', newConfig.systemPrompt?.length || 0);
+        console.log('🎵 TTS Provider from database:', projectData.tts_provider);
+        console.log('🎵 TTS Provider after processing:', newConfig.ttsProvider);
+        console.log('🎵 TTS Voice from database:', projectData.tts_voice);
+        
+        // Special handling for clone_voice provider
+        if (newConfig.ttsProvider === 'clone_voice') {
+          console.log('🎵 CLONE_VOICE provider detected - ensuring proper configuration');
+          console.log('🎵 Custom voices available:', customVoicesFromPlan.length);
+          
+          // If we have custom voices and no specific voice is set, use the first one
+          if (customVoicesFromPlan.length > 0 && (!newConfig.ttsVoice || newConfig.ttsVoice === 'neutral')) {
+            newConfig.ttsVoice = customVoicesFromPlan[0].id;
+            console.log('🎵 Auto-selected first custom voice:', customVoicesFromPlan[0].displayName);
+          }
+        }
+        
         setProjectConfig(newConfig);
         console.log('✅ Loaded project configuration from database');
         console.log('🎯 System prompt loaded:', projectData.system_prompt ? 'YES' : 'NO');
@@ -922,46 +945,53 @@ Just tell me what you want your voice agent to do or any issues you're experienc
                   if (parsed.configurationUpdates && Array.isArray(parsed.configurationUpdates)) {
                     console.log('Processing configuration updates:', parsed.configurationUpdates);
                     
-                    // Apply configuration updates
-                    setProjectConfig(prev => {
-                      const newConfig = { ...prev };
-                      
-                      parsed.configurationUpdates.forEach((update: any) => {
-                        if (update.field && update.value !== undefined) {
+                    // Filter out empty or invalid updates
+                    const validUpdates = parsed.configurationUpdates.filter((update: any) => 
+                      update.field && update.value !== undefined && update.field.trim() !== ''
+                    );
+                    
+                    if (validUpdates.length > 0) {
+                      // Apply configuration updates
+                      setProjectConfig(prev => {
+                        const newConfig = { ...prev };
+                        
+                        validUpdates.forEach((update: any) => {
                           console.log(`Updating ${update.field} to:`, update.value);
                           (newConfig as any)[update.field] = update.value;
-                        }
+                        });
+                        
+                        return newConfig;
                       });
-                      
-                      return newConfig;
-                    });
 
-                    // Show notification about configuration updates
-                    const notification = document.createElement('div');
-                    
-                    // Create a more detailed notification
-                    const updatedFields = parsed.configurationUpdates.map((update: any) => update.field).join(', ');
-                    notification.innerHTML = `
-                      <div class="flex items-center space-x-3">
-                        <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                          </svg>
+                      // Show notification about configuration updates
+                      const notification = document.createElement('div');
+                      
+                      // Create a more detailed notification
+                      const updatedFields = validUpdates.map((update: any) => update.field).join(', ');
+                      notification.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                          </div>
+                          <div>
+                            <div class="font-medium">Configuration Updated</div>
+                            <div class="text-sm opacity-90">Updated: ${updatedFields}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div class="font-medium">Configuration Updated</div>
-                          <div class="text-sm opacity-90">Updated: ${updatedFields}</div>
-                        </div>
-                      </div>
-                    `;
-                    notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
-                    document.body.appendChild(notification);
-                    setTimeout(() => {
-                      if (document.body.contains(notification)) {
-                        document.body.removeChild(notification);
-                      }
-                    }, 6000);
+                      `;
+                      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+                      document.body.appendChild(notification);
+                      setTimeout(() => {
+                        if (document.body.contains(notification)) {
+                          document.body.removeChild(notification);
+                        }
+                      }, 6000);
+                    } else {
+                      console.log('No valid configuration updates to apply');
+                    }
                   }
 
                 } else if (parsed.type === 'error') {
@@ -1431,10 +1461,21 @@ For now, you can still manually configure your voice agent using the tabs above.
       // If no voice is selected or current selection is not valid, select the first custom voice
       const currentVoiceExists = customVoices.some(voice => voice.id === projectConfig.ttsVoice);
       if (!projectConfig.ttsVoice || !currentVoiceExists) {
+        console.log('🎵 Auto-selecting first custom voice:', customVoices[0].displayName);
         setProjectConfig(prev => ({ ...prev, ttsVoice: customVoices[0].id }));
       }
     }
   }, [projectConfig.ttsProvider, customVoices, projectConfig.ttsVoice, setProjectConfig]);
+
+  // Effect to ensure clone_voice provider is preserved after page reload
+  useEffect(() => {
+    // This effect runs after configuration is loaded from database
+    if (projectConfig.ttsProvider === 'clone_voice') {
+      console.log('✅ Clone voice provider preserved after page load');
+      console.log('🎵 Current TTS voice:', projectConfig.ttsVoice);
+      console.log('🎵 Available custom voices:', customVoices.length);
+    }
+  }, [projectConfig.ttsProvider, projectConfig.ttsVoice, customVoices]);
 
   return (
     <RoomContext.Provider value={room}>
@@ -1916,9 +1957,15 @@ For now, you can still manually configure your voice agent using the tabs above.
       <CloneVoiceModal
         isOpen={showCloneVoiceModal}
         onClose={() => setShowCloneVoiceModal(false)}
-        onVoiceCloned={() => {
-          // Refresh custom voices list if needed
-          // This could trigger a re-fetch of custom voices
+        onVoiceCloned={async () => {
+          // Refresh custom voices list immediately after cloning
+          try {
+            const customVoicesFromPlan = await getUserCustomVoices();
+            setCustomVoices(customVoicesFromPlan);
+            console.log('✅ Refreshed custom voices after cloning:', customVoicesFromPlan.length);
+          } catch (error) {
+            console.error('❌ Failed to refresh custom voices after cloning:', error);
+          }
         }}
         projectId={project?.id || currentProject?.id}
       />

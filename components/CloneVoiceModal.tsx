@@ -169,12 +169,50 @@ export function CloneVoiceModal({
             </svg>
             <div>
               <div class="font-medium">Voice Clone Created!</div>
-              <div class="text-sm opacity-90">Your voice "${voiceName}" has been successfully cloned and is now available for selection.</div>
+              <div class="text-sm opacity-90">Your voice "${voiceName}" has been successfully cloned and is being saved...</div>
             </div>
           </div>
         `;
         notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
         document.body.appendChild(notification);
+
+        // Store the voice ID for verification
+        const newVoiceId = result.voiceId;
+        console.log('🎵 Voice clone created with ID:', newVoiceId);
+
+        // Reset the form
+        setVoiceName('');
+        setRecordedAudio(null);
+        setRecordingDuration(0);
+
+        // Notify parent to refresh custom voices and verify the voice was saved
+        if (onVoiceCloned) {
+          console.log('🔄 Refreshing custom voices after successful clone...');
+          await onVoiceCloned();
+          
+          // Additional verification: wait a bit more to ensure database propagation
+          console.log('⏳ Waiting for database propagation...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Trigger another refresh to be absolutely sure
+          await onVoiceCloned();
+          console.log('✅ Voice list refresh completed');
+        }
+
+        // Update notification to show completion
+        if (document.body.contains(notification)) {
+          notification.innerHTML = `
+            <div class="flex items-center space-x-3">
+              <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <div>
+                <div class="font-medium">Voice Clone Ready!</div>
+                <div class="text-sm opacity-90">Your voice "${voiceName}" is now available for selection.</div>
+              </div>
+            </div>
+          `;
+        }
 
         setTimeout(() => {
           if (document.body.contains(notification)) {
@@ -182,18 +220,10 @@ export function CloneVoiceModal({
           }
         }, 5000);
 
-        // Reset the form
-        setVoiceName('');
-        setRecordedAudio(null);
-        setRecordingDuration(0);
-
-        // Notify parent to refresh custom voices
-        if (onVoiceCloned) {
-          onVoiceCloned();
-        }
-
-        // Close the modal
-        handleClose();
+        // Close the modal after ensuring the voice is properly saved and refreshed
+        setTimeout(() => {
+          handleClose();
+        }, 1000); // Reduced delay since we already waited above
 
       } else {
         const notification = document.createElement('div');

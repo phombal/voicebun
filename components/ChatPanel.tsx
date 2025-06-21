@@ -34,6 +34,22 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [textareaHeight, setTextareaHeight] = useState(24); // Track textarea height
+
+  // Auto-resize textarea on mount and when input changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      textarea.style.height = 'auto';
+      const lineHeight = 24;
+      const maxLines = 10;
+      const maxHeight = lineHeight * maxLines;
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+      const finalHeight = Math.max(newHeight, 24);
+      textarea.style.height = finalHeight + 'px';
+      setTextareaHeight(finalHeight); // Update state to resize container
+    }
+  }, [inputMessage]);
 
   // Prevent scroll propagation to parent elements
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -61,6 +77,24 @@ export function ChatPanel({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onInputChange(e.target.value);
+    
+    // Auto-resize textarea
+    const textarea = e.target;
+    if (textarea) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      
+      // Calculate the number of lines based on scrollHeight
+      const lineHeight = 24; // Approximate line height in pixels
+      const maxLines = 10;
+      const maxHeight = lineHeight * maxLines;
+      
+      // Set the height based on content, but cap it at maxHeight
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+      const finalHeight = Math.max(newHeight, 24);
+      textarea.style.height = finalHeight + 'px';
+      setTextareaHeight(finalHeight); // Update state to resize container
+    }
   };
 
   const handleKeyDownInInput = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -73,10 +107,10 @@ export function ChatPanel({
   const handleSendMessage = () => {
     onSendMessage();
     
-    // Reset textarea height
+    // Reset textarea height to minimum
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = '24px';
+      setTextareaHeight(24); // Reset container height state
     }
   };
 
@@ -135,9 +169,15 @@ export function ChatPanel({
       </div>
 
       {/* Chat Input - Sticky at bottom of sidebar */}
-      <div className="flex-shrink-0 bg-gray-800 rounded-3xl shadow-2xl shadow-black/50 m-4 mb-8">
-        <div className="p-6">
-          <div className="flex items-center space-x-3">
+      <div 
+        className="flex-shrink-0 bg-gray-800 rounded-3xl shadow-2xl shadow-black/50 m-4 mb-8 transition-all duration-200 ease-out"
+        style={{
+          minHeight: `${24 + 48}px`, // 24px textarea + 48px padding (24px top + 24px bottom)
+          height: `${textareaHeight + 48}px` // Dynamic height based on textarea
+        }}
+      >
+        <div className="p-6 h-full flex items-center">
+          <div className="flex items-start space-x-3 w-full">
             <div className="flex-1">
               <textarea
                 ref={textareaRef}
@@ -145,17 +185,16 @@ export function ChatPanel({
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDownInInput}
                 placeholder="Ask Bun to modify your code..."
-                className="w-full bg-transparent text-white placeholder-white/50 resize-none outline-none text-sm leading-relaxed"
+                className="w-full bg-transparent text-white placeholder-white/50 resize-none outline-none text-sm leading-relaxed overflow-y-auto"
                 rows={1}
                 style={{
-                  minHeight: '20px',
-                  maxHeight: '120px',
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none',
-                  lineHeight: '1.5',
-                  padding: '8px 12px',
+                  minHeight: '24px',
+                  maxHeight: '240px', // 10 lines * 24px line height
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: 'rgba(255, 255, 255, 0.3) transparent',
+                  lineHeight: '24px',
+                  padding: '0',
                   margin: '0',
-                  borderRadius: '24px',
                   border: 'none',
                   boxShadow: 'none'
                 }}
@@ -165,7 +204,7 @@ export function ChatPanel({
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim() || isGenerating}
-              className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+              className="w-8 h-8 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-full flex items-center justify-center transition-colors flex-shrink-0 mt-0"
             >
               <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
