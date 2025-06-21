@@ -1527,7 +1527,7 @@ For now, you can still manually configure your voice agent using the tabs above.
             </div>
 
             {/* VoiceBun Logo */}
-            <div className="flex items-center">
+            <div className="hidden md:flex items-center">
               <img 
                 src="/VoiceBun-White.png" 
                 alt="VoiceBun" 
@@ -1786,8 +1786,19 @@ For now, you can still manually configure your voice agent using the tabs above.
 
         {/* Content area below navigation bar */}
         <div className="flex flex-1 h-0">
-          {/* Main Content Area - Independent scrolling - Full width on mobile */}
-          <div className="flex-1 bg-black flex flex-col h-full overflow-hidden">
+          {/* Chat Panel - Hidden on mobile, visible on desktop (left side) */}
+          <div className="hidden lg:flex lg:w-1/4 bg-black h-full overflow-hidden">
+            <ChatPanel
+              messages={messages}
+              inputMessage={inputMessage}
+              onInputChange={setInputMessage}
+              onSendMessage={sendMessage}
+              isGenerating={isGenerating}
+            />
+          </div>
+
+          {/* Main Content Area - Independent scrolling - Full width on mobile, right panel on desktop */}
+          <div className="flex-1 lg:flex-none lg:w-3/4 bg-black flex flex-col h-full overflow-hidden">
             {/* Content area with independent scroll */}
             <div className="flex-1 border border-white/20 rounded-lg m-2 lg:m-4 overflow-hidden">
               <div className="h-full overflow-y-auto scrollbar-thin smooth-scroll">
