@@ -1013,7 +1013,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
   const addHangupCallFunction = () => {
     const hangupFunction = {
       name: 'hangup_call',
-      description: 'End the current call immediately',
+      description: 'End the call when the agent deems appropriate',
       parameters: {
         type: 'object',
         properties: {},
