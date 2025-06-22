@@ -60,11 +60,17 @@ export default function CommunityProjectsSection({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [error, setError] = useState<string | null>(null);
   const { getUserProjects } = useDatabase();
   const { user } = useAuth();
 
   const fetchFeaturedProjects = useCallback(async (silent = false) => {
     try {
+      console.log(`🚀 Starting fetchFeaturedProjects (${silent ? 'silent' : 'visible'}) for projectType: ${projectType}`);
+      
+      // Clear any previous errors
+      setError(null);
+      
       if (!silent) {
         setProjectsLoading(true);
       } else {
@@ -101,29 +107,45 @@ export default function CommunityProjectsSection({
       } else if (projectType === 'community') {
         // Fetch community projects with cache-busting parameter
         const cacheBuster = Date.now();
-        const response = await fetch(`/api/community/projects?t=${cacheBuster}`, {
+        const apiUrl = `/api/community/projects?t=${cacheBuster}`;
+        console.log(`📡 Making API call to: ${apiUrl}`);
+        
+        const response = await fetch(apiUrl, {
           cache: 'no-store', // Prevent caching
           headers: {
             'Cache-Control': 'no-cache',
           }
         });
+        
+        console.log(`📡 API Response status: ${response.status} ${response.statusText}`);
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch community projects');
+          const errorText = await response.text();
+          console.error(`❌ API Error: ${response.status} - ${errorText}`);
+          throw new Error(`Failed to fetch community projects: ${response.status} ${response.statusText}`);
         }
+        
         const data = await response.json();
         projects = data.projects || [];
         console.log(`📊 Fetched ${projects.length} community projects (${silent ? 'silent' : 'visible'} refresh)`);
+        console.log(`📊 Projects data:`, projects.map(p => ({ id: p.id, name: p.name, created_at: p.created_at })));
       }
       
       // Apply limit if specified
       if (limit) {
         projects = projects.slice(0, limit);
+        console.log(`📊 Applied limit ${limit}, showing ${projects.length} projects`);
       }
       
       setFeaturedProjects(projects);
       setLastRefreshTime(new Date());
+      console.log(`✅ Successfully updated featuredProjects with ${projects.length} items`);
     } catch (err) {
-      console.error('Failed to load projects:', err);
+      console.error('❌ Failed to load projects:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMessage);
+      
+      // Show error in UI for debugging
       if (!silent) {
         setFeaturedProjects([]);
       }
@@ -396,6 +418,17 @@ export default function CommunityProjectsSection({
           </div>
           {variant === 'card' && (
             <div className="flex items-center space-x-4">
+              <button
+                onClick={handleManualRefresh}
+                disabled={projectsLoading}
+                className="text-gray-400 hover:text-white transition-colors font-medium text-sm flex items-center space-x-1 disabled:opacity-50"
+                title="Refresh projects"
+              >
+                <svg className={`w-4 h-4 ${projectsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Refresh</span>
+              </button>
               <Link
                 href={projectType === 'user' ? '/projects' : '/community'}
                 className="text-blue-400 hover:text-blue-300 transition-colors font-medium text-sm"
@@ -406,69 +439,95 @@ export default function CommunityProjectsSection({
           )}
         </div>
         
-        {/* Search and Filters */}
-        {(showSearch || showFilters) && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+        {/* Error Display */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: delay + 0.1 }}
-            className="mb-8"
+            className="mb-4 p-4 bg-red-900/50 border border-red-700 rounded-lg"
           >
-            <div className="flex flex-col gap-4">
-              {showSearch && (
-                <div className="relative w-full md:w-96 lg:w-[500px]">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search projects..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-4 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors text-lg"
-                  />
-                </div>
-              )}
-              
-              {showFilters && (
-                <div className="w-full">
-                  {/* Mobile: Show limited categories in a wrapped layout */}
-                  <div className="flex md:hidden flex-wrap gap-2">
-                    {['All', 'Healthcare', 'Education', 'Customer Service'].map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`flex items-center px-3 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
-                          selectedCategory === category
-                            ? 'bg-blue-600 text-white'
-                            : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
-                        }`}
-                      >
-                        {category}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {/* Desktop: Show all categories in horizontal scroll */}
-                  <div className="hidden md:flex items-center space-x-2 overflow-x-auto">
-                    {['All', 'Healthcare', 'Education', 'Customer Service', 'Personal Assistant', 'Sales & Marketing', 'Entertainment', 'Productivity'].map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`flex items-center px-3 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
-                          selectedCategory === category
-                            ? 'bg-blue-600 text-white'
-                            : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
-                        }`}
-                      >
-                        {category}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-red-200 text-sm">{error}</span>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-300 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </motion.div>
         )}
       </div>
+      
+      {/* Search and Filters */}
+      {(showSearch || showFilters) && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: delay + 0.1 }}
+          className="mb-8"
+        >
+          <div className="flex flex-col gap-4">
+            {showSearch && (
+              <div className="relative w-full md:w-96 lg:w-[500px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search projects..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-4 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors text-lg"
+                />
+              </div>
+            )}
+            
+            {showFilters && (
+              <div className="w-full">
+                {/* Mobile: Show limited categories in a wrapped layout */}
+                <div className="flex md:hidden flex-wrap gap-2">
+                  {['All', 'Healthcare', 'Education', 'Customer Service'].map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`flex items-center px-3 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
+                        selectedCategory === category
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Desktop: Show all categories in horizontal scroll */}
+                <div className="hidden md:flex items-center space-x-2 overflow-x-auto">
+                  {['All', 'Healthcare', 'Education', 'Customer Service', 'Personal Assistant', 'Sales & Marketing', 'Entertainment', 'Productivity'].map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`flex items-center px-3 py-2 rounded-lg transition-colors whitespace-nowrap text-sm ${
+                        selectedCategory === category
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
       
       {projectsLoading ? (
         <div className={getGridClasses()}>
