@@ -223,20 +223,27 @@ export function TestTypeModal({
                 Call From
               </label>
               {availablePhoneNumbers.length > 0 ? (
-                <select
-                  value={selectedFromPhoneNumber}
-                  onChange={(e) => setSelectedFromPhoneNumber(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isLoadingOutboundTest}
-                >
-                  {availablePhoneNumbers.map((phoneNumber) => (
-                    <option key={phoneNumber.id} value={phoneNumber.id} className="bg-black text-white">
-                      {phoneNumber.phone_number}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={selectedFromPhoneNumber}
+                    onChange={(e) => setSelectedFromPhoneNumber(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
+                    disabled={isLoadingOutboundTest}
+                  >
+                    {availablePhoneNumbers.map((phoneNumber) => (
+                      <option key={phoneNumber.id} value={phoneNumber.id} className="bg-black text-white">
+                        {phoneNumber.phone_number}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
               ) : (
-                <div className="w-full px-3 py-2 border border-white/20 rounded-lg bg-white/5 text-white/50">
+                <div className="w-full px-4 py-3 border border-white/20 rounded-xl bg-white/5 text-white/50">
                   No phone numbers available. Please assign a phone number to this project first.
                 </div>
               )}
@@ -249,40 +256,47 @@ export function TestTypeModal({
                 Call To
               </label>
               <div className="flex space-x-2">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isLoadingOutboundTest}
-                >
-                  <option value="+1" className="bg-black text-white">🇺🇸 +1</option>
-                  <option value="+44" className="bg-black text-white">🇬🇧 +44</option>
-                  <option value="+33" className="bg-black text-white">🇫🇷 +33</option>
-                  <option value="+49" className="bg-black text-white">🇩🇪 +49</option>
-                  <option value="+39" className="bg-black text-white">🇮🇹 +39</option>
-                  <option value="+34" className="bg-black text-white">🇪🇸 +34</option>
-                  <option value="+31" className="bg-black text-white">🇳🇱 +31</option>
-                  <option value="+32" className="bg-black text-white">🇧🇪 +32</option>
-                  <option value="+41" className="bg-black text-white">🇨🇭 +41</option>
-                  <option value="+43" className="bg-black text-white">🇦🇹 +43</option>
-                  <option value="+45" className="bg-black text-white">🇩🇰 +45</option>
-                  <option value="+46" className="bg-black text-white">🇸🇪 +46</option>
-                  <option value="+47" className="bg-black text-white">🇳🇴 +47</option>
-                  <option value="+358" className="bg-black text-white">🇫🇮 +358</option>
-                  <option value="+61" className="bg-black text-white">🇦🇺 +61</option>
-                  <option value="+64" className="bg-black text-white">🇳🇿 +64</option>
-                  <option value="+81" className="bg-black text-white">🇯🇵 +81</option>
-                  <option value="+82" className="bg-black text-white">🇰🇷 +82</option>
-                  <option value="+86" className="bg-black text-white">🇨🇳 +86</option>
-                  <option value="+91" className="bg-black text-white">🇮🇳 +91</option>
-                  <option value="+55" className="bg-black text-white">🇧🇷 +55</option>
-                  <option value="+52" className="bg-black text-white">🇲🇽 +52</option>
-                  <option value="+54" className="bg-black text-white">🇦🇷 +54</option>
-                  <option value="+56" className="bg-black text-white">🇨🇱 +56</option>
-                  <option value="+57" className="bg-black text-white">🇨🇴 +57</option>
-                  <option value="+51" className="bg-black text-white">🇵🇪 +51</option>
-                  <option value="+27" className="bg-black text-white">🇿🇦 +27</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                    className="px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
+                    disabled={isLoadingOutboundTest}
+                  >
+                    <option value="+1" className="bg-black text-white">🇺🇸 +1</option>
+                    <option value="+44" className="bg-black text-white">🇬🇧 +44</option>
+                    <option value="+33" className="bg-black text-white">🇫🇷 +33</option>
+                    <option value="+49" className="bg-black text-white">🇩🇪 +49</option>
+                    <option value="+39" className="bg-black text-white">🇮🇹 +39</option>
+                    <option value="+34" className="bg-black text-white">🇪🇸 +34</option>
+                    <option value="+31" className="bg-black text-white">🇳🇱 +31</option>
+                    <option value="+32" className="bg-black text-white">🇧🇪 +32</option>
+                    <option value="+41" className="bg-black text-white">🇨🇭 +41</option>
+                    <option value="+43" className="bg-black text-white">🇦🇹 +43</option>
+                    <option value="+45" className="bg-black text-white">🇩🇰 +45</option>
+                    <option value="+46" className="bg-black text-white">🇸🇪 +46</option>
+                    <option value="+47" className="bg-black text-white">🇳🇴 +47</option>
+                    <option value="+358" className="bg-black text-white">🇫🇮 +358</option>
+                    <option value="+61" className="bg-black text-white">🇦🇺 +61</option>
+                    <option value="+64" className="bg-black text-white">🇳🇿 +64</option>
+                    <option value="+81" className="bg-black text-white">🇯🇵 +81</option>
+                    <option value="+82" className="bg-black text-white">🇰🇷 +82</option>
+                    <option value="+86" className="bg-black text-white">🇨🇳 +86</option>
+                    <option value="+91" className="bg-black text-white">🇮🇳 +91</option>
+                    <option value="+55" className="bg-black text-white">🇧🇷 +55</option>
+                    <option value="+52" className="bg-black text-white">🇲🇽 +52</option>
+                    <option value="+54" className="bg-black text-white">🇦🇷 +54</option>
+                    <option value="+56" className="bg-black text-white">🇨🇱 +56</option>
+                    <option value="+57" className="bg-black text-white">🇨🇴 +57</option>
+                    <option value="+51" className="bg-black text-white">🇵🇪 +51</option>
+                    <option value="+27" className="bg-black text-white">🇿🇦 +27</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
                 <input
                   type="tel"
                   value={formatPhoneNumber(outboundPhoneNumber)}
@@ -291,7 +305,7 @@ export function TestTypeModal({
                     setOutboundPhoneNumber(rawDigits);
                   }}
                   placeholder="123-456-7890"
-                  className="flex-1 px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="flex-1 px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all duration-200 hover:bg-white/10"
                   disabled={isLoadingOutboundTest}
                 />
               </div>
