@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { auth } from '@/lib/database/auth'
+import { clientDb } from '@/lib/database/client-service'
+
 interface AuthContextType {
   user: User | null
   session: Session | null
@@ -50,6 +52,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Auth state change:', event, session ? 'session exists' : 'no session')
       setSession(session)
       setUser(session?.user ?? null)
+      
+      // Create user plan if user is authenticated and doesn't have one
+      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+        try {
+          console.log('🔄 Ensuring user plan exists for:', session.user.id)
+          await clientDb.getUserPlan()
+          console.log('✅ User plan check completed')
+        } catch (error) {
+          console.error('❌ Failed to ensure user plan:', error)
+        }
+      }
+      
       setLoading(false)
     })
 

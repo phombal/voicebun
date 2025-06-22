@@ -325,7 +325,41 @@ export class ClientDatabaseService {
       .eq('user_id', userId)
       .single();
     
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No plan found, create default free plan
+        console.log('🆕 Creating default free plan for user:', userId);
+        try {
+          const { data: newPlan, error: createError } = await this.supabase
+            .from('user_plans')
+            .insert({
+              user_id: userId,
+              plan_name: 'free',
+              subscription_status: 'active',
+              conversation_minutes_used: 0,
+              conversation_minutes_limit: 5,
+              phone_number_count: 0,
+              phone_number_limit: 1,
+              cancel_at_period_end: false,
+            })
+            .select()
+            .single();
+          
+          if (createError) {
+            console.error('❌ Failed to create default user plan:', createError);
+            throw createError;
+          }
+          
+          console.log('✅ Created default free plan:', newPlan);
+          return newPlan;
+        } catch (createError) {
+          console.error('❌ Error creating default user plan:', createError);
+          throw createError;
+        }
+      }
+      throw error;
+    }
+    
     return data;
   }
 
