@@ -4,7 +4,7 @@ import PublicNavigation from "@/components/PublicNavigation";
 import CommunityProjectsSection from "@/components/CommunityProjectsSection";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { clientDb } from '@/lib/database/client-service';
 
@@ -14,7 +14,7 @@ function isSafari() {
   return userAgent.includes('safari') && !userAgent.includes('chrome')
 }
 
-export default function LandingPage() {
+function LandingPageContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,7 +62,7 @@ export default function LandingPage() {
     if (code) {
       console.log('🔄 OAuth code detected, waiting for AuthContext to process...');
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, user, loading]);
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
@@ -123,10 +123,6 @@ export default function LandingPage() {
     "A meeting assistant that takes notes and schedules follow-ups",
     "A healthcare helper that provides wellness tips and reminders"
   ];
-
-  // Show loading indicator only if we're still loading AND have a user
-  // This prevents blocking the landing page for unauthenticated users
-  const showLoadingIndicator = loading && user;
 
   // Show loading state
   if (loading || isRedirecting) {
@@ -228,8 +224,6 @@ export default function LandingPage() {
                 ))}
             </motion.div>
 
-
-
             {/* Community Projects Card */}
             <CommunityProjectsSection delay={0.6} />
           </div>
@@ -297,5 +291,20 @@ function AuthPromptModal({ onClose }: {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LandingPageContent />
+    </Suspense>
   );
 }
