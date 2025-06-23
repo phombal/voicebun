@@ -57,6 +57,32 @@ const clearSafariAuthState = () => {
   }
 }
 
+// Safari-specific URL fragment detection
+const checkSafariUrlForAuth = () => {
+  if (typeof window === 'undefined' || !isSafari()) return false
+  
+  const hash = window.location.hash
+  const search = window.location.search
+  
+  console.log('🍎 Checking Safari URL for auth tokens:', { hash: !!hash, search: !!search })
+  
+  // Check for OAuth tokens in URL
+  const hasAccessToken = hash.includes('access_token=') || search.includes('access_token=')
+  const hasError = hash.includes('error=') || search.includes('error=')
+  
+  if (hasAccessToken) {
+    console.log('🍎 Safari: Found access token in URL')
+    return true
+  }
+  
+  if (hasError) {
+    console.log('🍎 Safari: Found auth error in URL')
+    return false
+  }
+  
+  return false
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -72,15 +98,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const recentAuthEventRef = useRef<string | null>(null)
   const safariPollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const lastAuthCheckRef = useRef<number>(0)
+  const safariUrlCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const storageListenerSetupRef = useRef(false)
   const safariMaxRetries = 3
 
   const signOut = async () => {
     console.log('Signing out user')
     
-    // Clear Safari polling
+    // Clear Safari polling and URL checking
     if (safariPollingIntervalRef.current) {
       clearInterval(safariPollingIntervalRef.current)
       safariPollingIntervalRef.current = null
+    }
+    
+    if (safariUrlCheckIntervalRef.current) {
+      clearInterval(safariUrlCheckIntervalRef.current)
+      safariUrlCheckIntervalRef.current = null
     }
     
     // Clear Safari-specific state before signing out
@@ -116,6 +149,99 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Safari-specific URL fragment monitoring
+  const startSafariUrlMonitoring = () => {
+    if (!isSafari() || safariUrlCheckIntervalRef.current) return
+    
+    console.log('🍎 Starting Safari URL monitoring for auth tokens...')
+    
+    // Check immediately
+    if (checkSafariUrlForAuth()) {
+      console.log('🍎 Found auth tokens in URL, triggering session check')
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          forceRefreshAuthState()
+        }
+      }, 100)
+    }
+    
+    // Monitor URL changes
+    safariUrlCheckIntervalRef.current = setInterval(() => {
+      if (!isMountedRef.current || hasInitializedRef.current) {
+        console.log('🍎 Stopping Safari URL monitoring - initialized or unmounted')
+        if (safariUrlCheckIntervalRef.current) {
+          clearInterval(safariUrlCheckIntervalRef.current)
+          safariUrlCheckIntervalRef.current = null
+        }
+        return
+      }
+      
+      if (checkSafariUrlForAuth()) {
+        console.log('🍎 Safari URL monitoring: Found auth tokens, checking session')
+        forceRefreshAuthState()
+        
+        // Stop monitoring once we find tokens
+        if (safariUrlCheckIntervalRef.current) {
+          clearInterval(safariUrlCheckIntervalRef.current)
+          safariUrlCheckIntervalRef.current = null
+        }
+      }
+    }, 200) // Check every 200ms for URL changes
+    
+    // Stop monitoring after 30 seconds
+    setTimeout(() => {
+      if (safariUrlCheckIntervalRef.current) {
+        console.log('🍎 Safari URL monitoring timeout - stopping')
+        clearInterval(safariUrlCheckIntervalRef.current)
+        safariUrlCheckIntervalRef.current = null
+      }
+    }, 30000)
+  }
+
+  // Safari-specific localStorage monitoring
+  const setupSafariStorageListener = () => {
+    if (!isSafari() || storageListenerSetupRef.current) return
+    
+    console.log('🍎 Setting up Safari storage listener...')
+    storageListenerSetupRef.current = true
+    
+    const handleStorageChange = (e: StorageEvent) => {
+      if (!isMountedRef.current || hasInitializedRef.current) return
+      
+      console.log('🍎 Safari storage change detected:', e.key)
+      
+      if (e.key && e.key.includes('sb-') && e.newValue) {
+        console.log('🍎 Safari: Supabase auth storage updated, checking session')
+        setTimeout(() => {
+          if (isMountedRef.current && !hasInitializedRef.current) {
+            forceRefreshAuthState()
+          }
+        }, 500)
+      }
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also listen for localStorage changes within the same window/tab
+    const originalSetItem = localStorage.setItem
+    localStorage.setItem = function(key: string, value: string) {
+      originalSetItem.call(this, key, value)
+      if (key.includes('sb-') && !hasInitializedRef.current) {
+        console.log('🍎 Safari: Direct localStorage update detected for', key)
+        setTimeout(() => {
+          if (isMountedRef.current && !hasInitializedRef.current) {
+            forceRefreshAuthState()
+          }
+        }, 100)
+      }
+    }
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      localStorage.setItem = originalSetItem
+    }
+  }
+
   // Safari-specific polling mechanism to check auth state
   const startSafariAuthPolling = () => {
     if (!isSafari() || safariPollingIntervalRef.current) return
@@ -133,7 +259,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       try {
         const now = Date.now()
-        if (now - lastAuthCheckRef.current < 500) return // Rate limit checks
+        if (now - lastAuthCheckRef.current < 300) return // Rate limit checks
         lastAuthCheckRef.current = now
         
         console.log('🍎 Safari polling: Checking auth state...')
@@ -152,9 +278,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.log('🍎 Safari polling: Exception -', err)
       }
-    }, 500) // Check every 500ms
+    }, 300) // Check every 300ms (more aggressive)
     
-    // Stop polling after 10 seconds
+    // Stop polling after 15 seconds
     setTimeout(() => {
       if (safariPollingIntervalRef.current) {
         console.log('🍎 Safari polling timeout - stopping')
@@ -167,7 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           handleAuthStateUpdate(null, 'safari-polling-timeout')
         }
       }
-    }, 10000)
+    }, 15000)
   }
 
   // Helper function to handle auth state update
@@ -206,11 +332,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hasInitializedRef.current = true
     safariRetryCountRef.current = 0 // Reset retry count on successful update
     
-    // Stop Safari polling if running
+    // Stop Safari polling and URL monitoring if running
     if (safariPollingIntervalRef.current) {
       console.log('✅ Stopping Safari polling - auth state resolved')
       clearInterval(safariPollingIntervalRef.current)
       safariPollingIntervalRef.current = null
+    }
+    
+    if (safariUrlCheckIntervalRef.current) {
+      console.log('✅ Stopping Safari URL monitoring - auth state resolved')
+      clearInterval(safariUrlCheckIntervalRef.current)
+      safariUrlCheckIntervalRef.current = null
     }
     
     // Clear the timeout since we've successfully loaded
@@ -237,7 +369,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     // Don't force refresh if we just had a recent auth event
-    if (recentAuthEventRef.current && Date.now() - new Date().getTime() < 2000) {
+    if (recentAuthEventRef.current && Date.now() - new Date().getTime() < 1000) {
       console.log('🔄 Skipping force refresh - recent auth event:', recentAuthEventRef.current)
       return
     }
@@ -245,7 +377,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔄 Force refreshing auth state...')
       
-      // Safari-specific: Clear potentially corrupted state first
+      // Safari-specific: Clear potentially corrupted state first (but only on retries)
       if (isSafari() && safariRetryCountRef.current > 0) {
         console.log('🍎 Safari detected, clearing potentially corrupted auth state')
         clearSafariAuthState()
@@ -305,6 +437,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     console.log('🍎 Safari detected, initializing with special handling')
     
+    // Start URL monitoring immediately
+    startSafariUrlMonitoring()
+    
+    // Setup storage listener
+    setupSafariStorageListener()
+    
     // Check if we're in a potentially corrupted state
     const hasCorruptedState = (() => {
       try {
@@ -322,8 +460,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })()
     
-    // Only clear if we don't have recent auth activity
-    if (hasCorruptedState && !isActivelyAuthenticatingRef.current) {
+    // Only clear if we don't have recent auth activity and no tokens in URL
+    if (hasCorruptedState && !isActivelyAuthenticatingRef.current && !checkSafariUrlForAuth()) {
       console.log('🍎 Safari corrupted state detected, clearing...')
       clearSafariAuthState()
       await new Promise(resolve => setTimeout(resolve, 200))
@@ -335,8 +473,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Safari-specific timeout (shorter for Safari, but longer if actively authenticating)
     const getTimeoutDuration = () => {
-      if (isActivelyAuthenticatingRef.current) return 8000 // Longer timeout during auth
-      return isSafari() ? 3000 : 2500 // Longer for Safari to account for login flows
+      if (isActivelyAuthenticatingRef.current) return 10000 // Longer timeout during auth
+      return isSafari() ? 4000 : 2500 // Longer for Safari to account for OAuth flows
     }
     
     const timeoutDuration = getTimeoutDuration()
@@ -466,7 +604,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           forceRefreshAuthState()
         }
       }
-    }, isSafari() ? 1500 : 1500) // Same delay for both
+    }, isSafari() ? 2000 : 1500) // Longer delay for Safari
 
     // Safari-specific: Additional aggressive fallback (only if not actively authenticating)
     let safariAggressiveFallback: NodeJS.Timeout | null = null
@@ -480,7 +618,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           handleAuthStateUpdate(null, 'safari-aggressive-fallback')
         }
-      }, 6000) // Increased to 6 seconds to allow for login flows
+      }, 8000) // Increased to 8 seconds to allow for OAuth flows
     }
 
     // Cleanup function
@@ -489,6 +627,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMountedRef.current = false
       hasInitializedRef.current = false
       authListenerSetupRef.current = false
+      storageListenerSetupRef.current = false
       safariRetryCountRef.current = 0
       isActivelyAuthenticatingRef.current = false
       recentAuthEventRef.current = null
@@ -496,6 +635,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (safariPollingIntervalRef.current) {
         clearInterval(safariPollingIntervalRef.current)
         safariPollingIntervalRef.current = null
+      }
+      
+      if (safariUrlCheckIntervalRef.current) {
+        clearInterval(safariUrlCheckIntervalRef.current)
+        safariUrlCheckIntervalRef.current = null
       }
       
       if (loadingTimeoutRef.current) {
