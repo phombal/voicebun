@@ -124,13 +124,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     console.log('🔍 checkOAuthCompletion: Starting OAuth completion check', {
       url: window.location.href,
-      isSafariBrowser: isSafari()
+      isSafariBrowser: isSafari(),
+      environment: process.env.NODE_ENV,
+      isProduction: process.env.NODE_ENV === 'production'
     })
     
     // For all browsers, check for PKCE code in URL first (from server redirect)
     try {
       console.log('🔄 checkOAuthCompletion: Attempting PKCE handling...')
-      const pkceResult = await handleSafariPKCE() // This function works for all browsers, not just Safari
+      
+      // Add timeout for PKCE handling in production
+      const pkcePromise = handleSafariPKCE()
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const timeout = process.env.NODE_ENV === 'production' ? 3000 : 5000
+        setTimeout(() => reject(new Error('PKCE timeout')), timeout)
+      })
+      
+      const pkceResult = await Promise.race([pkcePromise, timeoutPromise])
       
       console.log('📝 PKCE result:', {
         hasResult: !!pkceResult,
@@ -159,7 +169,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const accessToken = getCookie('sb-access-token')
     const refreshToken = getCookie('sb-refresh-token')
     
-    console.log('🍪 Cookie-based auth check:', { authComplete: !!authComplete, accessToken: !!accessToken, refreshToken: !!refreshToken })
+    console.log('🍪 Cookie-based auth check:', { 
+      authComplete: !!authComplete, 
+      accessToken: !!accessToken, 
+      refreshToken: !!refreshToken,
+      environment: process.env.NODE_ENV
+    })
     
     if (authComplete && accessToken) {
       console.log('🍪 OAuth completion detected, setting session from cookies')
@@ -179,7 +194,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         console.log('🔧 Setting session from OAuth cookies...')
-        const { data, error } = await supabase.auth.setSession(sessionData)
+        
+        // Add timeout for session setting in production
+        const sessionPromise = supabase.auth.setSession(sessionData)
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          const timeout = process.env.NODE_ENV === 'production' ? 2000 : 3000
+          setTimeout(() => reject(new Error('Session timeout')), timeout)
+        })
+        
+        const { data, error } = await Promise.race([sessionPromise, timeoutPromise])
         
         console.log('📝 setSession result:', {
           hasData: !!data,
@@ -275,31 +298,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Main auth initialization useEffect
   useEffect(() => {
-    console.log('🚀 Auth context mounting...')
+    console.log('🚀 Auth context mounting...', {
+      environment: process.env.NODE_ENV,
+      isProduction: process.env.NODE_ENV === 'production',
+      isSafari: isSafari(),
+      url: typeof window !== 'undefined' ? window.location.href : 'server'
+    })
     
     // Timeout to prevent infinite loading for Safari
     if (isSafari()) {
       console.log('🍎 Safari detected - setting timeout for auth initialization')
+      // Use shorter timeout in production for Safari
+      const safariTimeout = process.env.NODE_ENV === 'production' ? 1500 : 2000
+      console.log(`🍎 Safari timeout set to ${safariTimeout}ms`)
+      
       timeoutRef.current = setTimeout(() => {
         if (loading && !hasInitializedRef.current && isMountedRef.current) {
           console.log('⏰ Safari auth timeout - forcing completion')
+          console.log('🔍 Safari timeout state:', {
+            loading,
+            hasInitialized: hasInitializedRef.current,
+            isMounted: isMountedRef.current,
+            environment: process.env.NODE_ENV
+          })
           hasInitializedRef.current = true
           setLoading(false)
           setUser(null)
           setSession(null)
         }
-      }, 2000) // 2 second timeout for Safari
+      }, safariTimeout)
     } else {
-      // For other browsers, use a longer timeout
+      // For other browsers, use a longer timeout but shorter in production
+      const standardTimeout = process.env.NODE_ENV === 'production' ? 3000 : 5000
+      console.log(`🌐 Standard browser timeout set to ${standardTimeout}ms`)
+      
       timeoutRef.current = setTimeout(() => {
         if (loading && !hasInitializedRef.current && isMountedRef.current) {
           console.log('⏰ Auth timeout - forcing completion')
+          console.log('🔍 Timeout state:', {
+            loading,
+            hasInitialized: hasInitializedRef.current,
+            isMounted: isMountedRef.current,
+            environment: process.env.NODE_ENV
+          })
           hasInitializedRef.current = true
           setLoading(false)
           setUser(null)
           setSession(null)
         }
-      }, 5000) // 5 second timeout for other browsers
+      }, standardTimeout)
     }
 
     const setupAuthListener = () => {

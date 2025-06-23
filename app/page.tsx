@@ -5,14 +5,22 @@ import CommunityProjectsSection from "@/components/CommunityProjectsSection";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { clientDb } from '@/lib/database/client-service';
+
+function isSafari() {
+  if (typeof window === 'undefined') return false
+  const userAgent = window.navigator.userAgent.toLowerCase()
+  return userAgent.includes('safari') && !userAgent.includes('chrome')
+}
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [prompt, setPrompt] = useState("");
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Get user plan data if authenticated (non-blocking)
   useEffect(() => {
@@ -26,6 +34,69 @@ export default function LandingPage() {
         .catch(err => console.warn('Failed to fetch user plan:', err));
     }
   }, [user, loading]);
+
+  // Handle OAuth completion from callback
+  useEffect(() => {
+    const code = searchParams?.get('code');
+    const error = searchParams?.get('error');
+    
+    console.log('🏠 Landing page OAuth check:', {
+      hasCode: !!code,
+      hasError: !!error,
+      hasUser: !!user,
+      loading,
+      isSafariBrowser: isSafari(),
+      environment: process.env.NODE_ENV,
+      url: window.location.href
+    });
+    
+    if (error) {
+      console.error('OAuth error on landing page:', error);
+      // Redirect to auth page with error
+      router.push(`/auth?error=${encodeURIComponent(error)}`);
+      return;
+    }
+    
+    // If we have a code, the AuthContext should handle it via checkOAuthCompletion
+    // Just wait for the user state to update
+    if (code) {
+      console.log('🔄 OAuth code detected, waiting for AuthContext to process...');
+    }
+  }, [searchParams, router]);
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      console.log('✅ User authenticated, redirecting to dashboard:', {
+        userId: user.id,
+        email: user.email,
+        isSafariBrowser: isSafari(),
+        environment: process.env.NODE_ENV
+      });
+      setIsRedirecting(true);
+      router.push('/dashboard');
+      return;
+    }
+
+    // Special handling for Safari - sometimes needs extra time in production
+    if (isSafari() && !user && !loading) {
+      console.log('🍎 Safari user without authentication detected');
+      
+      // In production, give Safari a bit more time to complete auth
+      if (process.env.NODE_ENV === 'production') {
+        console.log('🍎 Production Safari: Waiting additional time for auth completion...');
+        const safariTimeout = setTimeout(() => {
+          console.log('🍎 Safari production timeout completed, checking auth state:', {
+            hasUser: !!user,
+            loading,
+            url: window.location.href
+          });
+        }, 1000);
+        
+        return () => clearTimeout(safariTimeout);
+      }
+    }
+  }, [user, loading, router]);
 
   const handleSubmit = () => {
     if (!prompt.trim()) return;
@@ -57,46 +128,20 @@ export default function LandingPage() {
   // This prevents blocking the landing page for unauthenticated users
   const showLoadingIndicator = loading && user;
 
-  // Redirect authenticated users to dashboard (after OAuth completion)
-  useEffect(() => {
-    console.log('🔍 Landing page auth state check:', { 
-      loading, 
-      user: !!user, 
-      userId: user?.id,
-      isSafari: typeof window !== 'undefined' ? navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome') : false
-    });
-    
-    if (!loading && user) {
-      console.log('🎯 Authenticated user detected, redirecting to dashboard');
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
-
-  // Additional Safari-specific redirect check (Safari sometimes needs this)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const isSafariBrowser = navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome');
-      if (isSafariBrowser && user && !loading) {
-        console.log('🍎 Safari authenticated user redirect check');
-        // Force redirect for Safari
-        const redirectTimer = setTimeout(() => {
-          if (window.location.pathname === '/') {
-            console.log('🍎 Force Safari redirect to dashboard');
-            router.push('/dashboard');
-          }
-        }, 200);
-        
-        return () => clearTimeout(redirectTimer);
-      }
-    }
-  }, [user, loading, router]);
-
-  if (showLoadingIndicator) {
+  // Show loading state
+  if (loading || isRedirecting) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+          <p className="text-gray-600">
+            {isRedirecting 
+              ? 'Redirecting to dashboard...' 
+              : loading 
+                ? 'Loading your session...' 
+                : 'Preparing your experience...'
+            }
+          </p>
         </div>
       </div>
     );
