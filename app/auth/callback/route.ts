@@ -39,10 +39,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`/auth?error=${encodeURIComponent(error)}`, baseUrl))
   }
 
-  // Handle PKCE flow - Safari-specific handling
+  // For Safari, let client-side handle PKCE to avoid conflicts
+  if (code && isSafari) {
+    console.log('🍎 Safari PKCE code - redirecting to client-side handling')
+    // Redirect to home page with the code intact for client-side processing
+    return NextResponse.redirect(new URL(`/?code=${code}`, baseUrl))
+  }
+
+  // For non-Safari browsers, handle PKCE on server-side
   if (code) {
     try {
-      console.log(`🔄 Processing PKCE code for ${isSafari ? 'Safari' : 'standard browser'}`)
+      console.log('🔄 Processing PKCE code on server-side for standard browser')
       
       // Create a server-side Supabase client
       const supabase = createClient(
@@ -68,16 +75,12 @@ export async function GET(request: NextRequest) {
       if (data.session) {
         console.log('✅ OAuth callback successful - session acquired')
         
-        // For Safari, redirect to home page instead of dashboard to let client handle PKCE
-        const redirectUrl = isSafari ? '/' : '/'
-        console.log(`🔗 Redirecting ${isSafari ? 'Safari' : 'standard browser'} to:`, redirectUrl)
+        // Create response with redirect to home page
+        const response = NextResponse.redirect(new URL('/', baseUrl))
         
-        // Create response with redirect
-        const response = NextResponse.redirect(new URL(redirectUrl, baseUrl))
-        
-        // For Safari compatibility, set session data in cookies that client can read
+        // Set session data in cookies for client-side pickup
         if (data.session.access_token) {
-          console.log('🍪 Setting Safari-compatible session cookies')
+          console.log('🍪 Setting session cookies for client-side pickup')
           
           // Set secure cookies for session data (httpOnly=false so client can read them)
           response.cookies.set('sb-access-token', data.session.access_token, {

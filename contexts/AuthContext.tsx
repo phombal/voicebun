@@ -97,35 +97,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, 50) // Reduced debounce time for faster response
   }, [])
 
-  // Check for Safari OAuth completion via PKCE code or cookies
-  const checkSafariOAuthCompletion = useCallback(async () => {
+  // Check for OAuth completion via PKCE code (Safari) or cookies (all browsers)
+  const checkOAuthCompletion = useCallback(async () => {
     if (typeof window === 'undefined') return false
     
-    // First check for PKCE code in URL using the dedicated helper
-    try {
-      const pkceResult = await handleSafariPKCE()
-      if (pkceResult && pkceResult.session) {
-        console.log('✅ Safari PKCE authentication successful')
-        debouncedUpdateAuth(pkceResult.session, 'safari-pkce-code')
-        return true
-      } else if (pkceResult && pkceResult.error) {
-        console.error('❌ Safari PKCE authentication failed:', pkceResult.error)
+    // For Safari, check for PKCE code in URL (from server redirect)
+    if (isSafari()) {
+      try {
+        const pkceResult = await handleSafariPKCE()
+        if (pkceResult && pkceResult.session) {
+          console.log('✅ Safari PKCE authentication successful')
+          debouncedUpdateAuth(pkceResult.session, 'safari-pkce-code')
+          return true
+        } else if (pkceResult && pkceResult.error) {
+          console.error('❌ Safari PKCE authentication failed:', pkceResult.error)
+          // Continue to cookie check as fallback
+        }
+      } catch (error) {
+        console.error('❌ Safari PKCE handling exception:', error)
         // Continue to cookie check as fallback
       }
-    } catch (error) {
-      console.error('❌ Safari PKCE handling exception:', error)
-      // Continue to cookie check as fallback
     }
     
-    // Fallback: check for cookie-based completion
+    // For all browsers, check for cookie-based completion (from server-side exchange)
     const authComplete = getCookie('sb-auth-complete')
     const accessToken = getCookie('sb-access-token')
     const refreshToken = getCookie('sb-refresh-token')
     
-    console.log('🍪 Safari cookie check:', { authComplete: !!authComplete, accessToken: !!accessToken, refreshToken: !!refreshToken })
+    console.log('🍪 Cookie-based auth check:', { authComplete: !!authComplete, accessToken: !!accessToken, refreshToken: !!refreshToken })
     
     if (authComplete && accessToken) {
-      console.log('🍪 Safari OAuth completion detected, setting session from cookies')
+      console.log('🍪 OAuth completion detected, setting session from cookies')
       
       try {
         // Clean up the completion flag immediately
@@ -141,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user: null as any // Will be populated by setSession
         }
         
-        console.log('🔧 Setting session from Safari cookies...')
+        console.log('🔧 Setting session from OAuth cookies...')
         const { data, error } = await supabase.auth.setSession(sessionData)
         
         if (error) {
@@ -153,8 +155,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         if (data.session && data.user) {
-          console.log('✅ Session set successfully from Safari OAuth cookies')
-          debouncedUpdateAuth(data.session, 'safari-oauth-cookies')
+          console.log('✅ Session set successfully from OAuth cookies')
+          debouncedUpdateAuth(data.session, 'oauth-cookies')
           
           // Clean up cookies after successful session restoration
           deleteCookie('sb-access-token')
@@ -342,10 +344,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log('🔍 Getting initial session...')
         
-        // First check for Safari OAuth completion
-        const safariOAuthHandled = await checkSafariOAuthCompletion()
-        if (safariOAuthHandled) {
-          return // Session was set from cookies, no need to continue
+        // First check for OAuth completion (PKCE for Safari, cookies for all)
+        const oauthHandled = await checkOAuthCompletion()
+        if (oauthHandled) {
+          console.log('✅ OAuth completion handled successfully')
+          return // Session was set, no need to continue
         }
         
         const { session, error } = await auth.getSession()
@@ -387,7 +390,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Check for any pending OAuth completion (PKCE or cookies)
         try {
           console.log('🔍 Safari checking for OAuth completion...')
-          const oauthHandled = await checkSafariOAuthCompletion()
+          const oauthHandled = await checkOAuthCompletion()
           if (oauthHandled) {
             console.log('✅ Safari OAuth completion handled successfully')
             return
@@ -431,7 +434,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authListenerRef.current = null
       }
     }
-  }, [debouncedUpdateAuth, checkSafariOAuthCompletion])
+  }, [debouncedUpdateAuth, checkOAuthCompletion])
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>
