@@ -70,10 +70,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const safariRetryCountRef = useRef(0)
   const isActivelyAuthenticatingRef = useRef(false)
   const recentAuthEventRef = useRef<string | null>(null)
+  const safariPollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const lastAuthCheckRef = useRef<number>(0)
   const safariMaxRetries = 3
 
   const signOut = async () => {
     console.log('Signing out user')
+    
+    // Clear Safari polling
+    if (safariPollingIntervalRef.current) {
+      clearInterval(safariPollingIntervalRef.current)
+      safariPollingIntervalRef.current = null
+    }
     
     // Clear Safari-specific state before signing out
     if (isSafari()) {
@@ -90,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Helper function to safely update state only if component is mounted
   const safeSetState = (userVal: User | null, sessionVal: Session | null, loadingVal: boolean) => {
     if (isMountedRef.current) {
-      console.log(`🔄 Setting auth state: user=${userVal ? 'present' : 'null'}, loading=${loadingVal}`)
+      console.log(`🔄 Setting auth state: user=${userVal ? 'present' : 'null'}, loading=${loadingVal}, source=safeSetState`)
       setUser(userVal)
       setSession(sessionVal)
       setLoading(loadingVal)
@@ -106,6 +114,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('❌ Failed to ensure user plan:', error)
     }
+  }
+
+  // Safari-specific polling mechanism to check auth state
+  const startSafariAuthPolling = () => {
+    if (!isSafari() || safariPollingIntervalRef.current) return
+    
+    console.log('🍎 Starting Safari auth polling...')
+    safariPollingIntervalRef.current = setInterval(async () => {
+      if (!isMountedRef.current || hasInitializedRef.current) {
+        console.log('🍎 Stopping Safari polling - initialized or unmounted')
+        if (safariPollingIntervalRef.current) {
+          clearInterval(safariPollingIntervalRef.current)
+          safariPollingIntervalRef.current = null
+        }
+        return
+      }
+      
+      try {
+        const now = Date.now()
+        if (now - lastAuthCheckRef.current < 500) return // Rate limit checks
+        lastAuthCheckRef.current = now
+        
+        console.log('🍎 Safari polling: Checking auth state...')
+        const { session, error } = await auth.getSession()
+        
+        if (session && session.user) {
+          console.log('🍎 Safari polling: Found authenticated session!')
+          handleAuthStateUpdate(session, 'safari-polling')
+          if (safariPollingIntervalRef.current) {
+            clearInterval(safariPollingIntervalRef.current)
+            safariPollingIntervalRef.current = null
+          }
+        } else if (error) {
+          console.log('🍎 Safari polling: Error -', error.message)
+        }
+      } catch (err) {
+        console.log('🍎 Safari polling: Exception -', err)
+      }
+    }, 500) // Check every 500ms
+    
+    // Stop polling after 10 seconds
+    setTimeout(() => {
+      if (safariPollingIntervalRef.current) {
+        console.log('🍎 Safari polling timeout - stopping')
+        clearInterval(safariPollingIntervalRef.current)
+        safariPollingIntervalRef.current = null
+        
+        // If still loading after polling timeout, force resolution
+        if (isMountedRef.current && loading && !hasInitializedRef.current) {
+          console.log('🍎 Safari polling failed - forcing resolution')
+          handleAuthStateUpdate(null, 'safari-polling-timeout')
+        }
+      }
+    }, 10000)
   }
 
   // Helper function to handle auth state update
@@ -133,7 +195,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isActivelyAuthenticatingRef.current = true
       // Clear this flag after a delay to allow for normal flow
       setTimeout(() => {
-        isActivelyAuthenticatingRef.current = false
+        if (isMountedRef.current) {
+          isActivelyAuthenticatingRef.current = false
+        }
       }, 5000)
     }
     
@@ -141,6 +205,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     safeSetState(currentUser, currentSession, false)
     hasInitializedRef.current = true
     safariRetryCountRef.current = 0 // Reset retry count on successful update
+    
+    // Stop Safari polling if running
+    if (safariPollingIntervalRef.current) {
+      console.log('✅ Stopping Safari polling - auth state resolved')
+      clearInterval(safariPollingIntervalRef.current)
+      safariPollingIntervalRef.current = null
+    }
     
     // Clear the timeout since we've successfully loaded
     if (loadingTimeoutRef.current) {
@@ -264,8 +335,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Safari-specific timeout (shorter for Safari, but longer if actively authenticating)
     const getTimeoutDuration = () => {
-      if (isActivelyAuthenticatingRef.current) return 5000 // Longer timeout during auth
-      return isSafari() ? 2000 : 2500 // Slightly longer for Safari to account for login flows
+      if (isActivelyAuthenticatingRef.current) return 8000 // Longer timeout during auth
+      return isSafari() ? 3000 : 2500 // Longer for Safari to account for login flows
     }
     
     const timeoutDuration = getTimeoutDuration()
@@ -290,6 +361,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error('❌ Error getting initial session:', error)
           
+          // Start Safari polling if initial session fails
+          if (isSafari()) {
+            console.log('🍎 Starting Safari polling due to initial session error')
+            startSafariAuthPolling()
+          }
+          
           // Safari-specific error handling (only if not actively authenticating)
           if (isSafari() && safariRetryCountRef.current < safariMaxRetries && !isActivelyAuthenticatingRef.current) {
             safariRetryCountRef.current++
@@ -306,10 +383,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           handleAuthStateUpdate(null, 'initial-session-error')
         } else {
           console.log('✅ Initial session result:', session ? 'found' : 'not found')
+          
+          // Start Safari polling if no session found but we're in Safari
+          if (isSafari() && !session) {
+            console.log('🍎 Starting Safari polling - no initial session found')
+            startSafariAuthPolling()
+          }
+          
           handleAuthStateUpdate(session, 'initial-session')
         }
       } catch (err) {
         console.error('❌ Exception getting initial session:', err)
+        
+        // Start Safari polling on exception
+        if (isSafari()) {
+          console.log('🍎 Starting Safari polling due to initial session exception')
+          startSafariAuthPolling()
+        }
+        
         if (isMountedRef.current) {
           handleAuthStateUpdate(null, 'initial-session-exception')
         }
@@ -340,10 +431,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Mark as actively authenticating for login events
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('🔐 Marking as actively authenticating due to:', event)
           isActivelyAuthenticatingRef.current = true
           // Clear this flag after allowing time for the auth flow to complete
           setTimeout(() => {
-            isActivelyAuthenticatingRef.current = false
+            if (isMountedRef.current) {
+              console.log('🔐 Clearing actively authenticating flag')
+              isActivelyAuthenticatingRef.current = false
+            }
           }, 3000)
         }
         
@@ -362,9 +457,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fallbackTimeout = setTimeout(() => {
       if (isMountedRef.current && loading && !hasInitializedRef.current && !isActivelyAuthenticatingRef.current) {
         console.log('🔄 Fallback: Checking auth state again...')
-        forceRefreshAuthState()
+        
+        // Start Safari polling if we're still loading
+        if (isSafari()) {
+          console.log('🍎 Starting Safari polling from fallback')
+          startSafariAuthPolling()
+        } else {
+          forceRefreshAuthState()
+        }
       }
-    }, isSafari() ? 1200 : 1500) // Slightly longer delay for Safari
+    }, isSafari() ? 1500 : 1500) // Same delay for both
 
     // Safari-specific: Additional aggressive fallback (only if not actively authenticating)
     let safariAggressiveFallback: NodeJS.Timeout | null = null
@@ -378,7 +480,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           handleAuthStateUpdate(null, 'safari-aggressive-fallback')
         }
-      }, 4000) // Increased to 4 seconds to allow for login flows
+      }, 6000) // Increased to 6 seconds to allow for login flows
     }
 
     // Cleanup function
@@ -390,6 +492,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       safariRetryCountRef.current = 0
       isActivelyAuthenticatingRef.current = false
       recentAuthEventRef.current = null
+      
+      if (safariPollingIntervalRef.current) {
+        clearInterval(safariPollingIntervalRef.current)
+        safariPollingIntervalRef.current = null
+      }
       
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
