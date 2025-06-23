@@ -1,5 +1,7 @@
 # 🎙️ VoiceBun
 
+![VoiceBun Logo](https://raw.githubusercontent.com/yourusername/voicebun/main/public/logo.png)
+
 **Give your idea a voice** - Create production-ready voice agents in seconds.
 
 VoiceBun is an open-source platform that lets you build, deploy, and manage AI-powered voice agents with just a simple description. From customer service representatives to language tutors, create any voice agent you can imagine.
@@ -201,8 +203,7 @@ If you discover a security vulnerability, please send an email to founders@voice
 Need help? Here's how to get support:
 
 1. **Documentation**: Check our [docs](docs/) first
-2. **GitHub Issues**: [Create an issue](https://github.com/yourusername/voicebun/issues)
-3. **Discord**: Join our [community Discord](https://discord.gg/voicebun)
+2. **GitHub Issues**: [Create an issue](https://github.com/phombal/voicebun/issues)
 4. **Email**: Contact us at support@voicebun.com
 
 ---
