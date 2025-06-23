@@ -164,7 +164,7 @@ export default function LandingPage() {
               transition={{ delay: 0.2 }}
               className="text-lg sm:text-xl text-white/80 mb-8 sm:mb-12 max-w-3xl mx-auto px-4"
             >
-              Create and share voice agents by chatting with AI
+              Create production-ready voice agents in seconds
             </motion.p>
 
             <motion.div
