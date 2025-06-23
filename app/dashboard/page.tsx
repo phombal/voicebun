@@ -603,7 +603,7 @@ if __name__ == "__main__":
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6"
+            className="text-5xl md:text-6xl lg:text-7xl text-white mb-6"
             style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
           >
             Give your idea a voice

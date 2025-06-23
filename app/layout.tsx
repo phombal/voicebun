@@ -1,11 +1,16 @@
 import "@livekit/components-styles";
 import { Metadata } from "next";
-import { Public_Sans } from "next/font/google";
+import { Public_Sans, Righteous } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const publicSans400 = Public_Sans({
+  weight: "400",
+  subsets: ["latin"],
+});
+
+export const righteous = Righteous({
   weight: "400",
   subsets: ["latin"],
 });
