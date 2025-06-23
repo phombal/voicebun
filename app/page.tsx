@@ -59,9 +59,21 @@ export default function LandingPage() {
 
   // Redirect authenticated users to dashboard (after OAuth completion)
   useEffect(() => {
+    console.log('🔍 Landing page auth state check:', { 
+      loading, 
+      user: !!user, 
+      userId: user?.id,
+      userAgent: typeof window !== 'undefined' ? navigator.userAgent.includes('Safari') : 'unknown'
+    });
+    
     if (!loading && user) {
       console.log('🎯 Authenticated user detected, redirecting to dashboard');
-      router.push('/dashboard');
+      // Add a small delay for Safari to ensure everything is properly set
+      const timeoutId = setTimeout(() => {
+        router.push('/dashboard');
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [user, loading, router]);
 

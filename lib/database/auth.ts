@@ -134,7 +134,7 @@ export const supabase = new Proxy({} as ReturnType<typeof createClient<Database>
   }
 })
 
-// Helper function to handle PKCE code exchange specifically for Safari
+// Helper function to handle PKCE code exchange for all browsers
 export const handleSafariPKCE = async () => {
   if (typeof window === 'undefined') return null
   
@@ -146,8 +146,8 @@ export const handleSafariPKCE = async () => {
   console.log('🔗 PKCE code detected in URL:', code.substring(0, 10) + '...')
   
   try {
-    // Get the Safari client directly for PKCE exchange
-    const client = createSafariClient()
+    // Use the appropriate client for the current browser
+    const client = getSupabaseClient()
     console.log('🔄 Exchanging PKCE code for session...')
     
     const { data, error } = await client.auth.exchangeCodeForSession(code)

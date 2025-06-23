@@ -70,7 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     debounceRef.current = setTimeout(() => {
       if (!isMountedRef.current) return
       
-      console.log(`🔄 Auth update from ${source}:`, newSession ? 'session found' : 'no session')
+      console.log(`🔄 Auth update from ${source}:`, {
+        hasSession: !!newSession,
+        userId: newSession?.user?.id,
+        isSafariBrowser: isSafari()
+      })
       
       setSession(newSession)
       setUser(newSession?.user || null)
