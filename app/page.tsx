@@ -57,6 +57,14 @@ export default function LandingPage() {
   // This prevents blocking the landing page for unauthenticated users
   const showLoadingIndicator = loading && user;
 
+  // Redirect authenticated users to dashboard (after OAuth completion)
+  useEffect(() => {
+    if (!loading && user) {
+      console.log('🎯 Authenticated user detected, redirecting to dashboard');
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
+
   if (showLoadingIndicator) {
     return (
       <div className="min-h-screen flex items-center justify-center">
