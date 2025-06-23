@@ -21,8 +21,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Use refs to track component mount state and prevent race conditions
   const isMountedRef = useRef(true)
-  const initialLoadCompleteRef = useRef(false)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasInitializedRef = useRef(false)
 
   const signOut = async () => {
     console.log('Signing out user')
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Helper function to ensure user plan exists
+  // Helper function to ensure user plan exists (non-blocking)
   const ensureUserPlan = async (userId: string) => {
     try {
       console.log('🔄 Ensuring user plan exists for:', userId)
@@ -53,16 +53,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Helper function to handle auth state update
+  const handleAuthStateUpdate = (currentSession: Session | null, source: string) => {
+    if (!isMountedRef.current) return
+    
+    const currentUser = currentSession?.user ?? null
+    console.log(`🔄 Auth state update from ${source}:`, currentUser ? 'user found' : 'no user')
+    
+    // Update state and mark as no longer loading
+    safeSetState(currentUser, currentSession, false)
+    hasInitializedRef.current = true
+    
+    // Clear the timeout since we've successfully loaded
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current)
+      loadingTimeoutRef.current = null
+    }
+    
+    // Ensure user plan exists for authenticated users (non-blocking)
+    if (currentUser) {
+      ensureUserPlan(currentUser.id)
+    }
+  }
+
   useEffect(() => {
     isMountedRef.current = true
     
-    // Set a timeout to prevent infinite loading (fallback safety mechanism)
+    // Set a shorter timeout to prevent stuck loading (reduced from 10s to 3s)
     loadingTimeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current && loading) {
+      if (isMountedRef.current && loading && !hasInitializedRef.current) {
         console.warn('⚠️ Loading timeout reached, forcing loading to false')
-        setLoading(false)
+        safeSetState(null, null, false)
+        hasInitializedRef.current = true
       }
-    }, 10000) // 10 second timeout
+    }, 3000) // 3 second timeout
 
     // Get initial session
     const getInitialSession = async () => {
@@ -74,66 +98,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (error) {
           console.error('Error getting initial session:', error)
-          safeSetState(null, null, false)
+          handleAuthStateUpdate(null, 'initial-session-error')
         } else {
           console.log('Initial session:', session ? 'found' : 'not found')
-          const currentUser = session?.user ?? null
-          
-          // Update state immediately
-          safeSetState(currentUser, session, false)
-          initialLoadCompleteRef.current = true
-          
-          // Ensure user plan exists for authenticated users (don't wait for this)
-          if (currentUser) {
-            ensureUserPlan(currentUser.id)
-          }
+          handleAuthStateUpdate(session, 'initial-session')
         }
       } catch (err) {
         console.error('Exception getting initial session:', err)
         if (isMountedRef.current) {
-          safeSetState(null, null, false)
-          initialLoadCompleteRef.current = true
+          handleAuthStateUpdate(null, 'initial-session-exception')
         }
       }
     }
 
-    getInitialSession()
-
-    // Listen for auth changes
+    // Listen for auth changes FIRST (before getting initial session)
     const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
       if (!isMountedRef.current) return
       
       console.log('Auth state change:', event, session ? 'session exists' : 'no session')
-      
-      const currentUser = session?.user ?? null
-      
-      // Only set loading to false after initial load is complete to prevent race condition
-      const shouldStillLoad = !initialLoadCompleteRef.current
-      safeSetState(currentUser, session, shouldStillLoad)
-      
-      // Mark initial load as complete after first auth state change
-      if (!initialLoadCompleteRef.current) {
-        initialLoadCompleteRef.current = true
-        // Ensure loading is false after initial state is set
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            setLoading(false)
-          }
-        }, 0)
-      }
-      
-      // Create user plan if user is authenticated and doesn't have one
-      if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        // Don't await this to prevent blocking the auth flow
-        ensureUserPlan(currentUser.id)
-      }
+      handleAuthStateUpdate(session, `auth-change-${event}`)
     })
+
+    // Get initial session after setting up the listener
+    getInitialSession()
 
     // Cleanup function
     return () => {
       console.log('Cleaning up AuthProvider')
       isMountedRef.current = false
-      initialLoadCompleteRef.current = false
+      hasInitializedRef.current = false
       
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
