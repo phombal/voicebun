@@ -63,8 +63,23 @@ function DashboardContent() {
 
   // Redirect unauthenticated users to landing
   useEffect(() => {
+    const isSafariBrowser = typeof window !== 'undefined' && 
+      navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome');
+    
     if (!loading && !user) {
+      console.log('🔄 Dashboard: No authenticated user, redirecting to landing page');
       router.push('/');
+    } else if (isSafariBrowser && loading) {
+      // Give Safari more time to load auth state
+      console.log('🍎 Safari detected on dashboard, waiting for auth...');
+      const safariTimeout = setTimeout(() => {
+        if (loading && !user) {
+          console.log('🍎 Safari auth timeout on dashboard, redirecting to home');
+          router.push('/');
+        }
+      }, 2000); // 2 second timeout for Safari
+      
+      return () => clearTimeout(safariTimeout);
     }
   }, [user, loading, router]);
 

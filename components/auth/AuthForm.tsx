@@ -23,62 +23,105 @@ export default function AuthForm({ mode, onSuccess, onModeChange }: AuthFormProp
   const [success, setSuccess] = useState('')
 
   const handleGoogleSignIn = async () => {
+    console.log('🚀 Google sign-in initiated')
+    console.log('🔍 Browser info:', {
+      userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'server',
+      isSafari: typeof window !== 'undefined' ? navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome') : false,
+      url: typeof window !== 'undefined' ? window.location.href : 'server'
+    })
+    
     setGoogleLoading(true)
     setError('')
     setSuccess('')
 
     try {
+      console.log('🔄 Calling auth.signInWithGoogle()...')
       const { error } = await auth.signInWithGoogle()
       
+      console.log('📝 Google sign-in response:', { hasError: !!error, errorMessage: error?.message })
+      
       if (error) {
+        console.error('❌ Google sign-in error:', error)
         setError(error.message)
+      } else {
+        console.log('✅ Google sign-in successful - user should be redirected by OAuth flow')
       }
       // Note: If successful, the user will be redirected by Google OAuth flow
     } catch (err: any) {
+      console.error('❌ Google sign-in exception:', err)
       setError(err.message || 'An error occurred with Google sign in')
     } finally {
+      console.log('🏁 Google sign-in process completed, setting loading to false')
       setGoogleLoading(false)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log(`🚀 ${mode} form submitted`)
+    console.log('🔍 Form data:', { 
+      email: formData.email, 
+      hasPassword: !!formData.password, 
+      hasFullName: !!formData.fullName 
+    })
+    
     setLoading(true)
     setError('')
     setSuccess('')
 
     try {
       if (mode === 'signup') {
+        console.log('🔄 Calling auth.signUp()...')
         const { data, error } = await auth.signUp(formData.email, formData.password, formData.fullName)
         
+        console.log('📝 Sign-up response:', { 
+          hasUser: !!data?.user, 
+          hasSession: !!data?.session, 
+          hasError: !!error,
+          errorMessage: error?.message 
+        })
+        
         if (error) {
+          console.error('❌ Sign-up error:', error)
           setError(error.message)
         } else if (data.user && !data.session) {
+          console.log('📧 Sign-up successful - email verification required')
           setSuccess('Account created successfully! Please check your email to verify your account.')
           setTimeout(() => {
+            console.log('🔄 Calling onSuccess after email verification message')
             onSuccess()
           }, 2000)
         } else {
+          console.log('✅ Sign-up successful with immediate session')
           setSuccess('Account created successfully!')
           setTimeout(() => {
+            console.log('🔄 Calling onSuccess after successful signup')
             onSuccess()
           }, 1000)
         }
       } else {
+        console.log('🔄 Calling auth.signIn()...')
         const { error } = await auth.signIn(formData.email, formData.password)
         
+        console.log('📝 Sign-in response:', { hasError: !!error, errorMessage: error?.message })
+        
         if (error) {
+          console.error('❌ Sign-in error:', error)
           setError(error.message)
         } else {
+          console.log('✅ Sign-in successful')
           setSuccess('Signed in successfully!')
           setTimeout(() => {
+            console.log('🔄 Calling onSuccess after successful signin')
             onSuccess()
           }, 1000)
         }
       }
     } catch (err: any) {
+      console.error(`❌ ${mode} exception:`, err)
       setError(err.message || 'An error occurred')
     } finally {
+      console.log(`🏁 ${mode} process completed, setting loading to false`)
       setLoading(false)
     }
   }

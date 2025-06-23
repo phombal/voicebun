@@ -63,12 +63,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Debounced auth state update to prevent rapid state changes
   const debouncedUpdateAuth = useCallback((newSession: Session | null, source: string) => {
+    console.log(`🔄 debouncedUpdateAuth called from ${source}:`, {
+      hasSession: !!newSession,
+      userId: newSession?.user?.id,
+      isSafariBrowser: isSafari(),
+      currentLoading: loading,
+      hasInitialized: hasInitializedRef.current
+    })
+    
     if (debounceRef.current) {
+      console.log('🧹 Clearing existing debounce timeout')
       clearTimeout(debounceRef.current)
     }
     
     debounceRef.current = setTimeout(() => {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current) {
+        console.log('⚠️ Component unmounted, skipping auth update')
+        return
+      }
       
       console.log(`🔄 Auth update from ${source}:`, {
         hasSession: !!newSession,
@@ -88,26 +100,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Clear timeout since we got a result
       if (timeoutRef.current) {
+        console.log('🧹 Clearing auth timeout since we got a result')
         clearTimeout(timeoutRef.current)
         timeoutRef.current = null
       }
       
       // Ensure user plan exists (non-blocking)
       if (newSession?.user?.id) {
+        console.log('👤 Ensuring user plan exists for:', newSession.user.id)
         clientDb.getUserPlan().catch(err => 
           console.warn('Failed to ensure user plan:', err)
         )
       }
     }, 50) // Reduced debounce time for faster response
-  }, [])
+  }, [loading])
 
   // Check for OAuth completion via PKCE code (all browsers) or cookies (fallback)
   const checkOAuthCompletion = useCallback(async () => {
-    if (typeof window === 'undefined') return false
+    if (typeof window === 'undefined') {
+      console.log('🌐 checkOAuthCompletion: Running on server, skipping')
+      return false
+    }
+    
+    console.log('🔍 checkOAuthCompletion: Starting OAuth completion check', {
+      url: window.location.href,
+      isSafariBrowser: isSafari()
+    })
     
     // For all browsers, check for PKCE code in URL first (from server redirect)
     try {
+      console.log('🔄 checkOAuthCompletion: Attempting PKCE handling...')
       const pkceResult = await handleSafariPKCE() // This function works for all browsers, not just Safari
+      
+      console.log('📝 PKCE result:', {
+        hasResult: !!pkceResult,
+        hasSession: pkceResult?.session ? true : false,
+        hasError: pkceResult?.error ? true : false,
+        errorMessage: pkceResult?.error
+      })
+      
       if (pkceResult && pkceResult.session) {
         console.log('✅ PKCE authentication successful')
         debouncedUpdateAuth(pkceResult.session, 'pkce-code')
@@ -120,6 +151,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('❌ PKCE handling exception:', error)
       // Continue to cookie check as fallback
     }
+    
+    console.log('🍪 checkOAuthCompletion: Checking for cookie-based completion...')
     
     // Fallback: check for cookie-based completion (legacy or backup method)
     const authComplete = getCookie('sb-auth-complete')
@@ -147,6 +180,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('🔧 Setting session from OAuth cookies...')
         const { data, error } = await supabase.auth.setSession(sessionData)
+        
+        console.log('📝 setSession result:', {
+          hasData: !!data,
+          hasSession: !!data?.session,
+          hasUser: !!data?.user,
+          hasError: !!error,
+          errorMessage: error?.message
+        })
         
         if (error) {
           console.error('❌ Error setting session from cookies:', error)
@@ -199,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     
+    console.log('❌ checkOAuthCompletion: No OAuth completion found')
     return false
   }, [debouncedUpdateAuth])
 
@@ -231,113 +273,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Initialize authentication
+  // Main auth initialization useEffect
   useEffect(() => {
-    isMountedRef.current = true
-    hasInitializedRef.current = false
+    console.log('🚀 Auth context mounting...')
     
-    console.log('🚀 Initializing auth...')
-    
-    // Ensure we have the right Supabase client for the current browser
-    if (typeof window !== 'undefined') {
-      const currentIsSafari = isSafari()
-      console.log('🔍 Current browser is Safari:', currentIsSafari)
-      
-      // For Safari, verify the client configuration
-      if (currentIsSafari) {
-        console.log('🍎 Safari detected - verifying client configuration')
-        try {
-          // Check if auto-refresh is properly disabled for Safari
-          const authInstance = (supabase.auth as any)
-          console.log('🔧 Safari auth config:', {
-            autoRefreshToken: authInstance.autoRefreshToken,
-            detectSessionInUrl: authInstance.detectSessionInUrl,
-            storageKey: authInstance.storageKey
-          })
-        } catch (error) {
-          console.warn('Could not verify Safari client config:', error)
-        }
-      }
-    }
-    
-    // Safari gets a much shorter timeout due to its stricter policies
-    const timeoutDuration = isSafari() ? 500 : 2000 // 0.5 seconds for Safari, 2 seconds for others
-    console.log(`⏰ Setting auth timeout: ${timeoutDuration}ms (Safari: ${isSafari()})`)
-    
-    timeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current && loading && !hasInitializedRef.current) {
-        console.warn(`⏰ Auth timeout reached (${timeoutDuration}ms), setting loading to false`)
-        
-        // For Safari, force loading to false immediately
-        if (isSafari()) {
-          console.log('🍎 Safari timeout - forcing auth to complete')
-          
-          // Force stop any lingering auth processes
-          try {
-            if (authListenerRef.current?.subscription) {
-              authListenerRef.current.subscription.unsubscribe()
-              authListenerRef.current = null
-            }
-            
-            // Clean up any Safari auth cookies
-            deleteCookie('sb-auth-complete')
-            deleteCookie('sb-access-token')
-            deleteCookie('sb-refresh-token')
-          } catch (error) {
-            console.warn('Safari cleanup error:', error)
-          }
-          
-          setLoading(false)
+    // Timeout to prevent infinite loading for Safari
+    if (isSafari()) {
+      console.log('🍎 Safari detected - setting timeout for auth initialization')
+      timeoutRef.current = setTimeout(() => {
+        if (loading && !hasInitializedRef.current && isMountedRef.current) {
+          console.log('⏰ Safari auth timeout - forcing completion')
           hasInitializedRef.current = true
-          setSession(null)
+          setLoading(false)
           setUser(null)
-        } else {
-          setLoading(false)
+          setSession(null)
+        }
+      }, 2000) // 2 second timeout for Safari
+    } else {
+      // For other browsers, use a longer timeout
+      timeoutRef.current = setTimeout(() => {
+        if (loading && !hasInitializedRef.current && isMountedRef.current) {
+          console.log('⏰ Auth timeout - forcing completion')
           hasInitializedRef.current = true
+          setLoading(false)
+          setUser(null)
+          setSession(null)
         }
-      }
-    }, timeoutDuration)
+      }, 5000) // 5 second timeout for other browsers
+    }
 
-    // Set up auth listener first
     const setupAuthListener = () => {
-      if (authListenerRef.current) {
-        console.log('🎧 Auth listener already exists, cleaning up...')
-        authListenerRef.current.subscription?.unsubscribe()
-        authListenerRef.current = null
-      }
+      console.log('👂 Setting up auth state listener...')
       
-      console.log('🎧 Setting up auth state listener...')
-      const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
-        if (!isMountedRef.current) return
-        
-        console.log(`🔔 Auth state changed: ${event}`)
-        
-        // Handle different auth events
-        switch (event) {
-          case 'SIGNED_IN':
-          case 'TOKEN_REFRESHED':
-            debouncedUpdateAuth(session, `auth-event-${event}`)
-            break
-          case 'SIGNED_OUT':
-            debouncedUpdateAuth(null, 'auth-event-signed-out')
-            break
-          case 'INITIAL_SESSION':
-            // Always update on initial session, regardless of initialization state
-            debouncedUpdateAuth(session, 'auth-event-initial')
-            break
-          default:
-            // For other events, get current session
-            try {
-              const { session: currentSession } = await auth.getSession()
-              debouncedUpdateAuth(currentSession, `auth-event-${event}`)
-            } catch (error) {
-              console.error('Error getting session after auth event:', error)
-              debouncedUpdateAuth(null, `auth-event-${event}-error`)
-            }
+      const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
+        if (!isMountedRef.current) {
+          console.log('⚠️ Auth state change ignored - component unmounted')
+          return
         }
+        
+        console.log('🔔 Auth state change:', event, {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          isSafariBrowser: isSafari()
+        })
+        
+        // Clear timeout on any auth state change
+        if (timeoutRef.current) {
+          console.log('🧹 Clearing auth timeout due to state change')
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
+        
+        // Update auth state
+        debouncedUpdateAuth(session, `auth-change-${event}`)
       })
-      
-      authListenerRef.current = { subscription }
+
+      authListenerRef.current = subscription
+      console.log('✅ Auth listener setup complete')
       return subscription
     }
 
@@ -374,6 +366,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Initialize authentication
     const initAuth = async () => {
+      isMountedRef.current = true
+      hasInitializedRef.current = false
+      
+      console.log('🚀 initAuth: Starting authentication initialization', {
+        isSafariBrowser: isSafari(),
+        url: typeof window !== 'undefined' ? window.location.href : 'server'
+      })
+      
       // Check for Safari Private Browsing mode first
       if (isSafariPrivateBrowsing()) {
         console.warn('🔒 Safari Private Browsing detected - authentication may not work properly')
@@ -383,22 +383,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       // Setup auth listener for all browsers
+      console.log('👂 initAuth: Setting up auth listener...')
       setupAuthListener()
       
-      // Check for any pending OAuth completion (PKCE handled client-side for all browsers)
       try {
-        console.log('🔍 Checking for OAuth completion...')
-        const oauthHandled = await checkOAuthCompletion()
-        if (oauthHandled) {
-          console.log('✅ OAuth completion handled successfully')
-          return
+        // For Safari, try a simplified approach first
+        if (isSafari()) {
+          console.log('🍎 Safari init - checking for existing session first')
+          
+          // Quick session check for Safari
+          console.log('🔄 Safari: Getting existing session...')
+          const { session, error } = await auth.getSession()
+          
+          console.log('📝 Safari session check result:', {
+            hasSession: !!session,
+            userId: session?.user?.id,
+            hasError: !!error,
+            errorMessage: error?.message
+          })
+          
+          if (!isMountedRef.current) {
+            console.log('⚠️ Safari: Component unmounted during session check')
+            return
+          }
+          
+          if (session) {
+            console.log('✅ Safari found existing session')
+            debouncedUpdateAuth(session, 'safari-existing-session')
+            return
+          } else if (error) {
+            console.warn('⚠️ Safari session check error:', error)
+          }
+          
+          // Check for OAuth completion only if no existing session
+          console.log('🍎 Safari checking OAuth completion...')
+          const oauthHandled = await checkOAuthCompletion()
+          console.log('📝 Safari OAuth completion result:', oauthHandled)
+          
+          if (oauthHandled) {
+            console.log('✅ Safari OAuth completion handled')
+            return
+          }
+          
+          // If nothing found, complete initialization
+          console.log('🍎 Safari no auth found, completing init')
+          debouncedUpdateAuth(null, 'safari-no-auth')
+        } else {
+          // Standard flow for other browsers
+          console.log('🌐 Standard browser init')
+          
+          // Check for OAuth completion first
+          console.log('🔄 Standard: Checking OAuth completion...')
+          const oauthHandled = await checkOAuthCompletion()
+          console.log('📝 Standard OAuth completion result:', oauthHandled)
+          
+          if (oauthHandled) {
+            console.log('✅ OAuth completion handled successfully')
+            return
+          }
+          
+          // Get initial session
+          console.log('🔄 Standard: Getting initial session...')
+          await getInitialSession()
         }
       } catch (error) {
-        console.error('❌ OAuth completion check failed:', error)
+        console.error('❌ Auth initialization error:', error)
+        if (isMountedRef.current) {
+          debouncedUpdateAuth(null, 'auth-init-error')
+        }
       }
       
-      // If no OAuth completion found, get standard session
-      await getInitialSession()
+      console.log('🏁 initAuth: Initialization process completed')
     }
 
     initAuth()
@@ -418,8 +473,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         debounceRef.current = null
       }
       
-      if (authListenerRef.current?.subscription) {
-        authListenerRef.current.subscription.unsubscribe()
+      if (authListenerRef.current) {
+        authListenerRef.current.unsubscribe()
         authListenerRef.current = null
       }
     }

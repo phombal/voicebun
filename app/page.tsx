@@ -63,17 +63,31 @@ export default function LandingPage() {
       loading, 
       user: !!user, 
       userId: user?.id,
-      userAgent: typeof window !== 'undefined' ? navigator.userAgent.includes('Safari') : 'unknown'
+      isSafari: typeof window !== 'undefined' ? navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome') : false
     });
     
     if (!loading && user) {
       console.log('🎯 Authenticated user detected, redirecting to dashboard');
-      // Add a small delay for Safari to ensure everything is properly set
-      const timeoutId = setTimeout(() => {
-        router.push('/dashboard');
-      }, 100);
-      
-      return () => clearTimeout(timeoutId);
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
+
+  // Additional Safari-specific redirect check (Safari sometimes needs this)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isSafariBrowser = navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome');
+      if (isSafariBrowser && user && !loading) {
+        console.log('🍎 Safari authenticated user redirect check');
+        // Force redirect for Safari
+        const redirectTimer = setTimeout(() => {
+          if (window.location.pathname === '/') {
+            console.log('🍎 Force Safari redirect to dashboard');
+            router.push('/dashboard');
+          }
+        }, 200);
+        
+        return () => clearTimeout(redirectTimer);
+      }
     }
   }, [user, loading, router]);
 

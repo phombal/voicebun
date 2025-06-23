@@ -21,118 +21,114 @@ const isSafari = () => {
          (navigator.vendor && navigator.vendor.indexOf('Apple') > -1)
 }
 
-// Store clients to avoid recreation
-let serverClient: ReturnType<typeof createClient<Database>> | null = null
-let safariClient: ReturnType<typeof createClient<Database>> | null = null
-let standardClient: ReturnType<typeof createClient<Database>> | null = null
+// Store the active client
+let activeClient: ReturnType<typeof createClient<Database>> | null = null
 
-// Server-side client (safe defaults)
-const createServerClient = () => {
-  if (serverClient) return serverClient
+// Create and return the appropriate client based on environment
+const createSupabaseClient = () => {
+  // Return existing client if already created
+  if (activeClient) {
+    console.log('♻️ Returning existing Supabase client')
+    return activeClient
+  }
   
-  console.log('🖥️ Creating server-side Supabase client')
-  serverClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      storageKey: 'sb-auth-token',
-      persistSession: false, // No persistence on server
-      flowType: 'pkce' as const,
-      autoRefreshToken: false, // No auto-refresh on server
-      detectSessionInUrl: false, // No URL detection on server
-      debug: false
-    }
+  console.log('🚀 Creating new Supabase client...', {
+    isServer: typeof window === 'undefined',
+    isSafariBrowser: typeof window !== 'undefined' ? isSafari() : false,
+    url: typeof window !== 'undefined' ? window.location.href : 'server'
   })
-  return serverClient
-}
-
-// Safari client with strict compatibility settings
-const createSafariClient = () => {
-  if (safariClient) return safariClient
   
-  console.log('🍎 Creating Safari-compatible Supabase client')
-  safariClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      storageKey: 'sb-auth-token',
-      persistSession: true,
-      flowType: 'pkce' as const,
-      autoRefreshToken: false, // Critical: disable auto-refresh for Safari
-      detectSessionInUrl: false, // Handle manually for better Safari control
-      debug: process.env.NODE_ENV === 'development',
-      storage: {
-        getItem: (key: string) => {
-          try {
-            const value = window.localStorage.getItem(key)
-            console.log(`🍎 Safari storage getItem(${key}):`, value ? 'found' : 'null')
-            return value
-          } catch (error) {
-            console.warn('🍎 Safari localStorage access failed:', error)
-            return null
-          }
-        },
-        setItem: (key: string, value: string) => {
-          try {
-            window.localStorage.setItem(key, value)
-            console.log(`🍎 Safari storage setItem(${key}): success`)
-          } catch (error) {
-            console.warn('🍎 Safari localStorage write failed:', error)
-          }
-        },
-        removeItem: (key: string) => {
-          try {
-            window.localStorage.removeItem(key)
-            console.log(`🍎 Safari storage removeItem(${key}): success`)
-          } catch (error) {
-            console.warn('🍎 Safari localStorage remove failed:', error)
-          }
-        }
-      }
-    }
-  })
-  return safariClient
-}
-
-// Standard browser client
-const createStandardClient = () => {
-  if (standardClient) return standardClient
-  
-  console.log('🌐 Creating standard browser Supabase client')
-  standardClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      storageKey: 'sb-auth-token',
-      persistSession: true,
-      flowType: 'pkce' as const,
-      autoRefreshToken: true, // Enable for standard browsers
-      detectSessionInUrl: true, // Enable for standard browsers
-      debug: process.env.NODE_ENV === 'development',
-      storage: window.localStorage
-    }
-  })
-  return standardClient
-}
-
-// Dynamic client getter that always returns the right client
-const getSupabaseClient = () => {
   // Server-side: use safe defaults
   if (typeof window === 'undefined') {
-    return createServerClient()
+    console.log('🖥️ Creating server-side Supabase client')
+    activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storageKey: 'sb-auth-token',
+        persistSession: false, // No persistence on server
+        flowType: 'pkce' as const,
+        autoRefreshToken: false, // No auto-refresh on server
+        detectSessionInUrl: false, // No URL detection on server
+        debug: false
+      }
+    })
+    console.log('✅ Server client created')
+    return activeClient
   }
   
-  // Client-side: detect Safari and return appropriate client
+  // Client-side: detect Safari and create appropriate client
   if (isSafari()) {
-    console.log('🍎 Safari detected - using Safari-compatible client')
-    return createSafariClient()
+    console.log('🍎 Creating Safari-compatible Supabase client')
+    try {
+      activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          storageKey: 'sb-auth-token',
+          persistSession: true,
+          flowType: 'pkce' as const,
+          autoRefreshToken: false, // Critical: disable auto-refresh for Safari
+          detectSessionInUrl: false, // Handle manually for better Safari control
+          debug: process.env.NODE_ENV === 'development',
+          storage: {
+            getItem: (key: string) => {
+              try {
+                const value = window.localStorage.getItem(key)
+                console.log(`🍎 Safari storage getItem(${key}):`, value ? 'found' : 'null')
+                return value
+              } catch (error) {
+                console.warn('🍎 Safari localStorage access failed:', error)
+                return null
+              }
+            },
+            setItem: (key: string, value: string) => {
+              try {
+                window.localStorage.setItem(key, value)
+                console.log(`🍎 Safari storage setItem(${key}): success`)
+              } catch (error) {
+                console.warn('🍎 Safari localStorage write failed:', error)
+              }
+            },
+            removeItem: (key: string) => {
+              try {
+                window.localStorage.removeItem(key)
+                console.log(`🍎 Safari storage removeItem(${key}): success`)
+              } catch (error) {
+                console.warn('🍎 Safari localStorage remove failed:', error)
+              }
+            }
+          }
+        }
+      })
+      console.log('✅ Safari client created successfully')
+    } catch (error) {
+      console.error('❌ Safari client creation failed:', error)
+      throw error
+    }
   } else {
-    console.log('🌐 Standard browser detected - using standard client')
-    return createStandardClient()
+    console.log('🌐 Creating standard browser Supabase client')
+    try {
+      activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          storageKey: 'sb-auth-token',
+          persistSession: true,
+          flowType: 'pkce' as const,
+          autoRefreshToken: true, // Enable for standard browsers
+          detectSessionInUrl: true, // Enable for standard browsers
+          debug: process.env.NODE_ENV === 'development',
+          storage: window.localStorage
+        }
+      })
+      console.log('✅ Standard client created successfully')
+    } catch (error) {
+      console.error('❌ Standard client creation failed:', error)
+      throw error
+    }
   }
+  
+  console.log('✅ Supabase client created successfully')
+  return activeClient
 }
 
-// Export the dynamic client
-export const supabase = new Proxy({} as ReturnType<typeof createClient<Database>>, {
-  get(target, prop) {
-    const client = getSupabaseClient()
-    return (client as any)[prop]
-  }
-})
+// Export the client
+export const supabase = createSupabaseClient()
 
 // Helper function to handle PKCE code exchange for all browsers
 export const handleSafariPKCE = async () => {
@@ -147,7 +143,7 @@ export const handleSafariPKCE = async () => {
   
   try {
     // Use the appropriate client for the current browser
-    const client = getSupabaseClient()
+    const client = supabase
     console.log('🔄 Exchanging PKCE code for session...')
     
     const { data, error } = await client.auth.exchangeCodeForSession(code)
@@ -203,9 +199,7 @@ export const auth = {
       return { data: null, error: new Error('OAuth can only be initiated in browser') }
     }
 
-    // For Safari, use the Safari client directly
-    const client = isSafari() ? createSafariClient() : getSupabaseClient()
-    console.log('🔗 Using client for OAuth:', isSafari() ? 'Safari' : 'Standard')
+    console.log('🔗 Initiating Google OAuth:', isSafari() ? 'Safari' : 'Standard')
 
     // Ensure we have the correct redirect URL for both dev and production
     let redirectUrl: string
@@ -223,7 +217,7 @@ export const auth = {
 
     console.log('🔗 OAuth redirect URL:', redirectUrl)
 
-    const { data, error } = await client.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
