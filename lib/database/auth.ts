@@ -224,6 +224,9 @@ export const auth = {
     }
 
     console.log('🔗 OAuth redirect URL:', redirectUrl)
+    console.log('🚨 IMPORTANT: Make sure this URL is added to your Supabase dashboard!')
+    console.log('🚨 Go to: Supabase Dashboard → Authentication → URL Configuration → Authorized redirect URLs')
+    console.log('🚨 Add this exact URL:', redirectUrl)
 
     // Additional production debugging
     if (process.env.NODE_ENV === 'production') {
@@ -235,6 +238,13 @@ export const auth = {
         protocol: window.location.protocol,
         host: window.location.host
       })
+      
+      // Alert Safari users about the redirect URL issue
+      if (isSafari()) {
+        console.log('🍎 Safari Production Check:')
+        console.log('🍎 Expected redirect URL in Supabase:', redirectUrl)
+        console.log('🍎 If authentication fails, check Supabase redirect URLs!')
+      }
     }
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -257,6 +267,13 @@ export const auth = {
         environment: process.env.NODE_ENV,
         isSafari: isSafari()
       })
+      
+      // Special Safari error handling
+      if (isSafari() && error.message.includes('redirect')) {
+        console.error('🍎 Safari Redirect Error - Check Supabase Configuration!')
+        console.error('🍎 Required redirect URL:', redirectUrl)
+      }
+      
       // Return more specific error information
       return { 
         data: null, 
