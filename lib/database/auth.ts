@@ -51,8 +51,13 @@ export const auth = {
     return { data, error }
   },
 
-  // Sign in with Google (implicit flow)
+  // Sign in with Google (PKCE flow for enhanced security)
   async signInWithGoogle() {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return { data: null, error: new Error('OAuth can only be initiated in browser') }
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -60,6 +65,7 @@ export const auth = {
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
+          hd: undefined, // Remove domain restriction for wider access
         },
         skipBrowserRedirect: false,
       }
@@ -67,6 +73,11 @@ export const auth = {
     
     if (error) {
       console.error('Google OAuth initiation error:', error)
+      // Return more specific error information
+      return { 
+        data: null, 
+        error: new Error(`Authentication failed: ${error.message}`)
+      }
     }
     
     return { data, error }

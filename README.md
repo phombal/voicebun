@@ -50,11 +50,8 @@ Copy `.env.example` to `.env.local` and add your API keys:
 cp .env.example .env.local
 ```
 
-### 4. Database Setup
 
-Set up your Supabase database according to the schema in the `supabase/` directory.
-
-### 5. Start Development Server
+### 4. Start Development Server
 
 ```bash
 npm run dev
