@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { auth, supabase } from '@/lib/database/auth'
+import { auth, supabase, handleSafariPKCE } from '@/lib/database/auth'
 import { clientDb } from '@/lib/database/client-service'
 
 interface AuthContextType {
@@ -14,10 +14,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Simple Safari detection
+// Simple Safari detection - updated to match auth.ts
 const isSafari = () => {
   if (typeof window === 'undefined') return false
-  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.vendor && navigator.vendor.indexOf('Apple') > -1)
+}
+
+// Check if Safari is in Private Browsing mode
+const isSafariPrivateBrowsing = () => {
+  if (!isSafari()) return false
+  try {
+    // In Safari Private Browsing, localStorage throws an error
+    window.localStorage.setItem('test', 'test')
+    window.localStorage.removeItem('test')
+    return false
+  } catch (e) {
+    return true
+  }
 }
 
 // Helper function to get cookie value
@@ -82,13 +97,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, 50) // Reduced debounce time for faster response
   }, [])
 
-  // Check for Safari OAuth completion via cookies
+  // Check for Safari OAuth completion via PKCE code or cookies
   const checkSafariOAuthCompletion = useCallback(async () => {
     if (typeof window === 'undefined') return false
     
+    // First check for PKCE code in URL using the dedicated helper
+    try {
+      const pkceResult = await handleSafariPKCE()
+      if (pkceResult && pkceResult.session) {
+        console.log('✅ Safari PKCE authentication successful')
+        debouncedUpdateAuth(pkceResult.session, 'safari-pkce-code')
+        return true
+      } else if (pkceResult && pkceResult.error) {
+        console.error('❌ Safari PKCE authentication failed:', pkceResult.error)
+        // Continue to cookie check as fallback
+      }
+    } catch (error) {
+      console.error('❌ Safari PKCE handling exception:', error)
+      // Continue to cookie check as fallback
+    }
+    
+    // Fallback: check for cookie-based completion
     const authComplete = getCookie('sb-auth-complete')
     const accessToken = getCookie('sb-access-token')
     const refreshToken = getCookie('sb-refresh-token')
+    
+    console.log('🍪 Safari cookie check:', { authComplete: !!authComplete, accessToken: !!accessToken, refreshToken: !!refreshToken })
     
     if (authComplete && accessToken) {
       console.log('🍪 Safari OAuth completion detected, setting session from cookies')
@@ -97,31 +131,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Clean up the completion flag immediately
         deleteCookie('sb-auth-complete')
         
-        // Set the session using the tokens from cookies
-        const { data, error } = await supabase.auth.setSession({
+        // For Safari, we need to manually manage the session refresh
+        // since autoRefreshToken is disabled
+        const sessionData = {
           access_token: accessToken,
-          refresh_token: refreshToken || ''
-        })
+          refresh_token: refreshToken || '',
+          expires_in: 3600, // Default to 1 hour
+          token_type: 'bearer',
+          user: null as any // Will be populated by setSession
+        }
+        
+        console.log('🔧 Setting session from Safari cookies...')
+        const { data, error } = await supabase.auth.setSession(sessionData)
         
         if (error) {
-          console.error('Error setting session from cookies:', error)
+          console.error('❌ Error setting session from cookies:', error)
           // Clean up cookies on error
           deleteCookie('sb-access-token')
           deleteCookie('sb-refresh-token')
           return false
         }
         
-        if (data.session) {
+        if (data.session && data.user) {
           console.log('✅ Session set successfully from Safari OAuth cookies')
           debouncedUpdateAuth(data.session, 'safari-oauth-cookies')
           
           // Clean up cookies after successful session restoration
           deleteCookie('sb-access-token')
           deleteCookie('sb-refresh-token')
+          
+          // For Safari, set up manual token refresh since autoRefreshToken is disabled
+          if (isSafari() && data.session.expires_at) {
+            const expiresAt = data.session.expires_at * 1000 // Convert to milliseconds
+            const now = Date.now()
+            const timeUntilExpiry = expiresAt - now
+            const refreshAt = Math.max(timeUntilExpiry - 60000, 30000) // Refresh 1 minute early, minimum 30 seconds
+            
+            console.log(`🔄 Safari manual refresh scheduled in ${refreshAt}ms`)
+            setTimeout(async () => {
+              try {
+                console.log('🔄 Safari manual token refresh...')
+                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+                if (refreshError) {
+                  console.error('❌ Safari manual refresh failed:', refreshError)
+                } else if (refreshData.session) {
+                  console.log('✅ Safari manual refresh successful')
+                  debouncedUpdateAuth(refreshData.session, 'safari-manual-refresh')
+                }
+              } catch (error) {
+                console.error('❌ Safari manual refresh exception:', error)
+              }
+            }, refreshAt)
+          }
+          
           return true
         }
       } catch (error) {
-        console.error('Exception setting session from cookies:', error)
+        console.error('❌ Exception setting session from cookies:', error)
         // Clean up cookies on error
         deleteCookie('sb-auth-complete')
         deleteCookie('sb-access-token')
@@ -168,13 +234,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     console.log('🚀 Initializing auth...')
     
-    // Much shorter timeout for faster loading
-    const timeoutDuration = 2000 // 2 seconds max timeout
+    // Ensure we have the right Supabase client for the current browser
+    if (typeof window !== 'undefined') {
+      const currentIsSafari = isSafari()
+      console.log('🔍 Current browser is Safari:', currentIsSafari)
+      
+      // For Safari, verify the client configuration
+      if (currentIsSafari) {
+        console.log('🍎 Safari detected - verifying client configuration')
+        try {
+          // Check if auto-refresh is properly disabled for Safari
+          const authInstance = (supabase.auth as any)
+          console.log('🔧 Safari auth config:', {
+            autoRefreshToken: authInstance.autoRefreshToken,
+            detectSessionInUrl: authInstance.detectSessionInUrl,
+            storageKey: authInstance.storageKey
+          })
+        } catch (error) {
+          console.warn('Could not verify Safari client config:', error)
+        }
+      }
+    }
+    
+    // Safari gets a much shorter timeout due to its stricter policies
+    const timeoutDuration = isSafari() ? 500 : 2000 // 0.5 seconds for Safari, 2 seconds for others
+    console.log(`⏰ Setting auth timeout: ${timeoutDuration}ms (Safari: ${isSafari()})`)
+    
     timeoutRef.current = setTimeout(() => {
       if (isMountedRef.current && loading && !hasInitializedRef.current) {
         console.warn(`⏰ Auth timeout reached (${timeoutDuration}ms), setting loading to false`)
-        setLoading(false)
-        hasInitializedRef.current = true
+        
+        // For Safari, force loading to false immediately
+        if (isSafari()) {
+          console.log('🍎 Safari timeout - forcing auth to complete')
+          
+          // Force stop any lingering auth processes
+          try {
+            if (authListenerRef.current?.subscription) {
+              authListenerRef.current.subscription.unsubscribe()
+              authListenerRef.current = null
+            }
+            
+            // Clean up any Safari auth cookies
+            deleteCookie('sb-auth-complete')
+            deleteCookie('sb-access-token')
+            deleteCookie('sb-refresh-token')
+          } catch (error) {
+            console.warn('Safari cleanup error:', error)
+          }
+          
+          setLoading(false)
+          hasInitializedRef.current = true
+          setSession(null)
+          setUser(null)
+        } else {
+          setLoading(false)
+          hasInitializedRef.current = true
+        }
       }
     }, timeoutDuration)
 
@@ -253,16 +369,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Initialize authentication
     const initAuth = async () => {
-      // Setup auth listener first
-      setupAuthListener()
-      
-      // For Safari, add a very small delay to handle URL fragments
-      // For other browsers, proceed immediately
-      if (isSafari()) {
-        await new Promise(resolve => setTimeout(resolve, 100))
+      // Check for Safari Private Browsing mode first
+      if (isSafariPrivateBrowsing()) {
+        console.warn('🔒 Safari Private Browsing detected - authentication may not work properly')
+        // In Private Browsing, just set loading to false and don't try to authenticate
+        debouncedUpdateAuth(null, 'safari-private-browsing')
+        return
       }
       
-      // Get initial session
+      // For Safari, use simplified initialization to avoid hanging
+      if (isSafari()) {
+        console.log('🍎 Safari detected - using simplified initialization')
+        
+        // Set up auth listener but with minimal processing
+        setupAuthListener()
+        
+        // Check for any pending OAuth completion (PKCE or cookies)
+        try {
+          console.log('🔍 Safari checking for OAuth completion...')
+          const oauthHandled = await checkSafariOAuthCompletion()
+          if (oauthHandled) {
+            console.log('✅ Safari OAuth completion handled successfully')
+            return
+          }
+        } catch (error) {
+          console.error('❌ Safari OAuth completion check failed:', error)
+        }
+        
+        // If no OAuth completion found, complete initialization
+        console.log('🍎 Safari - no pending auth, completing initialization')
+        debouncedUpdateAuth(null, 'safari-no-pending-auth')
+        return
+      }
+      
+      // Setup auth listener first for non-Safari
+      setupAuthListener()
+      
+      // Standard initialization for non-Safari browsers
       await getInitialSession()
     }
 

@@ -1202,7 +1202,7 @@ For now, you can still manually configure your voice agent using the tabs above.
             {/* VoiceBun Logo */}
             <div className="hidden md:flex items-center">
               <Image 
-                src="/VoiceBun-White.png" 
+                src="/VoiceBun-BunOnly.png" 
                 alt="VoiceBun" 
                 width={32}
                 height={32}
