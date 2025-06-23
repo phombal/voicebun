@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { clientDb } from '../lib/database/client-service';
+import Image from 'next/image';
 
 interface ProjectConfig {
   systemPrompt: string;
@@ -90,7 +91,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
   };
 
   // Enhanced wheel event handling to completely isolate scrolling
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = (_e: React.WheelEvent) => {
     const container = functionsTabContainerRef.current;
     if (!container) return;
 
@@ -99,11 +100,11 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
     const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
 
     // Always prevent propagation first
-    e.stopPropagation();
+    _e.stopPropagation();
 
     // Only prevent default if we're at boundaries and trying to scroll beyond
-    if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
-      e.preventDefault();
+    if ((isAtTop && _e.deltaY < 0) || (isAtBottom && _e.deltaY > 0)) {
+      _e.preventDefault();
     }
   };
 
@@ -334,8 +335,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
         try {
           testBody = JSON.parse(replacedBodyString);
           console.log('Final test body:', testBody);
-        } catch (e) {
-          console.error('Failed to parse replaced body:', e);
+        } catch {
           // If parsing fails, keep original body
         }
 
@@ -471,7 +471,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
         let parsedResponse;
         try {
           parsedResponse = JSON.parse(responseData);
-        } catch (e) {
+        } catch {
           parsedResponse = responseData;
         }
 
@@ -633,124 +633,6 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
     const updatedFunctions = [...projectConfig.customFunctions, calcomGetBookingsFunction];
     setProjectConfig(prev => ({ ...prev, customFunctions: updatedFunctions }));
     saveFunctionsToDatabase(updatedFunctions);
-  };
-
-  const addGoogleSheetsIntegration = () => {
-    const googleSheetsFunction = {
-      name: 'update_spreadsheet',
-      description: 'Add or update data in a Google Sheets spreadsheet',
-      url: 'https://sheets.googleapis.com/v4/spreadsheets/{{spreadsheet_id}}/values/{{range}}:append',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer YOUR_GOOGLE_SHEETS_ACCESS_TOKEN'
-      },
-      body: {
-        "valueInputOption": "USER_ENTERED",
-        "values": [
-          "{{row_data}}"
-        ]
-      },
-      parameters: {
-        type: 'object',
-        properties: {
-          row_data: {
-            type: 'array',
-            items: {
-              type: 'string'
-            },
-            description: 'Array of values to add as a new row'
-          }
-        },
-        required: ['row_data']
-      }
-    };
-    
-    const updatedFunctions = [...(projectConfig.customFunctions || []), googleSheetsFunction];
-    setProjectConfig(prev => ({
-      ...prev,
-      customFunctions: updatedFunctions,
-      functionsEnabled: updatedFunctions.length > 0
-    }));
-    // Save to database
-    saveFunctionsToDatabase(updatedFunctions);
-    
-    // Immediately start editing the new function
-    const newFunctionIndex = updatedFunctions.length - 1;
-    setEditingFunction(newFunctionIndex);
-    setFunctionConfig({
-      name: googleSheetsFunction.name,
-      description: googleSheetsFunction.description,
-      parameters: googleSheetsFunction.parameters,
-      headers: googleSheetsFunction.headers || {},
-      body: googleSheetsFunction.body || {},
-      url: googleSheetsFunction.url || ''
-    });
-    // Set initial view mode to simple
-    setFunctionViewMode(prev => ({
-      ...prev,
-      [newFunctionIndex]: 'simple'
-    }));
-    
-    setShowFunctionDropdown(false);
-  };
-
-  const addMakeComIntegration = () => {
-    const makecomFunction = {
-      name: 'trigger_automation',
-      description: 'Trigger a Make.com automation workflow',
-      url: '{{webhook_url}}',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: {
-        "trigger_data": "{{workflow_data}}",
-        "timestamp": "{{timestamp}}",
-        "source": "voice_agent"
-      },
-      parameters: {
-        type: 'object',
-        properties: {
-          workflow_data: {
-            type: 'object',
-            description: 'Data to send to the Make.com workflow'
-          },
-          timestamp: {
-            type: 'string',
-            description: 'ISO timestamp of when the trigger occurred',
-            default: 'auto_generated'
-          }
-        },
-        required: ['workflow_data']
-      }
-    };
-    
-    const updatedFunctions = [...(projectConfig.customFunctions || []), makecomFunction];
-    setProjectConfig(prev => ({
-      ...prev,
-      customFunctions: updatedFunctions,
-      functionsEnabled: updatedFunctions.length > 0
-    }));
-    // Save to database
-    saveFunctionsToDatabase(updatedFunctions);
-    
-    // Immediately start editing the new function
-    const newFunctionIndex = updatedFunctions.length - 1;
-    setEditingFunction(newFunctionIndex);
-    setFunctionConfig({
-      name: makecomFunction.name,
-      description: makecomFunction.description,
-      parameters: makecomFunction.parameters,
-      headers: makecomFunction.headers || {},
-      body: makecomFunction.body || {},
-      url: makecomFunction.url || ''
-    });
-    // Set initial view mode to simple
-    setFunctionViewMode(prev => ({
-      ...prev,
-      [newFunctionIndex]: 'simple'
-    }));
-    
-    setShowFunctionDropdown(false);
   };
 
   const addCustomFunction = () => {
@@ -1130,7 +1012,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                   className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
                 >
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                    <img src="/cal_logo.jpeg" alt="Cal.com" className="w-8 h-8 object-cover rounded-lg" />
+                    <Image src="/cal_logo.jpeg" alt="Cal.com" width={32} height={32} className="object-cover rounded-lg" />
                   </div>
                   <div>
                     <div className="text-sm font-medium text-gray-900">Cal.com Make Bookings</div>
@@ -1143,7 +1025,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                   className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
                 >
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                    <img src="/cal_logo.jpeg" alt="Cal.com" className="w-8 h-8 object-cover rounded-lg" />
+                    <Image src="/cal_logo.jpeg" alt="Cal.com" width={32} height={32} className="object-cover rounded-lg" />
                   </div>
                   <div>
                     <div className="text-sm font-medium text-gray-900">Cal.com Get Bookings</div>
@@ -1444,10 +1326,12 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                       {/* Function Logo */}
                       {getFunctionLogo(func.name) && (
                         <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
-                          <img 
+                          <Image 
                             src={getFunctionLogo(func.name)!} 
                             alt={func.name} 
-                            className="w-8 h-8 object-cover rounded-lg" 
+                            width={32}
+                            height={32}
+                            className="object-cover rounded-lg" 
                           />
                         </div>
                       )}
@@ -1944,7 +1828,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                                     try {
                                       const headers = JSON.parse(e.target.value);
                                       setFunctionConfig(prev => prev ? { ...prev, headers } : null);
-                                    } catch (error) {
+                                    } catch {
                                       // Invalid JSON, don't update
                                     }
                                   }}
@@ -1965,7 +1849,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                                     try {
                                       const body = JSON.parse(e.target.value);
                                       setFunctionConfig(prev => prev ? { ...prev, body } : null);
-                                    } catch (error) {
+                                    } catch {
                                       // Invalid JSON, don't update
                                     }
                                   }}
@@ -1986,7 +1870,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                                     try {
                                       const parameters = JSON.parse(e.target.value);
                                       setFunctionConfig(prev => prev ? { ...prev, parameters } : null);
-                                    } catch (error) {
+                                    } catch {
                                       // Invalid JSON, don't update
                                     }
                                   }}
@@ -2085,7 +1969,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                                       try {
                                         const parsed = JSON.parse(e.target.value || (param.type === 'array' ? '[]' : '{}'));
                                         setTestParams(prev => ({ ...prev, [key]: parsed }));
-                                      } catch (error) {
+                                      } catch {
                                         // For invalid JSON, store the raw string temporarily
                                         setTestParams(prev => ({ ...prev, [key]: e.target.value }));
                                       }

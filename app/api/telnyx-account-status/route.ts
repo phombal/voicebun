@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Get Telnyx API key from environment variables
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
@@ -7,7 +7,7 @@ if (!TELNYX_API_KEY) {
   throw new Error('TELNYX_API_KEY environment variable is required');
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('🔍 Checking Telnyx account status...');
 
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       if (balanceResponse.ok) {
         balanceInfo = await balanceResponse.json();
       }
-    } catch (error) {
+    } catch {
       console.log('Note: Could not retrieve balance information');
     }
 

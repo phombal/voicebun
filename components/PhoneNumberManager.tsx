@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PhoneNumber } from '@/lib/database/types';
 import { clientDb } from '@/lib/database/client-service';
@@ -34,10 +34,6 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState<string | null>(null);
   
-  // Outbound calling state
-  const [outboundNumber, setOutboundNumber] = useState('');
-  const [isMakingCall, setIsMakingCall] = useState<string | null>(null);
-  
   const { user } = useAuth();
 
   // Add error handler for uncaught errors
@@ -60,7 +56,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
   }, []);
 
   // Load user's phone numbers
-  const loadPhoneNumbers = async () => {
+  const loadPhoneNumbers = useCallback(async () => {
     setIsLoading(true);
     try {
       if (!user) {
@@ -76,11 +72,11 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadPhoneNumbers();
-  }, [user]);
+  }, [loadPhoneNumbers]);
 
   // Connect phone number to project using the assign endpoint
   const connectPhoneNumber = async (phoneNumber: PhoneNumber) => {
@@ -469,100 +465,6 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
       }, 6000);
     } finally {
       setIsReconnecting(null);
-    }
-  };
-
-  // Make outbound call
-  const makeOutboundCall = async (phoneNumber: PhoneNumber, targetNumber: string) => {
-    if (!projectId || !user) {
-      console.error('❌ Missing projectId or user for outbound call');
-      return;
-    }
-
-    setIsMakingCall(phoneNumber.id);
-
-    try {
-      console.log('📞 Making outbound call:', {
-        fromPhoneNumberId: phoneNumber.id,
-        fromNumber: phoneNumber.phone_number,
-        toNumber: targetNumber,
-        projectId
-      });
-
-      const response = await fetch('/api/make-outbound-call', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phoneNumberId: phoneNumber.id,
-          toNumber: targetNumber,
-          projectId: projectId,
-          userId: user.id
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Outbound call failed');
-      }
-
-      const result = await response.json();
-      console.log('✅ Outbound call initiated successfully:', result);
-
-      // Show success notification
-      const notification = document.createElement('div');
-      notification.innerHTML = `
-        <div class="flex items-center space-x-3">
-          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
-            </svg>
-          </div>
-          <div>
-            <div class="font-medium">Outbound Call Initiated!</div>
-            <div class="text-sm opacity-90">Calling ${targetNumber} from ${phoneNumber.phone_number}</div>
-          </div>
-        </div>
-      `;
-      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 6000);
-
-      // Clear the input
-      setOutboundNumber('');
-
-    } catch (error) {
-      console.error('❌ Error making outbound call:', error);
-      
-      // Show error notification
-      const notification = document.createElement('div');
-      notification.innerHTML = `
-        <div class="flex items-center space-x-3">
-          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </div>
-          <div>
-            <div class="font-medium">Outbound Call Failed</div>
-            <div class="text-sm opacity-90">${error instanceof Error ? error.message : 'Unknown error occurred'}</div>
-          </div>
-        </div>
-      `;
-      notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        if (document.body.contains(notification)) {
-          document.body.removeChild(notification);
-        }
-      }, 6000);
-    } finally {
-      setIsMakingCall(null);
     }
   };
 

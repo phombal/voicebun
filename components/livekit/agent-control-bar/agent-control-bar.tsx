@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageCircle, Mic, MicOff, Phone } from 'lucide-react';
+import { Mic, MicOff, Phone } from 'lucide-react';
 import { Room } from 'livekit-client';
 
 interface Capabilities {
@@ -19,19 +19,10 @@ interface AgentControlBarProps {
 
 export function AgentControlBar({ 
   capabilities, 
-  onChatOpenChange, 
-  onSendMessage,
   room,
   onEndCall
-}: AgentControlBarProps) {
+}: Omit<AgentControlBarProps, 'onChatOpenChange' | 'onSendMessage'>) {
   const [isMuted, setIsMuted] = React.useState(false);
-  const [chatOpen, setChatOpen] = React.useState(false);
-
-  const handleChatToggle = () => {
-    const newChatOpen = !chatOpen;
-    setChatOpen(newChatOpen);
-    onChatOpenChange(newChatOpen);
-  };
 
   const handleMuteToggle = async () => {
     if (room) {

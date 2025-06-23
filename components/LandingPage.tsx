@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Mic, Sparkles, Code, MessageSquare, ArrowRight, Users, Play, Clock, User, Globe } from 'lucide-react'
+import { Mic, Sparkles, Code, MessageSquare, ArrowRight, Users, Play, Clock, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface PublicProject {

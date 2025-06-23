@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from '@/lib/database/service';
 import { AccessToken } from 'livekit-server-sdk';
 
 const LIVEKIT_URL = process.env.LIVEKIT_URL;

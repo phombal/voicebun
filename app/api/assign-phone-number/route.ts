@@ -242,9 +242,6 @@ export async function POST(request: NextRequest) {
       }, { status: associateResponse.status });
     }
 
-    const associateData = await associateResponse.json();
-    console.log('✅ Phone number associated with connection');
-
     // Step 8: Setup LiveKit inbound trunk with latest configuration
     console.log('🎯 Step 6: Setting up LiveKit inbound trunk with latest project configuration...');
     

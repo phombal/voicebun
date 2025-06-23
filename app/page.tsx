@@ -1,115 +1,37 @@
 "use client";
 
-import { CloseIcon } from "@/components/CloseIcon";
-import { NoAgentNotification } from "@/components/NoAgentNotification";
-import DatabaseTranscriptionView from "@/components/DatabaseTranscriptionView";
-import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
-import { Project as DatabaseProject } from '@/lib/database/types';
-import { GeneratedCodeDisplay } from "@/components/GeneratedCodeDisplay";
-import UserProfile from "@/components/auth/UserProfile";
-import PublicLanding from "@/components/LandingPage";
 import PublicNavigation from "@/components/PublicNavigation";
 import CommunityProjectsSection from "@/components/CommunityProjectsSection";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  BarVisualizer,
-  DisconnectButton,
-  RoomAudioRenderer,
-  RoomContext,
-  VideoTrack,
-  VoiceAssistantControlBar,
-  useVoiceAssistant,
-} from "@livekit/components-react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Room, RoomEvent } from "livekit-client";
-import { useCallback, useEffect, useState } from "react";
-import type { ConnectionDetails } from "./api/connection-details/route";
+import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LoadingBun, LoadingPageWithTips } from '@/components/LoadingBun';
-import { Mic, Sparkles, ArrowRight, Users, Play, Clock, User } from 'lucide-react';
-import Link from 'next/link';
-
-// Typewriter effect component
-function TypewriterEffect() {
-  const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
-  const [currentText, setCurrentText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
-  
-  const roles = [
-    'Teacher',
-    'Sales Rep', 
-    'Therapist',
-    'Assistant',
-    'Tutor',
-    'Receptionist',
-    'Coach'
-  ];
-  
-  useEffect(() => {
-    const currentRole = roles[currentRoleIndex];
-    
-    const timer = setTimeout(() => {
-      if (!isDeleting) {
-        // Typing
-        if (currentText.length < currentRole.length) {
-          setCurrentText(currentRole.slice(0, currentText.length + 1));
-        } else {
-          // Pause before deleting
-          setTimeout(() => setIsDeleting(true), 2000);
-        }
-      } else {
-        // Deleting
-        if (currentText.length > 0) {
-          setCurrentText(currentText.slice(0, -1));
-        } else {
-          setIsDeleting(false);
-          setCurrentRoleIndex((prev) => (prev + 1) % roles.length);
-        }
-      }
-    }, isDeleting ? 50 : 100);
-    
-    return () => clearTimeout(timer);
-  }, [currentText, isDeleting, currentRoleIndex, roles]);
-  
-  return (
-    <span>
-      Your Next {currentText}
-      <span className="animate-pulse">|</span>
-    </span>
-  );
-}
-
-type AppState = "landing" | "loading" | "code-display" | "conversation";
-
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  created_at: string;
-  last_accessed_at?: string;
-  initial_prompt?: string;
-  config?: {
-    personality?: string;
-    language?: string;
-    responseStyle?: string;
-    capabilities?: string[];
-  };
-  view_count?: number;
-}
+import { clientDb } from '@/lib/database/client-service';
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [pendingPrompt, setPendingPrompt] = useState<string>("");
+
+  // Get user plan data if authenticated (non-blocking)
+  useEffect(() => {
+    if (user && !loading) {
+      clientDb.getUserPlan()
+        .then(plan => {
+          if (plan) {
+            // User plan data loaded but not used in UI
+          }
+        })
+        .catch(err => console.warn('Failed to fetch user plan:', err));
+    }
+  }, [user, loading]);
 
   const handleSubmit = () => {
     if (!prompt.trim()) return;
     
     if (!user) {
-      // Store the prompt and show auth prompt
-      setPendingPrompt(prompt.trim());
+      // Show auth prompt
       setShowAuthPrompt(true);
     } else {
       // User is authenticated, redirect to dashboard with prompt
@@ -131,8 +53,19 @@ export default function LandingPage() {
     "A healthcare helper that provides wellness tips and reminders"
   ];
 
-  if (loading) {
-    return <LoadingBun />;
+  // Show loading indicator only if we're still loading AND have a user
+  // This prevents blocking the landing page for unauthenticated users
+  const showLoadingIndicator = loading && user;
+
+  if (showLoadingIndicator) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   // Show landing page for unauthenticated users
@@ -229,20 +162,14 @@ export default function LandingPage() {
       {showAuthPrompt && (
         <AuthPromptModal 
           onClose={() => setShowAuthPrompt(false)}
-          onAuthComplete={() => {
-            setShowAuthPrompt(false);
-            // After auth, redirect to dashboard with the prompt
-            router.push(`/dashboard?prompt=${encodeURIComponent(pendingPrompt)}`);
-          }}
         />
       )}
     </>
   );
 }
 
-function AuthPromptModal({ onClose, onAuthComplete }: { 
-  onClose: () => void; 
-  onAuthComplete: () => void; 
+function AuthPromptModal({ onClose }: { 
+  onClose: () => void;
 }) {
   const router = useRouter();
 

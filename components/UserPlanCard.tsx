@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDatabase } from '@/hooks/useDatabase';
 import { UserPlan } from '@/lib/database/types';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function UserPlanCard() {
@@ -15,13 +14,8 @@ export default function UserPlanCard() {
   const [error, setError] = useState<string | null>(null);
   const { getUserPlan } = useDatabase();
   const { user } = useAuth();
-  const router = useRouter();
 
-  useEffect(() => {
-    loadUserPlan();
-  }, []);
-
-  const loadUserPlan = async () => {
+  const loadUserPlan = useCallback(async () => {
     try {
       setLoading(true);
       const plan = await getUserPlan();
@@ -35,7 +29,11 @@ export default function UserPlanCard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getUserPlan]);
+
+  useEffect(() => {
+    loadUserPlan();
+  }, [loadUserPlan]);
 
   const handleUpgrade = async () => {
     if (!user) return;
@@ -364,4 +362,4 @@ export default function UserPlanCard() {
       </div>
     </div>
   );
-} 
+}

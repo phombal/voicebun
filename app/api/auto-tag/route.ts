@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { autoTagProject, type ProjectCategory } from '@/lib/auto-tagger';
+import { autoTagProject } from '@/lib/auto-tagger';
 
 export async function POST(request: NextRequest) {
   try {

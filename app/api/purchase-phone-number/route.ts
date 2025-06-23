@@ -10,16 +10,6 @@ if (!TELNYX_API_KEY) {
   throw new Error('TELNYX_API_KEY environment variable is required');
 }
 
-interface PurchasePhoneNumberRequest {
-  phoneNumber: string;
-  userId: string;
-  projectId: string;
-  connectionId?: string;
-  messagingProfileId?: string;
-  billingGroupId?: string;
-  customerReference?: string;
-}
-
 interface TelnyxError {
   code: string;
   title: string;

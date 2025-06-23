@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/database/service';
 import { supabaseServiceRole } from '@/lib/database/server';
 import { SipClient } from 'livekit-server-sdk';
 
@@ -167,7 +166,7 @@ export async function POST(request: NextRequest) {
             if (metadata.phoneNumber === phoneNumber.phone_number) {
               return true;
             }
-          } catch (e) {
+          } catch {
             // Ignore JSON parse errors
           }
         }

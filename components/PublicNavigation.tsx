@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -61,9 +62,11 @@ export default function PublicNavigation() {
             
             {/* Logo */}
             <Link href="/" onClick={closeMobileMenu}>
-              <img 
+              <Image 
                 src="/VoiceBun-White.png" 
                 alt="VoiceBun" 
+                width={120}
+                height={40}
                 className="h-10 w-auto cursor-pointer"
               />
             </Link>
@@ -124,9 +127,11 @@ export default function PublicNavigation() {
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-white/10">
                   <Link href="/" onClick={closeMobileMenu}>
-                    <img 
+                    <Image 
                       src="/VoiceBun-White.png" 
                       alt="VoiceBun" 
+                      width={96}
+                      height={32}
                       className="h-8 w-auto cursor-pointer"
                     />
                   </Link>

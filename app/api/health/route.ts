@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { supabaseServiceRole } from '@/lib/database/server';
 
 // Force dynamic rendering
@@ -48,7 +48,7 @@ async function checkDatabase(): Promise<HealthCheck['checks']['database']> {
   
   try {
     // Simple query to check database connectivity
-    const { data, error } = await supabaseServiceRole
+    const { error } = await supabaseServiceRole
       .from('users')
       .select('id')
       .limit(1);
@@ -106,16 +106,14 @@ function checkMemory(): HealthCheck['checks']['memory'] {
         percentage: Math.round(percentage),
       },
     };
-  } catch (error) {
+  } catch {
     return {
       status: 'unhealthy',
     };
   }
 }
 
-export async function GET(request: NextRequest) {
-  const startTime = Date.now();
-  
+export async function GET() {
   try {
     // Run all health checks in parallel
     const [databaseCheck, environmentCheck, memoryCheck] = await Promise.all([
@@ -155,7 +153,9 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json(healthCheck, { status: statusCode });
     
-  } catch (error: any) {
+  } catch (error) {
+    console.error('Health check error:', error);
+    
     const healthCheck: HealthCheck = {
       status: 'unhealthy',
       timestamp: new Date().toISOString(),

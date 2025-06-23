@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Play, ArrowRight, Search, Filter, Clock, User, Mic, Sparkles } from 'lucide-react';
+import { Users, Play, ArrowRight, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useDatabase } from '@/hooks/useDatabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,7 +46,7 @@ interface CommunityProjectsSectionProps {
 export default function CommunityProjectsSection({ 
   delay = 0.6,
   variant = 'card',
-  theme = 'light',
+  theme = 'light', // eslint-disable-line @typescript-eslint/no-unused-vars
   title = 'Community Projects',
   showSearch = false,
   showFilters = true,
@@ -56,10 +56,8 @@ export default function CommunityProjectsSection({
 }: CommunityProjectsSectionProps) {
   const [featuredProjects, setFeaturedProjects] = useState<PublicProject[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
   const { getUserProjects } = useDatabase();
   const { user } = useAuth();
@@ -73,8 +71,6 @@ export default function CommunityProjectsSection({
       
       if (!silent) {
         setProjectsLoading(true);
-      } else {
-        setRefreshing(true);
       }
       
       let projects: any[] = [];
@@ -138,7 +134,6 @@ export default function CommunityProjectsSection({
       }
       
       setFeaturedProjects(projects);
-      setLastRefreshTime(new Date());
       console.log(`✅ Successfully updated featuredProjects with ${projects.length} items`);
     } catch (err) {
       console.error('❌ Failed to load projects:', err);
@@ -152,8 +147,6 @@ export default function CommunityProjectsSection({
     } finally {
       if (!silent) {
         setProjectsLoading(false);
-      } else {
-        setRefreshing(false);
       }
     }
   }, [projectType, user, getUserProjects, limit]);
@@ -257,7 +250,7 @@ export default function CommunityProjectsSection({
     });
   };
 
-  const ProjectCard = ({ project, index }: { project: PublicProject; index: number }) => {
+  const ProjectCard = ({ project }: { project: PublicProject }) => {
     const emoji = project.project_emoji || project.project_data?.project_emoji || '🤖';
     
     // Debug logging for emoji selection
@@ -273,14 +266,13 @@ export default function CommunityProjectsSection({
     
     const viewCount = project.view_count || 0;
     const displayTitle = project.project_data?.public_title || project.name || 'Untitled Project';
-    const displayDescription = project.project_data?.public_description || project.description || 'No description available';
     const category = project.category || project.project_data?.category;
     
     // Determine the correct link based on project type
     const projectLink = projectType === 'user' ? `/projects/${project.id}` : `/community/${project.id}`;
     
     // Handle project click with view tracking
-    const handleProjectClick = (e: React.MouseEvent) => {
+    const handleProjectClick = () => {
       // Track the view
       trackProjectView(project.id, projectType);
       // Navigation will happen automatically via the Link component
@@ -585,8 +577,8 @@ export default function CommunityProjectsSection({
         </motion.div>
       ) : (
         <div className={getGridClasses()}>
-          {filteredProjects.map((project, index) => (
-            <ProjectCard key={project.id} project={project} index={index} />
+          {filteredProjects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
           ))}
         </div>
       )}

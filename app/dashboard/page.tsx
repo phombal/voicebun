@@ -3,13 +3,14 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useCallback, Suspense } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { Project as DatabaseProject } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
 import UserProfile from '@/components/auth/UserProfile';
 import { LoadingPageWithTips } from '@/components/LoadingBun';
 import CommunityProjectsSection from '@/components/CommunityProjectsSection';
+import Image from 'next/image';
 
 interface Project {
   id: string;
@@ -24,31 +25,6 @@ interface Project {
     responseStyle?: string;
     capabilities?: string[];
   };
-}
-
-// Audio bars visualization component
-function AudioBars() {
-  return (
-    <div className="flex items-end justify-center space-x-1 mt-8 mb-12 h-12">
-      {[...Array(12)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="bg-white/60 rounded-full"
-          style={{ width: '4px' }}
-          animate={{
-            height: [8, 24, 12, 32, 16, 28, 8, 20, 36, 14, 26, 18],
-            opacity: [0.4, 1, 0.6, 1, 0.8, 1, 0.5, 0.9, 1, 0.7, 1, 0.8]
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            delay: i * 0.2,
-            ease: "easeInOut"
-          }}
-        />
-      ))}
-    </div>
-  );
 }
 
 // Component that uses useSearchParams and needs to be wrapped in Suspense
@@ -499,9 +475,11 @@ if __name__ == "__main__":
               </button>
             </div>
 
-            <img 
+            <Image 
               src="/VoiceBun-White.png" 
               alt="VoiceBun" 
+              width={120}
+              height={40}
               className="h-10 w-auto cursor-pointer"
               onClick={() => router.push('/dashboard')}
             />

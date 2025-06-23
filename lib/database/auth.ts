@@ -16,13 +16,13 @@ if (!supabaseAnonKey) {
 // Client-side Supabase client (uses anon key, safe for browser)
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Implicit flow settings
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     storageKey: 'sb-auth-token',
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true, // Enable automatic session detection from URL
-    flowType: 'implicit' // Use implicit flow instead of PKCE
+    detectSessionInUrl: true,
+    flowType: 'pkce', // Use PKCE flow for better security and Safari compatibility
+    debug: process.env.NODE_ENV === 'development'
   }
 })
 
@@ -58,10 +58,15 @@ export const auth = {
       return { data: null, error: new Error('OAuth can only be initiated in browser') }
     }
 
+    // Ensure we have the correct redirect URL
+    const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL 
+      ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+      : `${window.location.origin}/auth/callback`
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',

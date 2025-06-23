@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 
 interface LoadingBunProps {
   message?: string;
@@ -11,7 +12,6 @@ interface LoadingBunProps {
 
 export function LoadingBun({ 
   message = "Loading...", 
-  showTips = false, 
   className = "min-h-screen bg-black flex items-center justify-center" 
 }: LoadingBunProps) {
   return (
@@ -31,10 +31,12 @@ export function LoadingBun({
           }}
           className="mb-8"
         >
-          <img 
+          <Image 
             src="/VoiceBun-BunOnly.png" 
             alt="VoiceBun" 
-            className="h-24 w-auto mx-auto"
+            width={96}
+            height={96}
+            className="mx-auto"
           />
         </motion.div>
 
@@ -112,10 +114,12 @@ export function LoadingPageWithTips() {
           }}
           className="mb-8"
         >
-          <img 
+          <Image 
             src="/VoiceBun-BunOnly.png" 
             alt="VoiceBun" 
-            className="h-24 w-auto mx-auto"
+            width={96}
+            height={96}
+            className="mx-auto"
           />
         </motion.div>
 

@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { User } from '@supabase/supabase-js';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,7 +45,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user information for each project
-    const userIds = Array.from(new Set(projects?.map(p => p.user_id) || []));
     const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
     
     if (usersError) {
@@ -52,12 +52,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Create a map of user IDs to user info
-    const userMap = new Map();
+    const userMap = new Map<string, { name: string; email: string }>();
     if (users) {
-      users.users.forEach(user => {
+      users.users.forEach((user: User) => {
         userMap.set(user.id, {
           name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous',
-          email: user.email
+          email: user.email || ''
         });
       });
     }

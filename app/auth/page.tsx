@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import AuthForm from '@/components/auth/AuthForm'
 import { motion } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
-import { supabase } from '@/lib/database/auth'
+import Image from 'next/image'
 
 // Cute quotes component
 function CuteQuotes() {
@@ -139,9 +139,11 @@ function AuthPageContent() {
       <div className="hidden lg:flex lg:w-1/2 p-12 flex-col justify-center items-center">
         <div className="max-w-md text-center">
           <div className="flex items-center justify-center mb-8">
-            <img 
+            <Image 
               src="/VoiceBun-BunOnly.png" 
               alt="VoiceBun Mascot" 
+              width={128}
+              height={128}
               className="h-32 w-auto"
             />
           </div>
@@ -156,9 +158,11 @@ function AuthPageContent() {
           {/* Mobile branding */}
           <div className="lg:hidden text-center mb-8">
             <div className="flex items-center justify-center mb-4">
-              <img 
+              <Image 
                 src="/VoiceBun-BunOnly.png" 
                 alt="VoiceBun Mascot" 
+                width={96}
+                height={96}
                 className="h-24 w-auto"
               />
             </div>

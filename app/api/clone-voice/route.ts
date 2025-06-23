@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CartesiaClient } from "@cartesia/cartesia-js";
 
 // Helper function to estimate audio duration from WebM/audio data
-function estimateAudioDuration(audioBuffer: ArrayBuffer, sampleRate: number = 48000): number {
+function estimateAudioDuration(audioBuffer: ArrayBuffer): number {
   // This is a rough estimation - actual duration would require proper audio parsing
   // For WebM, we can estimate based on file size and typical bitrates
   const fileSizeKB = audioBuffer.byteLength / 1024;
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
           // Continue anyway - voice was created successfully
         } else {
           // Find the user with matching email
-          const user = userData.users.find(u => u.email === userEmail);
+          const user = userData.users.find((u: { email: string }) => u.email === userEmail);
           
           if (!user) {
             console.error('User not found with email:', userEmail);

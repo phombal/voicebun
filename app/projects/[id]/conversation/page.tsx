@@ -104,13 +104,6 @@ export default function ConversationPage() {
     loadProject();
   }, [getUserProjects, user, projectId, router]);
 
-  // Auto-connect when component loads
-  useEffect(() => {
-    if (project && config && !isConnecting && !isConnected) {
-      connectToRoom();
-    }
-  }, [project, config, isConnecting, isConnected]);
-
   const connectToRoom = useCallback(async () => {
     if (!config) return;
     
@@ -196,11 +189,12 @@ export default function ConversationPage() {
     }
   }, [config, projectId, room, user]);
 
-  const endConversation = async () => {
-    await room.disconnect();
-    setIsConnected(false);
-    router.push(`/projects/${projectId}`);
-  };
+  // Auto-connect when component loads
+  useEffect(() => {
+    if (project && config && !isConnecting && !isConnected) {
+      connectToRoom();
+    }
+  }, [project, config, isConnecting, isConnected, connectToRoom]);
 
   const handleBackToProject = () => {
     router.push(`/projects/${projectId}`);

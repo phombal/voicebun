@@ -75,7 +75,7 @@ interface ModelsTabProps {
   }>>;
   customVoices: Array<{ id: string; displayName: string }>;
   onShowCloneVoiceModal: () => void;
-  onModelChange: (model: string) => void;
+  onModelChange?: (model: string) => void;
 }
 
 const providers = [
@@ -172,7 +172,7 @@ export function ModelsTab({
                         llmModel: firstModel || prev.llmModel
                       }));
                       if (firstModel) {
-                        onModelChange(firstModel);
+                        onModelChange?.(firstModel);
                       }
                     }}
                     className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
@@ -201,7 +201,7 @@ export function ModelsTab({
                     value={projectConfig.llmModel}
                     onChange={(e) => {
                       setProjectConfig(prev => ({ ...prev, llmModel: e.target.value }));
-                      onModelChange(e.target.value);
+                      onModelChange?.(e.target.value);
                     }}
                     className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                   >

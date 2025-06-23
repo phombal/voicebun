@@ -2,9 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/database/auth';
-import { Check } from 'lucide-react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import PublicNavigation from '@/components/PublicNavigation';
 
@@ -81,7 +78,6 @@ const plans: PricingPlan[] = [
 export default function PricingPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -113,8 +109,6 @@ export default function PricingPage() {
     if (plan.id === 'free') {
       return;
     }
-
-    setProcessingPlan(plan.id);
 
     try {
       // For the specific plan that should redirect to the Stripe buy link
@@ -170,8 +164,6 @@ export default function PricingPage() {
     } catch (error) {
       console.error('Error creating checkout session:', error);
       alert('Failed to start checkout process. Please try again.');
-    } finally {
-      setProcessingPlan(null);
     }
   };
 
@@ -206,7 +198,7 @@ export default function PricingPage() {
 
         {/* Pricing Cards */}
         <div className="grid lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {plans.map((plan, index) => (
+          {plans.map((plan) => (
             <div 
               key={plan.id} 
               className={`

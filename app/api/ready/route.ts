@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   // Simple readiness check - just return OK if the service is running
   // This is typically used by load balancers and orchestrators
   return NextResponse.json(

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createClient(
@@ -11,7 +11,9 @@ export async function POST(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
     
-    const projectId = params.id;
+    // Await the params in Next.js 14+
+    const { id } = await params;
+    const projectId = id;
 
     if (!projectId) {
       return NextResponse.json(

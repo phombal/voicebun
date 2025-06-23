@@ -1,27 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import PublicNavigation from '@/components/PublicNavigation';
 import UserProfile from '@/components/auth/UserProfile';
 import CommunityProjectsSection from '@/components/CommunityProjectsSection';
-import { 
-  Users, 
-  Mic, 
-  Play, 
-  Clock, 
-  User, 
-  Heart,
-  Search,
-  Filter,
-  ChevronRight,
-  Sparkles,
-  Globe,
-  ArrowRight
-} from 'lucide-react';
+import Image from 'next/image';
 
 export default function CommunityPage() {
   const { user } = useAuth();
@@ -37,9 +22,11 @@ export default function CommunityPage() {
         <header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md shadow-lg">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="flex items-center">
-              <img 
+              <Image 
                 src="/VoiceBun-White.png" 
                 alt="VoiceBun" 
+                width={120}
+                height={40}
                 className="h-10 w-auto cursor-pointer"
                 onClick={() => router.push('/dashboard')}
               />

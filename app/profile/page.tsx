@@ -7,8 +7,9 @@ import { motion } from 'framer-motion';
 import { useDatabase } from '@/hooks/useDatabase';
 import UserProfile from '@/components/auth/UserProfile';
 import UserPlanCard from '@/components/UserPlanCard';
-import { User, Phone, CreditCard, Settings, Plus, Trash2, Edit3 } from 'lucide-react';
+import { User, Phone, CreditCard, Settings, Trash2, Edit3 } from 'lucide-react';
 import { Project, PhoneNumber } from '@/lib/database/types';
+import Image from 'next/image';
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
@@ -66,7 +67,6 @@ export default function ProfilePage() {
   }
 
   const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
-  const currentPlan = 'Free'; // This would come from your billing system
 
   return (
     <div className="min-h-screen bg-black" style={{ 
@@ -76,9 +76,11 @@ export default function ProfilePage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center">
-            <img 
+            <Image 
               src="/VoiceBun-White.png" 
               alt="VoiceBun" 
+              width={40}
+              height={40}
               className="h-10 w-auto cursor-pointer"
               onClick={() => router.push('/dashboard')}
             />

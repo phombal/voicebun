@@ -23,15 +23,12 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({
-  isExpanded,
-  onExpandedChange,
   messages,
   inputMessage,
   onInputChange,
   onSendMessage,
-  isGenerating,
-  onBackToHome
-}: ChatPanelProps) {
+  isGenerating
+}: Omit<ChatPanelProps, 'isExpanded' | 'onExpandedChange' | 'onBackToHome'>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [textareaHeight, setTextareaHeight] = useState(24); // Track textarea height

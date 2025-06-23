@@ -777,7 +777,7 @@ export class DatabaseService {
   }
 
   // Phone number limit management
-  async checkPhoneNumberLimit(userId: string): Promise<{ canPurchase: boolean; currentCount: number; limit: number }> {
+  async checkPhoneNumberLimit(): Promise<{ canPurchase: boolean; currentCount: number; limit: number }> {
     try {
       const userPlan = await this.getUserPlan();
       if (!userPlan) {
@@ -816,7 +816,7 @@ export class DatabaseService {
   }
 
   async incrementPhoneNumberCount(userId: string): Promise<UserPlan> {
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .rpc('increment_phone_number_count', { input_user_id: userId });
     
     if (error) throw error;
@@ -832,7 +832,7 @@ export class DatabaseService {
   // Server-side version for API routes
   async incrementPhoneNumberCountWithServiceRole(userId: string): Promise<UserPlan> {
     try {
-      const { data, error } = await supabaseServiceRole
+      const { error } = await supabaseServiceRole
         .rpc('increment_phone_number_count', { input_user_id: userId });
       
       if (error) {
@@ -875,7 +875,7 @@ export class DatabaseService {
   }
 
   async decrementPhoneNumberCount(userId: string): Promise<UserPlan> {
-    const { data, error } = await this.supabase
+    const { error } = await this.supabase
       .rpc('decrement_phone_number_count', { input_user_id: userId });
     
     if (error) throw error;

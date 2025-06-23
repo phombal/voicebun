@@ -11,6 +11,7 @@ import UserProfile from '@/components/auth/UserProfile';
 import DeleteProjectModal from '@/components/DeleteProjectModal';
 import { LoadingBun } from '@/components/LoadingBun';
 import CommunityProjectsSection from '@/components/CommunityProjectsSection';
+import Image from 'next/image';
 
 interface Project {
   id: string;
@@ -49,7 +50,6 @@ export default function ProjectsPage() {
     project: null,
     isDeleting: false
   });
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   // Redirect unauthenticated users to landing
   useEffect(() => {
@@ -79,16 +79,6 @@ export default function ProjectsPage() {
 
     loadProjects();
   }, [getUserProjects, user]);
-
-  const handleDeleteProject = (project: Project) => {
-    console.log('🗑️ Delete button clicked for project:', project.name);
-    setDeleteModal({
-      isOpen: true,
-      project,
-      isDeleting: false
-    });
-    setOpenDropdown(null);
-  };
 
   const confirmDeleteProject = async () => {
     if (!deleteModal.project) return;
@@ -302,9 +292,11 @@ export default function ProjectsPage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center">
-            <img 
+            <Image 
               src="/VoiceBun-White.png" 
               alt="VoiceBun" 
+              width={120}
+              height={40}
               className="h-10 w-auto cursor-pointer"
               onClick={() => router.push('/dashboard')}
             />
@@ -413,19 +405,6 @@ export default function ProjectsPage() {
         projectName={deleteModal.project?.name || ''}
         isDeleting={deleteModal.isDeleting}
       />
-
-      {/* Click outside to close dropdown */}
-      {/* Temporarily disabled to test dropdown functionality
-      {openDropdown && (
-        <div
-          className="fixed inset-0 z-10"
-          onClick={() => {
-            console.log('🔄 Click outside detected, closing dropdown');
-            setOpenDropdown(null);
-          }}
-        />
-      )}
-      */}
     </div>
   );
 } 

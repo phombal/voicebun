@@ -129,7 +129,7 @@ async function cleanupExistingDispatchRules(sipClient: SipClient, phoneNumber: s
         try {
           const metadata = JSON.parse(rule.metadata);
           hasMatchingPhone = metadata.phoneNumber === phoneNumber;
-        } catch (e) {
+        } catch {
           // Ignore JSON parse errors
         }
       }
@@ -202,7 +202,7 @@ async function isDispatchRuleCorrect(
           console.log('🔍 Metadata mismatch detected');
           return false;
         }
-      } catch (e) {
+      } catch {
         console.log('🔍 Failed to parse existing metadata');
         return false;
       }

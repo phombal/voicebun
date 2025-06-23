@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -51,7 +51,6 @@ export default function CommunityProjectPage() {
   const [isInConversation, setIsInConversation] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [hasManuallyDisconnected, setHasManuallyDisconnected] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
 
   // Initialize room with proper configuration
   const [room] = useState(() =>
@@ -72,12 +71,7 @@ export default function CommunityProjectPage() {
     screenshare: false
   };
 
-  const handleSendMessage = (message: string) => {
-    console.log('Sending message:', message);
-    // TODO: Implement message sending logic
-  };
-
-  const fetchProject = async (projectId: string) => {
+  const fetchProject = useCallback(async (projectId: string) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/community/projects/${projectId}`);
@@ -96,7 +90,7 @@ export default function CommunityProjectPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Function to track project views
   const trackProjectView = async (projectId: string) => {
@@ -370,7 +364,7 @@ export default function CommunityProjectPage() {
     if (params.id && typeof params.id === 'string') {
       fetchProject(params.id);
     }
-  }, [params.id]);
+  }, [params.id, fetchProject]);
 
   // Auto-start conversation when project loads and user is authenticated
   useEffect(() => {
@@ -589,8 +583,6 @@ export default function CommunityProjectPage() {
       <div className="flex items-center justify-center">
         <AgentControlBar
           capabilities={capabilities}
-          onChatOpenChange={setChatOpen}
-          onSendMessage={handleSendMessage}
           room={room}
           onEndCall={handleEndCall}
         />

@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDatabase } from '@/hooks/useDatabase'
 import { UserPlan } from '@/lib/database/types'
-import { User, LogOut, Settings, ChevronDown, CreditCard } from 'lucide-react'
+import { User, LogOut, ChevronDown, CreditCard } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 export default function UserProfile() {
@@ -29,11 +29,7 @@ export default function UserProfile() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  useEffect(() => {
-    loadUserPlan()
-  }, [user])
-
-  const loadUserPlan = async () => {
+  const loadUserPlan = useCallback(async () => {
     if (!user) return
     
     try {
@@ -45,7 +41,11 @@ export default function UserProfile() {
     } finally {
       setPlanLoading(false)
     }
-  }
+  }, [user, getUserPlan])
+
+  useEffect(() => {
+    loadUserPlan()
+  }, [loadUserPlan])
 
   const handleSignOut = async () => {
     await signOut()

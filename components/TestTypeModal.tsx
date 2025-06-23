@@ -34,7 +34,6 @@ export function TestTypeModal({
   isOpen,
   onClose,
   availablePhoneNumbers,
-  user,
   onWebTest,
   onOutboundTest
 }: TestTypeModalProps) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from "framer-motion";
 import { Room, RoomEvent } from "livekit-client";
 import {
@@ -70,7 +70,7 @@ export function VoiceConversationModal({
     }),
   );
 
-  const startConversation = async () => {
+  const startConversation = useCallback(async () => {
     console.log('🔥 CLICKED START CONVERSATION BUTTON!');
     console.log('🔍 Initial state check:');
     console.log('   • isConnecting:', isConnecting);
@@ -152,43 +152,6 @@ export function VoiceConversationModal({
       console.log('   • participantName:', connectionDetailsData.participantName);
       console.log('   • hasToken:', !!connectionDetailsData.participantToken);
       console.log('   • tokenLength:', connectionDetailsData.participantToken?.length || 0);
-
-      // Create explicit agent dispatch for this room
-      console.log('🤖 Creating explicit agent dispatch...');
-      const agentMetadata = {
-        projectId: projectToUse.id,
-        userId: user?.id,
-        agentConfig: {
-          ...config,
-          prompt: projectConfig.systemPrompt || config.prompt // Use AI-generated system prompt if available, fallback to original
-        },
-        modelConfigurations: {
-          // LLM Configuration
-          llm: {
-            provider: projectConfig.llmProvider,
-            model: projectConfig.llmModel,
-            temperature: projectConfig.llmTemperature,
-            maxResponseLength: projectConfig.llmMaxResponseLength
-          },
-          // STT Configuration
-          stt: {
-            provider: projectConfig.sttProvider,
-            language: projectConfig.sttLanguage,
-            quality: projectConfig.sttQuality,
-            processingMode: projectConfig.sttProcessingMode,
-            noiseSuppression: projectConfig.sttNoiseSuppression,
-            autoPunctuation: projectConfig.sttAutoPunctuation
-          },
-          // TTS Configuration
-          tts: {
-            provider: projectConfig.ttsProvider,
-            voice: projectConfig.ttsVoice
-          },
-          // Additional configurations
-          firstMessageMode: projectConfig.firstMessageMode,
-          responseLatencyPriority: projectConfig.responseLatencyPriority
-        }
-      };
 
       console.log('📋 Agent dispatch metadata:');
       console.log('   • Project ID:', projectToUse.id);
@@ -298,7 +261,7 @@ export function VoiceConversationModal({
       setIsConnecting(false);
       console.log('🏁 Set isConnecting = false (finally block)');
     }
-  };
+  }, [isConnecting, isInConversation, currentProject, config, project, projectConfig, user, createProject, code, room]);
 
   const endConversation = async () => {
     await room.disconnect();
@@ -335,7 +298,7 @@ export function VoiceConversationModal({
       setHasStartedConversation(true);
       startConversation();
     }
-  }, [isOpen, isInConversation, isConnecting, hasStartedConversation]);
+  }, [isOpen, isInConversation, isConnecting, hasStartedConversation, startConversation]);
 
   // Close modal if not in conversation anymore (but only after we've attempted to start)
   useEffect(() => {

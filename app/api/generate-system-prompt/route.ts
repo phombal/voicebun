@@ -63,7 +63,7 @@ ${generate_title ? `{
 Return ONLY the JSON response without any markdown formatting, headers, or additional text. The system prompt should be between 800-1500 characters${generate_title ? ', the title should be 2-5 words,' : ''} and the welcome message should be 1-2 sentences (50-150 characters).`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
@@ -88,7 +88,7 @@ Return ONLY the JSON response without any markdown formatting, headers, or addit
     let parsedContent;
     try {
       parsedContent = JSON.parse(generatedContent);
-    } catch (parseError) {
+    } catch {
       // Fallback: try to extract system prompt and welcome message manually
       console.warn('Failed to parse JSON response, attempting manual extraction');
       
