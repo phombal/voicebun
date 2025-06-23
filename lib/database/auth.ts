@@ -199,7 +199,12 @@ export const auth = {
       return { data: null, error: new Error('OAuth can only be initiated in browser') }
     }
 
-    console.log('🔗 Initiating Google OAuth:', isSafari() ? 'Safari' : 'Standard')
+    console.log('🔗 Initiating Google OAuth:', {
+      browser: isSafari() ? 'Safari' : 'Standard',
+      environment: process.env.NODE_ENV,
+      origin: window.location.origin,
+      siteUrl: process.env.NEXT_PUBLIC_SITE_URL
+    })
 
     // Ensure we have the correct redirect URL for both dev and production
     let redirectUrl: string
@@ -207,15 +212,30 @@ export const auth = {
     if (process.env.NODE_ENV === 'development') {
       // In development, always use localhost
       redirectUrl = `${window.location.origin}/auth/callback`
-    } else if (process.env.NEXT_PUBLIC_SITE_URL) {
-      // In production, use the configured site URL
-      redirectUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
     } else {
-      // Fallback to current origin
-      redirectUrl = `${window.location.origin}/auth/callback`
+      // In production, prioritize NEXT_PUBLIC_SITE_URL but with better fallback
+      if (process.env.NEXT_PUBLIC_SITE_URL) {
+        redirectUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+      } else {
+        // Fallback to current origin, but log a warning
+        redirectUrl = `${window.location.origin}/auth/callback`
+        console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set, using current origin:', redirectUrl)
+      }
     }
 
     console.log('🔗 OAuth redirect URL:', redirectUrl)
+
+    // Additional production debugging
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🏭 Production OAuth debug:', {
+        currentUrl: window.location.href,
+        redirectUrl,
+        userAgent: navigator.userAgent,
+        isSafari: isSafari(),
+        protocol: window.location.protocol,
+        host: window.location.host
+      })
+    }
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -231,7 +251,12 @@ export const auth = {
     })
     
     if (error) {
-      console.error('Google OAuth initiation error:', error)
+      console.error('Google OAuth initiation error:', {
+        error: error.message,
+        redirectUrl,
+        environment: process.env.NODE_ENV,
+        isSafari: isSafari()
+      })
       // Return more specific error information
       return { 
         data: null, 
@@ -239,6 +264,7 @@ export const auth = {
       }
     }
     
+    console.log('✅ Google OAuth initiated successfully')
     return { data, error }
   },
 

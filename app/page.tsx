@@ -21,6 +21,35 @@ function LandingPageContent() {
   const [prompt, setPrompt] = useState("");
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [showManualOverride, setShowManualOverride] = useState(false);
+
+  // Debug logging for loading state
+  useEffect(() => {
+    console.log('🏠 LandingPage state update:', {
+      loading,
+      hasUser: !!user,
+      userId: user?.id,
+      isRedirecting,
+      isSafariBrowser: isSafari(),
+      environment: process.env.NODE_ENV,
+      url: typeof window !== 'undefined' ? window.location.href : 'server',
+      searchParams: typeof window !== 'undefined' ? window.location.search : 'server'
+    });
+  }, [loading, user, isRedirecting]);
+
+  // Show manual override after extended loading
+  useEffect(() => {
+    if (loading && !user) {
+      const overrideTimeout = setTimeout(() => {
+        console.log('⏰ Showing manual override button due to extended loading');
+        setShowManualOverride(true);
+      }, 5000); // Show override after 5 seconds
+
+      return () => clearTimeout(overrideTimeout);
+    } else {
+      setShowManualOverride(false);
+    }
+  }, [loading, user]);
 
   // Get user plan data if authenticated (non-blocking)
   useEffect(() => {
@@ -124,6 +153,23 @@ function LandingPageContent() {
     "A healthcare helper that provides wellness tips and reminders"
   ];
 
+  const handleManualOverride = () => {
+    console.log('🔧 Manual override triggered by user');
+    setShowManualOverride(false);
+    
+    // Check if we have an OAuth code to handle
+    const code = searchParams?.get('code');
+    if (code) {
+      console.log('🔄 Manual override: Attempting to handle OAuth code');
+      // Redirect to dashboard and let it handle the auth
+      router.push('/dashboard');
+    } else {
+      // No code, go to auth page
+      console.log('🔄 Manual override: No OAuth code, going to auth page');
+      router.push('/auth');
+    }
+  };
+
   // Show loading state
   if (loading || isRedirecting) {
     return (
@@ -138,6 +184,14 @@ function LandingPageContent() {
                 : 'Preparing your experience...'
             }
           </p>
+          {showManualOverride && (
+            <button
+              onClick={handleManualOverride}
+              className="mt-4 bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors font-medium text-sm sm:text-base"
+            >
+              Manual Override
+            </button>
+          )}
         </div>
       </div>
     );

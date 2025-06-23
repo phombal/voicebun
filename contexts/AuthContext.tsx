@@ -305,6 +305,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       url: typeof window !== 'undefined' ? window.location.href : 'server'
     })
     
+    // More aggressive timeout to prevent infinite loading
+    const maxTimeout = process.env.NODE_ENV === 'production' ? 8000 : 10000 // 8s prod, 10s dev
+    console.log(`⏰ Setting maximum auth timeout to ${maxTimeout}ms`)
+    
+    const maxTimeoutId = setTimeout(() => {
+      if (loading && isMountedRef.current) {
+        console.error('🚨 MAXIMUM AUTH TIMEOUT REACHED - forcing completion')
+        console.log('🔍 Final timeout state:', {
+          loading,
+          hasInitialized: hasInitializedRef.current,
+          isMounted: isMountedRef.current,
+          user: !!user,
+          session: !!session,
+          environment: process.env.NODE_ENV,
+          url: typeof window !== 'undefined' ? window.location.href : 'server'
+        })
+        
+        // Force completion
+        hasInitializedRef.current = true
+        setLoading(false)
+        
+        // If we're on a page with an OAuth code, try one more time to handle it
+        if (typeof window !== 'undefined' && window.location.search.includes('code=')) {
+          console.log('🔄 Final attempt to handle OAuth code...')
+          checkOAuthCompletion().then((handled) => {
+            console.log('📝 Final OAuth attempt result:', handled)
+            if (!handled) {
+              console.log('❌ Final OAuth attempt failed, clearing loading state')
+              setUser(null)
+              setSession(null)
+            }
+          }).catch((error) => {
+            console.error('❌ Final OAuth attempt error:', error)
+            setUser(null)
+            setSession(null)
+          })
+        } else {
+          setUser(null)
+          setSession(null)
+        }
+      }
+    }, maxTimeout)
+    
     // Timeout to prevent infinite loading for Safari
     if (isSafari()) {
       console.log('🍎 Safari detected - setting timeout for auth initialization')
@@ -513,6 +556,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
         timeoutRef.current = null
+      }
+      
+      if (maxTimeoutId) {
+        clearTimeout(maxTimeoutId)
       }
       
       if (debounceRef.current) {

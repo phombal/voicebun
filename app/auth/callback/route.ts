@@ -1,52 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
-  const error = requestUrl.searchParams.get('error')
-  const errorDescription = requestUrl.searchParams.get('error_description')
-
-  // Detect Safari
-  const userAgent = request.headers.get('user-agent') || ''
-  const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent) ||
-                   /iPad|iPhone|iPod/.test(userAgent)
-
-  console.log('OAuth callback received:', { 
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  const error = searchParams.get('error')
+  
+  console.log('🔄 OAuth callback received:', {
     hasCode: !!code,
-    error, 
-    errorDescription,
-    isSafari,
-    userAgent: userAgent.substring(0, 50) + '...'
+    hasError: !!error,
+    origin,
+    userAgent: request.headers.get('user-agent'),
+    environment: process.env.NODE_ENV,
+    isSafari: request.headers.get('user-agent')?.includes('Safari') && !request.headers.get('user-agent')?.includes('Chrome'),
+    requestUrl: request.url
   })
 
-  // Get the correct base URL for redirects
-  const getBaseUrl = () => {
-    if (process.env.NEXT_PUBLIC_SITE_URL) {
-      return process.env.NEXT_PUBLIC_SITE_URL
+  // Determine the correct redirect URL based on environment
+  let redirectUrl: string
+  
+  if (process.env.NODE_ENV === 'development') {
+    redirectUrl = 'http://localhost:3000'
+  } else if (process.env.NEXT_PUBLIC_SITE_URL) {
+    redirectUrl = process.env.NEXT_PUBLIC_SITE_URL
+  } else {
+    redirectUrl = origin
+    console.warn('⚠️ NEXT_PUBLIC_SITE_URL not set in production, using origin:', origin)
+  }
+
+  console.log('🔗 Callback redirect URL:', redirectUrl)
+
+  if (error) {
+    console.error('❌ OAuth error in callback:', error)
+    return NextResponse.redirect(`${redirectUrl}/?error=${encodeURIComponent(error)}`)
+  }
+
+  if (code) {
+    console.log('✅ OAuth code received, redirecting to landing page')
+    
+    // In production, add additional debugging
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🏭 Production callback debug:', {
+        code: code.substring(0, 10) + '...', // Log first 10 chars only for security
+        redirectUrl,
+        origin,
+        siteUrl: process.env.NEXT_PUBLIC_SITE_URL
+      })
     }
     
-    const protocol = requestUrl.protocol
-    const host = requestUrl.host
-    return `${protocol}//${host}`
+    return NextResponse.redirect(`${redirectUrl}/?code=${code}`)
   }
 
-  const baseUrl = getBaseUrl()
-
-  // If there's an error from the OAuth provider
-  if (error) {
-    console.error('OAuth provider error:', error, errorDescription)
-    return NextResponse.redirect(new URL(`/auth?error=${encodeURIComponent(error)}`, baseUrl))
-  }
-
-  // For all browsers, let client-side handle PKCE since code verifier is stored in browser
-  if (code) {
-    console.log('🔄 OAuth code received - redirecting to client-side for PKCE handling')
-    // Redirect to home page with the code intact for client-side processing
-    // This avoids the server-side code verifier issue since PKCE stores verifier in browser session
-    return NextResponse.redirect(new URL(`/?code=${code}`, baseUrl))
-  }
-
-  // For any other case, redirect to auth page
-  console.log('OAuth callback: No code or error, redirecting to auth')
-  return NextResponse.redirect(new URL('/auth', baseUrl))
+  console.warn('⚠️ No code or error in callback, redirecting to home')
+  return NextResponse.redirect(redirectUrl)
 } 
