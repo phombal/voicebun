@@ -117,4 +117,30 @@ temp/
 *.ntvs*
 *.njsproj
 *.sln
-*.sw? 
+*.sw?
+
+# Additional files that shouldn't be in the repository
+SECURITY_AUDIT_REPORT.md
+*.sql
+taskfile.yaml
+renovate.json
+requirements.txt
+TEMPLATE.md
+LIVEKIT_SETUP.md
+
+# Database and migration files (may contain sensitive data)
+*.db
+*.sqlite
+*.sqlite3
+
+# API keys and secrets (additional protection)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Backup files
+*.bak
+*.backup
+*~ 
