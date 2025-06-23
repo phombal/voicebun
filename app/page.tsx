@@ -27,14 +27,6 @@ export default function LandingPage() {
     }
   }, [user, loading]);
 
-  // Redirect authenticated users to dashboard
-  useEffect(() => {
-    if (!loading && user) {
-      console.log('🎯 Authenticated user detected on landing page, redirecting to dashboard');
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
-
   const handleSubmit = () => {
     if (!prompt.trim()) return;
     
@@ -61,18 +53,16 @@ export default function LandingPage() {
     "A healthcare helper that provides wellness tips and reminders"
   ];
 
-  // Show loading indicator while auth is initializing or if user is detected but redirect hasn't happened yet
-  // This prevents flash of unauthenticated content during OAuth completion
-  const showLoadingIndicator = loading || (user && !loading);
+  // Show loading indicator only if we're still loading AND have a user
+  // This prevents blocking the landing page for unauthenticated users
+  const showLoadingIndicator = loading && user;
 
   if (showLoadingIndicator) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            {user ? 'Redirecting to dashboard...' : 'Loading...'}
-          </p>
+          <p className="text-gray-600">Loading your dashboard...</p>
         </div>
       </div>
     );
