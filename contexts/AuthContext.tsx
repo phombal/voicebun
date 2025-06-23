@@ -68,6 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasInitializedRef = useRef(false)
   const authListenerSetupRef = useRef(false)
   const safariRetryCountRef = useRef(0)
+  const isActivelyAuthenticatingRef = useRef(false)
+  const recentAuthEventRef = useRef<string | null>(null)
   const safariMaxRetries = 3
 
   const signOut = async () => {
@@ -119,8 +121,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userId: currentUser?.id,
       sessionExists: !!currentSession,
       wasInitialized: hasInitializedRef.current,
-      isSafari: isSafari()
+      isSafari: isSafari(),
+      isActivelyAuthenticating: isActivelyAuthenticatingRef.current
     })
+    
+    // Track recent auth events for Safari
+    recentAuthEventRef.current = source
+    
+    // If we have a user, mark as actively authenticated (prevents aggressive fallbacks)
+    if (currentUser) {
+      isActivelyAuthenticatingRef.current = true
+      // Clear this flag after a delay to allow for normal flow
+      setTimeout(() => {
+        isActivelyAuthenticatingRef.current = false
+      }, 5000)
+    }
     
     // Update state and mark as no longer loading
     safeSetState(currentUser, currentSession, false)
@@ -143,6 +158,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Force refresh auth state (fallback mechanism)
   const forceRefreshAuthState = async () => {
     if (!isMountedRef.current) return
+    
+    // Don't force refresh if we're actively authenticating
+    if (isActivelyAuthenticatingRef.current) {
+      console.log('🔄 Skipping force refresh - actively authenticating')
+      return
+    }
+    
+    // Don't force refresh if we just had a recent auth event
+    if (recentAuthEventRef.current && Date.now() - new Date().getTime() < 2000) {
+      console.log('🔄 Skipping force refresh - recent auth event:', recentAuthEventRef.current)
+      return
+    }
     
     try {
       console.log('🔄 Force refreshing auth state...')
@@ -224,7 +251,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })()
     
-    if (hasCorruptedState) {
+    // Only clear if we don't have recent auth activity
+    if (hasCorruptedState && !isActivelyAuthenticatingRef.current) {
       console.log('🍎 Safari corrupted state detected, clearing...')
       clearSafariAuthState()
       await new Promise(resolve => setTimeout(resolve, 200))
@@ -234,10 +262,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     isMountedRef.current = true
     
-    // Safari-specific timeout (shorter for Safari)
-    const timeoutDuration = isSafari() ? 1500 : 2000
+    // Safari-specific timeout (shorter for Safari, but longer if actively authenticating)
+    const getTimeoutDuration = () => {
+      if (isActivelyAuthenticatingRef.current) return 5000 // Longer timeout during auth
+      return isSafari() ? 2000 : 2500 // Slightly longer for Safari to account for login flows
+    }
+    
+    const timeoutDuration = getTimeoutDuration()
     loadingTimeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current && loading && !hasInitializedRef.current) {
+      if (isMountedRef.current && loading && !hasInitializedRef.current && !isActivelyAuthenticatingRef.current) {
         console.warn(`⚠️ Loading timeout reached (${timeoutDuration}ms), forcing auth state refresh`)
         forceRefreshAuthState()
       }
@@ -257,8 +290,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error('❌ Error getting initial session:', error)
           
-          // Safari-specific error handling
-          if (isSafari() && safariRetryCountRef.current < safariMaxRetries) {
+          // Safari-specific error handling (only if not actively authenticating)
+          if (isSafari() && safariRetryCountRef.current < safariMaxRetries && !isActivelyAuthenticatingRef.current) {
             safariRetryCountRef.current++
             console.log(`🍎 Safari initial session retry ${safariRetryCountRef.current}/${safariMaxRetries}`)
             clearSafariAuthState()
@@ -305,6 +338,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isSafari: isSafari()
         })
         
+        // Mark as actively authenticating for login events
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          isActivelyAuthenticatingRef.current = true
+          // Clear this flag after allowing time for the auth flow to complete
+          setTimeout(() => {
+            isActivelyAuthenticatingRef.current = false
+          }, 3000)
+        }
+        
         handleAuthStateUpdate(session, `auth-change-${event}`)
       })
       
@@ -316,24 +358,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session after setting up the listener
     getInitialSession()
 
-    // Additional fallback: Check auth state again after a short delay
+    // Additional fallback: Check auth state again after a short delay (only if not actively authenticating)
     const fallbackTimeout = setTimeout(() => {
-      if (isMountedRef.current && loading && !hasInitializedRef.current) {
+      if (isMountedRef.current && loading && !hasInitializedRef.current && !isActivelyAuthenticatingRef.current) {
         console.log('🔄 Fallback: Checking auth state again...')
         forceRefreshAuthState()
       }
-    }, isSafari() ? 800 : 1000) // Shorter delay for Safari
+    }, isSafari() ? 1200 : 1500) // Slightly longer delay for Safari
 
-    // Safari-specific: Additional aggressive fallback
+    // Safari-specific: Additional aggressive fallback (only if not actively authenticating)
     let safariAggressiveFallback: NodeJS.Timeout | null = null
     if (isSafari()) {
       safariAggressiveFallback = setTimeout(() => {
-        if (isMountedRef.current && loading && !hasInitializedRef.current) {
+        if (isMountedRef.current && loading && !hasInitializedRef.current && !isActivelyAuthenticatingRef.current) {
           console.log('🍎 Safari aggressive fallback: Forcing auth resolution')
-          clearSafariAuthState()
+          // Don't clear auth state if we might be in the middle of authentication
+          if (!recentAuthEventRef.current || !recentAuthEventRef.current.includes('SIGNED_IN')) {
+            clearSafariAuthState()
+          }
           handleAuthStateUpdate(null, 'safari-aggressive-fallback')
         }
-      }, 3000) // 3 seconds for Safari aggressive fallback
+      }, 4000) // Increased to 4 seconds to allow for login flows
     }
 
     // Cleanup function
@@ -343,6 +388,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasInitializedRef.current = false
       authListenerSetupRef.current = false
       safariRetryCountRef.current = 0
+      isActivelyAuthenticatingRef.current = false
+      recentAuthEventRef.current = null
       
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
