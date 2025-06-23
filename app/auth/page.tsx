@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useRouter } from '@/hooks/useRouter'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import AuthForm from '@/components/auth/AuthForm'
 import { motion } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/database/auth'
+import { LoadingBun } from '@/components/LoadingBun'
 
 // Cute quotes component
 function CuteQuotes() {
@@ -54,6 +56,17 @@ function AuthPageContent() {
   const { user, loading } = useAuth()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [oauthError, setOauthError] = useState<string | null>(null)
+  const isMountedRef = useRef(true)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      router.cleanup()
+      console.log('AuthPageContent cleanup - resetting navigation state')
+    }
+  }, [router])
 
   // Check URL params for initial mode and OAuth errors
   useEffect(() => {
@@ -91,7 +104,7 @@ function AuthPageContent() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (user && !loading) {
+    if (user && !loading && isMountedRef.current) {
       console.log('User authenticated, redirecting to dashboard')
       const returnUrl = searchParams.get('returnUrl')
       if (returnUrl) {
@@ -103,6 +116,8 @@ function AuthPageContent() {
   }, [user, loading, router, searchParams])
 
   const handleAuthSuccess = () => {
+    if (!isMountedRef.current) return
+    
     console.log('Auth success, redirecting to dashboard')
     const returnUrl = searchParams.get('returnUrl')
     if (returnUrl) {

@@ -54,11 +54,46 @@ interface ChatMessage {
 }
 
 export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onStartConversation, onProjectUpdate }: Omit<GeneratedCodeDisplayProps, 'onReconfigure'>) {
+  // Mount state tracking refs
+  const isMountedRef = useRef(true);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const operationAbortControllerRef = useRef<AbortController | null>(null);
+
   // Debug logging on every render
   console.log('🔍 GeneratedCodeDisplay RENDER:');
   console.log('   • Component props:', { hasCode: !!code, hasConfig: !!config, hasProject: !!project });
   console.log('   • Config prompt:', config?.prompt?.substring(0, 50) + '...' || 'NO PROMPT');
   console.log('🎨 GeneratedCodeDisplay rendered with project:', project?.id || 'null');
+  
+  // Safe state setter helper
+  const safeSetState = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: React.SetStateAction<T>) => {
+    if (isMountedRef.current) {
+      setter(value);
+    }
+  };
+
+  // Cleanup function
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 GeneratedCodeDisplay: Cleaning up component');
+      isMountedRef.current = false;
+      
+      // Clear any pending timeouts
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+      
+      // Abort any ongoing operations
+      if (operationAbortControllerRef.current) {
+        operationAbortControllerRef.current.abort();
+        operationAbortControllerRef.current = null;
+      }
+    };
+  }, []);
+
   // State variables
   const [currentCode, setCurrentCode] = useState(code);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -331,11 +366,15 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   // Initialize database session for code editing
   useEffect(() => {
     const initCodeEditSession = async () => {
+      if (!isMountedRef.current) return;
+      
       if (currentProject && !codeEditSession) {
         try {
           const session = await startChatSession(currentProject.id);
-          setCodeEditSession(session);
-          console.log('📝 Started code editing session:', session.id);
+          if (isMountedRef.current) {
+            setCodeEditSession(session);
+            console.log('📝 Started code editing session:', session.id);
+          }
         } catch (error) {
           console.error('❌ Failed to start code editing session:', error);
         }
@@ -347,14 +386,18 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
 
   // Debug project prop changes
   useEffect(() => {
-    console.log('🎯 Project prop changed:', project?.id || 'null');
+    if (isMountedRef.current) {
+      console.log('🎯 Project prop changed:', project?.id || 'null');
+    }
   }, [project]);
 
   // Debug projectConfig changes
   useEffect(() => {
-    console.log('📋 ProjectConfig changed - systemPrompt length:', projectConfig.systemPrompt?.length || 0);
-    if (projectConfig.systemPrompt) {
-      console.log('📋 SystemPrompt preview:', projectConfig.systemPrompt.substring(0, 100) + '...');
+    if (isMountedRef.current) {
+      console.log('📋 ProjectConfig changed - systemPrompt length:', projectConfig.systemPrompt?.length || 0);
+      if (projectConfig.systemPrompt) {
+        console.log('📋 SystemPrompt preview:', projectConfig.systemPrompt.substring(0, 100) + '...');
+      }
     }
   }, [projectConfig.systemPrompt]);
 
@@ -362,7 +405,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (functionDropdownRef.current && !functionDropdownRef.current.contains(event.target as Node)) {
-        setShowFunctionDropdown(false);
+        if (isMountedRef.current) {
+          setShowFunctionDropdown(false);
+        }
       }
     }
 
@@ -374,9 +419,11 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
 
   // Auto-create project if one doesn't exist (only once per component mount)
   useEffect(() => {
-    // Project creation is now handled by the main page, so we don't need auto-creation here
-    // This prevents duplicate project creation
-    console.log('🔍 Current project on mount:', currentProject?.id || 'none');
+    if (isMountedRef.current) {
+      // Project creation is now handled by the main page, so we don't need auto-creation here
+      // This prevents duplicate project creation
+      console.log('🔍 Current project on mount:', currentProject?.id || 'none');
+    }
   }, [currentProject]);
 
   // Load project configuration from database
@@ -752,6 +799,8 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
 
   // Load agent configurations when project changes
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     const projectToUse = project || currentProject;
     console.log('🔄 Project changed, project prop:', project?.id || 'null', 'current project:', currentProject?.id || 'null');
     if (projectToUse) {
@@ -766,7 +815,9 @@ export function GeneratedCodeDisplay({ code, config, project, onBackToHome, onSt
 
   // Debug logging for conversation state
   useEffect(() => {
-    console.log('🔄 Conversation state changed:', isInConversation);
+    if (isMountedRef.current) {
+      console.log('🔄 Conversation state changed:', isInConversation);
+    }
   }, [isInConversation]);
 
   // Auto-end conversation when navigating away from test tab
@@ -800,7 +851,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
   }, [code, config, createFilesSnapshot]);
 
   const sendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || !isMountedRef.current) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -809,8 +860,10 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
+    if (isMountedRef.current) {
+      setMessages(prev => [...prev, userMessage]);
+      setInputMessage('');
+    }
     
     // Reset textarea height
     if (textareaRef.current) {
@@ -818,7 +871,9 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       textareaRef.current.style.height = '24px';
     }
     
-    setIsGenerating(true);
+    if (isMountedRef.current) {
+      setIsGenerating(true);
+    }
 
     try {
       // Prepare messages for API
@@ -888,10 +943,14 @@ Just tell me what you want your voice agent to do or any issues you're experienc
       };
 
       // Add the assistant message to state immediately
-      setMessages(prev => [...prev, assistantMessage]);
+      if (isMountedRef.current) {
+        setMessages(prev => [...prev, assistantMessage]);
+      }
 
       try {
         while (true) {
+          if (!isMountedRef.current) break;
+          
           const { done, value } = await reader.read();
           if (done) break;
 
@@ -904,6 +963,8 @@ Just tell me what you want your voice agent to do or any issues you're experienc
           buffer = lines.pop() || ''; // Keep incomplete line in buffer
 
           for (const line of lines) {
+            if (!isMountedRef.current) break;
+            
             if (line.startsWith('data: ')) {
               const data = line.slice(6).trim();
               
@@ -916,7 +977,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
                 const parsed = JSON.parse(data);
                 console.log('Parsed streaming data:', parsed);
 
-                if (parsed.type === 'content_delta') {
+                if (parsed.type === 'content_delta' && isMountedRef.current) {
                   // Update the assistant message content
                   assistantMessage.content = parsed.fullContent || '';
                   setMessages(prev => 
@@ -926,10 +987,10 @@ Just tell me what you want your voice agent to do or any issues you're experienc
                         : msg
                     )
                   );
-                } else if (parsed.type === 'complete') {
+                } else if (parsed.type === 'complete' && isMountedRef.current) {
                   console.log('Received complete signal, content length:', parsed.content?.length);
                   
-                                    // Final update with complete content
+                  // Final update with complete content
                   assistantMessage.content = parsed.content || '';
                   assistantMessage.checkpoint = true;
 
@@ -950,7 +1011,7 @@ Just tell me what you want your voice agent to do or any issues you're experienc
                       update.field && update.value !== undefined && update.field.trim() !== ''
                     );
                     
-                    if (validUpdates.length > 0) {
+                    if (validUpdates.length > 0 && isMountedRef.current) {
                       // Apply configuration updates
                       setProjectConfig(prev => {
                         const newConfig = { ...prev };
@@ -1044,16 +1105,24 @@ For now, you can still manually configure your voice agent using the tabs above.
         timestamp: new Date(),
         isError: true
       };
-      setMessages(prev => [...prev, errorMessage]);
+      if (isMountedRef.current) {
+        setMessages(prev => [...prev, errorMessage]);
+      }
     } finally {
-      setIsGenerating(false);
+      if (isMountedRef.current) {
+        setIsGenerating(false);
+      }
     }
   };
 
   // Handle test agent button click - show modal to choose test type
   const handleTestAgentClick = async () => {
+    if (!isMountedRef.current) return;
+    
     // setTestType(null); // Reset to show choice popup - not needed anymore
-    setShowTestTypeModal(true);
+    if (isMountedRef.current) {
+      setShowTestTypeModal(true);
+    }
     
     // Load available phone numbers for the modal
     try {
@@ -1069,13 +1138,17 @@ For now, you can still manually configure your voice agent using the tabs above.
         );
       }
 
-      if (projectToUse) {
+      if (projectToUse && isMountedRef.current) {
         const phoneNumbers = await getProjectPhoneNumbers(projectToUse.id);
-        setAvailableNumbers(phoneNumbers || []);
+        if (isMountedRef.current) {
+          setAvailableNumbers(phoneNumbers || []);
+        }
       }
     } catch (error) {
       console.error('❌ Failed to load phone numbers:', error);
-      setAvailableNumbers([]);
+      if (isMountedRef.current) {
+        setAvailableNumbers([]);
+      }
     }
   };
 
@@ -1122,6 +1195,8 @@ For now, you can still manually configure your voice agent using the tabs above.
   };
 
   const startConversation = async () => {
+    if (!isMountedRef.current) return;
+    
     console.log('🔥 CLICKED START CONVERSATION BUTTON!');
     console.log('🔍 Initial state check:');
     console.log('   • isConnecting:', isConnecting);
@@ -1130,15 +1205,19 @@ For now, you can still manually configure your voice agent using the tabs above.
     console.log('   • config:', config);
     console.log('   • room:', room);
     
-    setIsConnecting(true);
-    console.log('⏳ Set isConnecting = true');
+    if (isMountedRef.current) {
+      setIsConnecting(true);
+      console.log('⏳ Set isConnecting = true');
+    }
     
     try {
       console.log('🚀 Starting conversation process...');
       
       // IMMEDIATELY set conversation state to prevent any navigation
-      setIsInConversation(true);
-      console.log('🎯 Set isInConversation = true');
+      if (isMountedRef.current) {
+        setIsInConversation(true);
+        console.log('🎯 Set isInConversation = true');
+      }
 
       // Ensure project exists - prioritize prop over currentProject
       let projectToUse = project || currentProject;

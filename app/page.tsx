@@ -22,9 +22,9 @@ import {
 } from "@livekit/components-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Room, RoomEvent } from "livekit-client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import type { ConnectionDetails } from "./api/connection-details/route";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/hooks/useRouter";
 import { LoadingBun, LoadingPageWithTips } from '@/components/LoadingBun';
 import { Mic, Sparkles, ArrowRight, Users, Play, Clock, User } from 'lucide-react';
 import Link from 'next/link';
@@ -104,8 +104,24 @@ export default function LandingPage() {
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState<string>("");
 
+  // Use ref to track component mount state and prevent race conditions
+  const isMountedRef = useRef(true);
+
+  // Cleanup function to reset navigation state
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 Cleaning up LandingPage component');
+      isMountedRef.current = false;
+      
+      // Cleanup router navigation state
+      router.cleanup();
+    };
+  }, [router]);
+
   const handleSubmit = () => {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !isMountedRef.current) return;
     
     if (!user) {
       // Store the prompt and show auth prompt
@@ -245,13 +261,24 @@ function AuthPromptModal({ onClose, onAuthComplete }: {
   onAuthComplete: () => void; 
 }) {
   const router = useRouter();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      router.cleanup();
+    };
+  }, [router]);
 
   const handleSignUp = () => {
+    if (!isMountedRef.current) return;
     onClose();
     router.push('/auth?mode=signup');
   };
 
   const handleSignIn = () => {
+    if (!isMountedRef.current) return;
     onClose();
     router.push('/auth');
   };

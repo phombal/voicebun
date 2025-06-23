@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRef, useEffect } from 'react'
 import { Eye, EyeOff, User, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react'
 import { auth } from '@/lib/database/auth'
 
@@ -22,68 +23,116 @@ export default function AuthForm({ mode, onSuccess, onModeChange }: AuthFormProp
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  // Use ref to track component mount state and prevent race conditions
+  const isMountedRef = useRef(true)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Helper function to safely update state only if component is mounted
+  const safeSetState = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
+    if (isMountedRef.current) {
+      setter(value)
+    }
+  }
+
+  // Cleanup function to clear timeouts and reset loading states
+  useEffect(() => {
+    isMountedRef.current = true
+    
+    return () => {
+      console.log('🧹 Cleaning up AuthForm component')
+      isMountedRef.current = false
+      
+      // Clear any pending timeouts
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+        console.log('🚫 Cleared pending auth timeout')
+      }
+    }
+  }, [])
+
   const handleGoogleSignIn = async () => {
-    setGoogleLoading(true)
-    setError('')
-    setSuccess('')
+    if (!isMountedRef.current) return
+    
+    safeSetState(setGoogleLoading, true)
+    safeSetState(setError, '')
+    safeSetState(setSuccess, '')
 
     try {
       const { error } = await auth.signInWithGoogle()
       
+      if (!isMountedRef.current) return
+      
       if (error) {
-        setError(error.message)
+        safeSetState(setError, error.message)
       }
       // Note: If successful, the user will be redirected by Google OAuth flow
     } catch (err: any) {
-      setError(err.message || 'An error occurred with Google sign in')
+      if (!isMountedRef.current) return
+      safeSetState(setError, err.message || 'An error occurred with Google sign in')
     } finally {
-      setGoogleLoading(false)
+      safeSetState(setGoogleLoading, false)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError('')
-    setSuccess('')
+    
+    if (!isMountedRef.current) return
+    
+    safeSetState(setLoading, true)
+    safeSetState(setError, '')
+    safeSetState(setSuccess, '')
 
     try {
       if (mode === 'signup') {
         const { data, error } = await auth.signUp(formData.email, formData.password, formData.fullName)
         
+        if (!isMountedRef.current) return
+        
         if (error) {
-          setError(error.message)
+          safeSetState(setError, error.message)
         } else if (data.user && !data.session) {
-          setSuccess('Account created successfully! Please check your email to verify your account.')
-          setTimeout(() => {
-            onSuccess()
+          safeSetState(setSuccess, 'Account created successfully! Please check your email to verify your account.')
+          timeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              onSuccess()
+            }
           }, 2000)
         } else {
-          setSuccess('Account created successfully!')
-          setTimeout(() => {
-            onSuccess()
+          safeSetState(setSuccess, 'Account created successfully!')
+          timeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              onSuccess()
+            }
           }, 1000)
         }
       } else {
         const { error } = await auth.signIn(formData.email, formData.password)
         
+        if (!isMountedRef.current) return
+        
         if (error) {
-          setError(error.message)
+          safeSetState(setError, error.message)
         } else {
-          setSuccess('Signed in successfully!')
-          setTimeout(() => {
-            onSuccess()
+          safeSetState(setSuccess, 'Signed in successfully!')
+          timeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              onSuccess()
+            }
           }, 1000)
         }
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred')
+      if (!isMountedRef.current) return
+      safeSetState(setError, err.message || 'An error occurred')
     } finally {
-      setLoading(false)
+      safeSetState(setLoading, false)
     }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isMountedRef.current) return
+    
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value

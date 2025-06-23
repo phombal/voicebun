@@ -1,8 +1,9 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useRouter } from '@/hooks/useRouter';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState, useCallback, Suspense, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { Project as DatabaseProject } from '@/lib/database/types';
@@ -66,11 +67,24 @@ function DashboardContent() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
+  // Use refs to track component mount state and prevent race conditions
+  const isMountedRef = useRef(true);
+  const generationAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Helper function to safely update state only if component is mounted
+  const safeSetState = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
+    if (isMountedRef.current) {
+      setter(value);
+    }
+  };
+
   // Scroll effect for navbar
   useEffect(() => {
     const handleScroll = () => {
       const scrollPosition = window.scrollY;
-      setScrolled(scrollPosition > 50);
+      if (isMountedRef.current) {
+        setScrolled(scrollPosition > 50);
+      }
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -80,14 +94,14 @@ function DashboardContent() {
   // Check for prompt from URL params (from landing page redirect)
   useEffect(() => {
     const urlPrompt = searchParams.get('prompt');
-    if (urlPrompt) {
+    if (urlPrompt && isMountedRef.current) {
       setPrompt(decodeURIComponent(urlPrompt));
     }
   }, [searchParams]);
 
   // Redirect unauthenticated users to landing
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && isMountedRef.current) {
       router.push('/');
     }
   }, [user, loading, router]);
@@ -103,24 +117,61 @@ function DashboardContent() {
           ...project,
           description: project.description || undefined
         }));
-        setProjects(projectsData);
+        safeSetState(setProjects, projectsData);
       } catch (error) {
         console.error('Failed to load projects:', error);
       } finally {
-        setLoadingProjects(false);
+        safeSetState(setLoadingProjects, false);
       }
     };
 
     loadProjects();
   }, [getUserProjects, user]);
 
+  // Cleanup function to reset loading states and abort ongoing operations
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 Cleaning up DashboardContent component');
+      isMountedRef.current = false;
+      
+      // Abort any ongoing generation
+      if (generationAbortControllerRef.current) {
+        generationAbortControllerRef.current.abort();
+        console.log('🚫 Aborted ongoing generation');
+      }
+      
+      // Cleanup router navigation state
+      router.cleanup();
+      
+      // Reset loading states if they're still active
+      // Note: We don't need to call setters here as component is unmounting
+    };
+  }, [router]);
+
   const generateAgent = useCallback(async () => {
     if (!prompt.trim()) return;
     
-    setIsGenerating(true);
-    setError(null);
+    // Abort any previous generation
+    if (generationAbortControllerRef.current) {
+      generationAbortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller for this generation
+    const abortController = new AbortController();
+    generationAbortControllerRef.current = abortController;
+    
+    safeSetState(setIsGenerating, true);
+    safeSetState(setError, null);
     
     try {
+      // Check if component is still mounted before starting
+      if (!isMountedRef.current) {
+        console.log('🚫 Component unmounted, aborting generation');
+        return;
+      }
+      
       console.log('🤖 Generating system prompt with ChatGPT 4o...');
       
       // Helper function to generate a better fallback title
@@ -166,6 +217,12 @@ function DashboardContent() {
       let systemPromptGenerated = false;
       
       try {
+        // Check abort signal before making request
+        if (abortController.signal.aborted || !isMountedRef.current) {
+          console.log('🚫 Generation aborted before API call');
+          return;
+        }
+        
         // Use local API route instead of external backend
         const response = await fetch('/api/generate-system-prompt', {
           method: 'POST',
@@ -179,7 +236,14 @@ function DashboardContent() {
             domain: 'general',
             generate_title: true // Request title generation
           }),
+          signal: abortController.signal // Add abort signal to fetch
         });
+
+        // Check if component is still mounted after API call
+        if (!isMountedRef.current || abortController.signal.aborted) {
+          console.log('🚫 Component unmounted or aborted after API call');
+          return;
+        }
 
         console.log('📡 Response status:', response.status);
         console.log('📡 Response ok:', response.ok);
@@ -198,9 +262,20 @@ function DashboardContent() {
           console.log('📝 Using enhanced fallback system prompt and title');
         }
       } catch (apiError) {
+        // Don't log abort errors as they're expected
+        if (apiError instanceof Error && apiError.name === 'AbortError') {
+          console.log('🚫 API call aborted');
+          return;
+        }
         console.warn('❌ Local API unavailable:', apiError instanceof Error ? apiError.message : String(apiError));
         console.warn('❌ Full error:', apiError);
         console.log('📝 Using enhanced fallback system prompt and title');
+      }
+      
+      // Check if component is still mounted before continuing
+      if (!isMountedRef.current || abortController.signal.aborted) {
+        console.log('🚫 Component unmounted or aborted before processing results');
+        return;
       }
       
       // Enhanced fallback if backend is unavailable
@@ -285,6 +360,12 @@ async def entrypoint(ctx: agents.JobContext):
 if __name__ == "__main__":
     agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))`;
 
+      // Check if component is still mounted before database operations
+      if (!isMountedRef.current || abortController.signal.aborted) {
+        console.log('🚫 Component unmounted or aborted before database operations');
+        return;
+      }
+
       // Create project in database with better title
       const projectName = generatedTitle || generateFallbackTitle(prompt.trim());
       const projectDescription = `AI voice agent: ${config.prompt.substring(0, 100)}${config.prompt.length > 100 ? '...' : ''}`;
@@ -298,6 +379,12 @@ if __name__ == "__main__":
         isPublic ? 'public' : 'private'
       );
       
+      // Check if component is still mounted after project creation
+      if (!isMountedRef.current || abortController.signal.aborted) {
+        console.log('🚫 Component unmounted or aborted after project creation');
+        return;
+      }
+      
       console.log('✅ Created project in database:', project.id);
       
       // Auto-tag the project based on its content
@@ -308,6 +395,12 @@ if __name__ == "__main__":
       console.log('🏷️ Initial values - Category:', autoTaggedCategory, 'Emoji:', categoryEmoji);
       
       try {
+        // Check abort signal before auto-tagging
+        if (abortController.signal.aborted || !isMountedRef.current) {
+          console.log('🚫 Skipping auto-tagging due to abort/unmount');
+          return;
+        }
+        
         console.log('🏷️ Making auto-tag API request with data:', {
           systemPrompt: generatedSystemPrompt.substring(0, 100) + '...',
           title: projectName,
@@ -326,7 +419,14 @@ if __name__ == "__main__":
             description: project.description || undefined,
             publicDescription: prompt.trim() || undefined
           }),
+          signal: abortController.signal // Add abort signal
         });
+
+        // Check if component is still mounted after auto-tag
+        if (!isMountedRef.current || abortController.signal.aborted) {
+          console.log('🚫 Component unmounted or aborted after auto-tag');
+          return;
+        }
 
         console.log('🏷️ Auto-tag API response status:', autoTagResponse.status);
         console.log('🏷️ Auto-tag API response ok:', autoTagResponse.ok);
@@ -356,12 +456,23 @@ if __name__ == "__main__":
           console.warn('⚠️ Using default category and emoji');
         }
       } catch (error) {
+        // Don't log abort errors as they're expected
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('🚫 Auto-tagging aborted');
+          return;
+        }
         console.error('❌ Auto-tagging error:', error);
         console.log('🔄 Continuing with default category:', autoTaggedCategory, 'and emoji:', categoryEmoji);
         // Continue with default category and emoji
       }
       
       console.log('🏷️ Final auto-tagging values - Category:', autoTaggedCategory, 'Emoji:', categoryEmoji);
+      
+      // Check if component is still mounted before final operations
+      if (!isMountedRef.current || abortController.signal.aborted) {
+        console.log('🚫 Component unmounted or aborted before final operations');
+        return;
+      }
       
       // Create initial project_data entry with the generated system prompt
       const initialProjectData = {
@@ -423,6 +534,12 @@ if __name__ == "__main__":
         // Don't fail the entire process if category update fails
       }
       
+      // Final check before navigation
+      if (!isMountedRef.current || abortController.signal.aborted) {
+        console.log('🚫 Component unmounted or aborted before navigation');
+        return;
+      }
+      
       // Small delay to ensure database operations are complete before navigation
       await new Promise(resolve => setTimeout(resolve, 100));
       
@@ -430,10 +547,18 @@ if __name__ == "__main__":
       router.push(`/projects/${project.id}`);
       
     } catch (error) {
+      // Don't log abort errors as they're expected
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('🚫 Generation process aborted');
+        return;
+      }
       console.error('Error generating agent:', error);
-      setError('Failed to generate voice agent. Please try again.');
+      safeSetState(setError, 'Failed to generate voice agent. Please try again.');
     } finally {
-      setIsGenerating(false);
+      // Clear the abort controller reference
+      generationAbortControllerRef.current = null;
+      // Reset loading state only if component is still mounted
+      safeSetState(setIsGenerating, false);
     }
   }, [prompt, createProject, createProjectData, router, isPublic, updateProject]);
 

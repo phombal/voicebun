@@ -59,6 +59,17 @@ export function VoiceConversationModal({
   const [isInConversation, setIsInConversation] = useState(false);
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
 
+  // Use refs to track component mount state and prevent race conditions
+  const isMountedRef = useRef(true);
+  const connectionAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Helper function to safely update state only if component is mounted
+  const safeSetState = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: React.SetStateAction<T>) => {
+    if (isMountedRef.current) {
+      setter(value);
+    }
+  };
+
   // Room state
   const [room] = useState(() =>
     new Room({
@@ -70,6 +81,28 @@ export function VoiceConversationModal({
     }),
   );
 
+  // Cleanup function to reset states and abort ongoing operations
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 Cleaning up VoiceConversationModal component');
+      isMountedRef.current = false;
+      
+      // Abort any ongoing connection
+      if (connectionAbortControllerRef.current) {
+        connectionAbortControllerRef.current.abort();
+        console.log('🚫 Aborted ongoing connection');
+      }
+      
+      // Disconnect room if connected
+      if (room.state === 'connected') {
+        room.disconnect();
+        console.log('🔌 Disconnected room on cleanup');
+      }
+    };
+  }, [room]);
+
   const startConversation = async () => {
     console.log('🔥 CLICKED START CONVERSATION BUTTON!');
     console.log('🔍 Initial state check:');
@@ -79,14 +112,39 @@ export function VoiceConversationModal({
     console.log('   • config:', config);
     console.log('   • room:', room);
     
-    setIsConnecting(true);
+    // Check if component is still mounted
+    if (!isMountedRef.current) {
+      console.log('🚫 Component unmounted, aborting conversation start');
+      return;
+    }
+    
+    // Abort any previous connection attempt
+    if (connectionAbortControllerRef.current) {
+      connectionAbortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller for this connection
+    const abortController = new AbortController();
+    connectionAbortControllerRef.current = abortController;
+    
+    if (isMountedRef.current) {
+      setIsConnecting(true);
+    }
     console.log('⏳ Set isConnecting = true');
     
     try {
       console.log('🚀 Starting conversation process...');
       
+      // Check if component is still mounted before continuing
+      if (!isMountedRef.current || abortController.signal.aborted) {
+        console.log('🚫 Component unmounted or aborted during conversation start');
+        return;
+      }
+      
       // IMMEDIATELY set conversation state to prevent any navigation
-      setIsInConversation(true);
+      if (isMountedRef.current) {
+        setIsInConversation(true);
+      }
       console.log('🎯 Set isInConversation = true');
 
       // Ensure project exists - prioritize prop over currentProject
@@ -100,6 +158,12 @@ export function VoiceConversationModal({
       if (!projectToUse && createProject) {
         console.log('📦 Creating project before starting conversation...');
         console.log('   • Using config.prompt:', config.prompt?.substring(0, 100) + '...');
+        
+        // Check abort signal before creating project
+        if (abortController.signal.aborted || !isMountedRef.current) {
+          console.log('🚫 Aborted before project creation');
+          return;
+        }
         
         try {
           projectToUse = await createProject(
@@ -123,6 +187,12 @@ export function VoiceConversationModal({
 
       console.log('✅ Using project:', projectToUse.id);
 
+      // Check abort signal before making API call
+      if (abortController.signal.aborted || !isMountedRef.current) {
+        console.log('🚫 Aborted before API call');
+        return;
+      }
+
       // Generate room connection details with project ID
       const endpoint = process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT ?? "/api/connection-details";
       const url = new URL(endpoint, window.location.origin);
@@ -133,7 +203,10 @@ export function VoiceConversationModal({
       console.log('   • Endpoint:', endpoint);
       console.log('   • Project ID:', projectToUse.id);
       
-      const response = await fetch(url.toString());
+      const response = await fetch(url.toString(), {
+        signal: abortController.signal // Add abort signal to fetch
+      });
+      
       console.log('📡 Fetch response:');
       console.log('   • Status:', response.status);
       console.log('   • StatusText:', response.statusText);
@@ -143,6 +216,12 @@ export function VoiceConversationModal({
         const errorText = await response.text().catch(() => 'No error text');
         console.error('❌ Fetch failed:', errorText);
         throw new Error(`Failed to get connection details: ${response.status} ${response.statusText}. Error: ${errorText}`);
+      }
+      
+      // Check abort signal after API call
+      if (abortController.signal.aborted || !isMountedRef.current) {
+        console.log('🚫 Aborted after API call');
+        return;
       }
       
       const connectionDetailsData = await response.json();
@@ -330,16 +409,18 @@ export function VoiceConversationModal({
 
   // Start conversation when modal opens
   useEffect(() => {
-    if (isOpen && !isInConversation && !isConnecting && !hasStartedConversation) {
+    if (isOpen && !isInConversation && !isConnecting && !hasStartedConversation && isMountedRef.current) {
       console.log('🌐 Modal opened - starting conversation...');
-      setHasStartedConversation(true);
+      if (isMountedRef.current) {
+        setHasStartedConversation(true);
+      }
       startConversation();
     }
   }, [isOpen, isInConversation, isConnecting, hasStartedConversation]);
 
   // Close modal if not in conversation anymore (but only after we've attempted to start)
   useEffect(() => {
-    if (!isInConversation && !isConnecting && isOpen && hasStartedConversation) {
+    if (!isInConversation && !isConnecting && isOpen && hasStartedConversation && isMountedRef.current) {
       console.log('🔄 Conversation ended - closing modal...');
       onClose();
     }
@@ -347,7 +428,7 @@ export function VoiceConversationModal({
 
   // Reset state when modal closes
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen && isMountedRef.current) {
       setHasStartedConversation(false);
       setIsConnecting(false);
       setIsInConversation(false);

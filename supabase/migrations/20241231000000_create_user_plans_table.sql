@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS user_plans (
   cancel_at_period_end BOOLEAN DEFAULT FALSE,
   conversation_minutes_used INTEGER DEFAULT 0,
   conversation_minutes_limit INTEGER DEFAULT 5, -- Free plan default
+  phone_number_count INTEGER DEFAULT 0,
+  phone_number_limit INTEGER DEFAULT 1, -- Free plan default
+  custom_voices JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -29,14 +32,26 @@ CREATE INDEX IF NOT EXISTS user_plans_stripe_subscription_id_idx ON user_plans(s
 ALTER TABLE user_plans ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
-CREATE POLICY "Users can view their own plan" ON user_plans
-  FOR SELECT USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can view their own plan" ON user_plans
+    FOR SELECT USING (auth.uid() = user_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can update their own plan" ON user_plans
-  FOR UPDATE USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can update their own plan" ON user_plans
+    FOR UPDATE USING (auth.uid() = user_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can insert their own plan" ON user_plans
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can insert their own plan" ON user_plans
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_user_plans_updated_at()
@@ -48,6 +63,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS update_user_plans_updated_at ON user_plans;
 CREATE TRIGGER update_user_plans_updated_at
   BEFORE UPDATE ON user_plans
   FOR EACH ROW
@@ -62,4 +78,40 @@ SELECT
   5
 FROM auth.users
 WHERE id NOT IN (SELECT user_id FROM user_plans)
-ON CONFLICT (user_id) DO NOTHING; 
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Create function to automatically create user plan for new users
+CREATE OR REPLACE FUNCTION create_user_plan_for_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Insert user plan with proper error handling
+  INSERT INTO public.user_plans (
+    user_id,
+    plan_name,
+    subscription_status,
+    conversation_minutes_used,
+    conversation_minutes_limit,
+    phone_number_count,
+    phone_number_limit,
+    cancel_at_period_end
+  ) VALUES (
+    NEW.id,
+    'free',
+    'active',
+    0,
+    5,
+    0,
+    1,
+    false
+  );
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Log the error but don't fail the user creation
+    RAISE WARNING 'Failed to create user plan for user %: %', NEW.id, SQLERRM;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Remove the trigger for now - we'll rely on client-side creation
+DROP TRIGGER IF EXISTS create_user_plan_on_signup ON auth.users; 
