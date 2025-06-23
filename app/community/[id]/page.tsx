@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -53,17 +53,6 @@ export default function CommunityProjectPage() {
   const [hasManuallyDisconnected, setHasManuallyDisconnected] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
 
-  // Use ref to track component mount state and prevent race conditions
-  const isMountedRef = useRef(true);
-  const fetchAbortControllerRef = useRef<AbortController | null>(null);
-
-  // Helper function to safely update state only if component is mounted
-  const safeSetState = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
-    if (isMountedRef.current) {
-      setter(value);
-    }
-  };
-
   // Initialize room with proper configuration
   const [room] = useState(() =>
     new Room({
@@ -88,71 +77,24 @@ export default function CommunityProjectPage() {
     // TODO: Implement message sending logic
   };
 
-  // Cleanup function to reset loading states and abort ongoing operations
-  useEffect(() => {
-    isMountedRef.current = true;
-    
-    return () => {
-      console.log('🧹 Cleaning up CommunityProjectPage component');
-      isMountedRef.current = false;
-      
-      // Abort any ongoing fetch operations
-      if (fetchAbortControllerRef.current) {
-        fetchAbortControllerRef.current.abort();
-        console.log('🚫 Aborted ongoing fetch operation');
-      }
-    };
-  }, []);
-
   const fetchProject = async (projectId: string) => {
     try {
-      // Abort any previous fetch
-      if (fetchAbortControllerRef.current) {
-        fetchAbortControllerRef.current.abort();
-      }
-      
-      // Create new abort controller for this fetch
-      const abortController = new AbortController();
-      fetchAbortControllerRef.current = abortController;
-      
-      safeSetState(setLoading, true);
-      
-      // Check if component is still mounted before starting
-      if (!isMountedRef.current) {
-        console.log('🚫 Component unmounted, aborting fetch');
-        return;
-      }
-      
-      const response = await fetch(`/api/community/projects/${projectId}`, {
-        signal: abortController.signal
-      });
-      
-      // Check if component is still mounted after fetch
-      if (!isMountedRef.current || abortController.signal.aborted) {
-        console.log('🚫 Component unmounted or aborted after fetch');
-        return;
-      }
+      setLoading(true);
+      const response = await fetch(`/api/community/projects/${projectId}`);
       
       if (!response.ok) {
         throw new Error('Project not found');
       }
       
       const data = await response.json();
-      safeSetState(setProject, data.project);
+      setProject(data.project);
       
       // Track the view after successfully loading the project
       trackProjectView(projectId);
     } catch (err) {
-      // Don't log abort errors as they're expected
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.log('🚫 Project fetch aborted');
-        return;
-      }
-      safeSetState(setError, err instanceof Error ? err.message : 'Failed to load project');
+      setError(err instanceof Error ? err.message : 'Failed to load project');
     } finally {
-      // Clear the abort controller reference
-      fetchAbortControllerRef.current = null;
-      safeSetState(setLoading, false);
+      setLoading(false);
     }
   };
 
@@ -173,7 +115,7 @@ export default function CommunityProjectPage() {
   };
 
   const handleTryProject = useCallback(async () => {
-    if (!project || !user || !isMountedRef.current) return;
+    if (!project || !user) return;
 
     console.log('🔥 CLICKED TRY COMMUNITY PROJECT!');
     console.log('🔍 Initial state check:');
@@ -182,14 +124,14 @@ export default function CommunityProjectPage() {
     console.log('   • project:', project?.id || 'NONE');
     console.log('   • user:', user?.id || 'NONE');
     
-    safeSetState(setIsConnecting, true);
+    setIsConnecting(true);
     console.log('⏳ Set isConnecting = true');
     
     try {
       console.log('🚀 Starting community project conversation...');
       
       // IMMEDIATELY set conversation state to prevent any navigation
-      safeSetState(setIsInConversation, true);
+      setIsInConversation(true);
       console.log('🎯 Set isInConversation = true');
 
       // Use params.id as fallback if project.id is not available
@@ -198,12 +140,6 @@ export default function CommunityProjectPage() {
 
       if (!projectId) {
         throw new Error('No project ID available for conversation');
-      }
-
-      // Check if component is still mounted before continuing
-      if (!isMountedRef.current) {
-        console.log('🚫 Component unmounted, aborting conversation start');
-        return;
       }
 
       // Generate room connection details with project ID
@@ -223,12 +159,6 @@ export default function CommunityProjectPage() {
       console.log('   • Status:', response.status);
       console.log('   • StatusText:', response.statusText);
       console.log('   • OK:', response.ok);
-      
-      // Check if component is still mounted after connection details fetch
-      if (!isMountedRef.current) {
-        console.log('🚫 Component unmounted after connection details fetch');
-        return;
-      }
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'No error text');
@@ -290,12 +220,6 @@ export default function CommunityProjectPage() {
       console.log('   • STT Provider/Language:', `${agentMetadata.modelConfigurations.stt.provider}/${agentMetadata.modelConfigurations.stt.language}`);
       console.log('   • TTS Provider/Voice:', `${agentMetadata.modelConfigurations.tts.provider}/${agentMetadata.modelConfigurations.tts.voice}`);
       
-      // Check if component is still mounted before agent dispatch
-      if (!isMountedRef.current) {
-        console.log('🚫 Component unmounted before agent dispatch');
-        return;
-      }
-      
       try {
         console.log('🚀 Creating agent dispatch with metadata:');
         console.log('   • Room Name:', connectionDetailsData.roomName);
@@ -331,12 +255,6 @@ export default function CommunityProjectPage() {
           },
           body: JSON.stringify(dispatchPayload),
         });
-
-        // Check if component is still mounted after dispatch
-        if (!isMountedRef.current) {
-          console.log('🚫 Component unmounted after agent dispatch');
-          return;
-        }
 
         if (!dispatchResponse.ok) {
           const dispatchError = await dispatchResponse.json();
@@ -429,7 +347,7 @@ export default function CommunityProjectPage() {
       console.error('   • Error message:', error instanceof Error ? error.message : String(error));
       console.error('   • Full error:', error);
       
-      safeSetState(setIsInConversation, false);
+      setIsInConversation(false);
       console.log('🔄 Reset isInConversation = false due to error');
       
       // Show error notification
@@ -443,18 +361,14 @@ export default function CommunityProjectPage() {
         }
       }, 5000);
     } finally {
-      safeSetState(setIsConnecting, false);
-      console.log('�� Set isConnecting = false (finally block)');
+      setIsConnecting(false);
+      console.log('🏁 Set isConnecting = false (finally block)');
     }
   }, [project, user, params.id, room, isConnecting, isInConversation]);
 
   useEffect(() => {
-    const projectId = typeof params.id === 'string' ? params.id : params.id?.[0];
-    if (projectId) {
-      fetchProject(projectId);
-    } else {
-      safeSetState(setError, 'Invalid project ID');
-      safeSetState(setLoading, false);
+    if (params.id && typeof params.id === 'string') {
+      fetchProject(params.id);
     }
   }, [params.id]);
 
@@ -471,10 +385,10 @@ export default function CommunityProjectPage() {
   // Room event handling
   useEffect(() => {
     const onDeviceFailure = (error: Error) => {
-      console.error('🚨 Device failure:', error);
+      console.error('Device failure:', error);
       const notification = document.createElement('div');
-      notification.textContent = `Device error: ${error.message}`;
-      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 max-w-sm';
+      notification.textContent = 'Error accessing microphone. Please check permissions and reload.';
+      notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       document.body.appendChild(notification);
       setTimeout(() => {
         if (document.body.contains(notification)) {
@@ -484,61 +398,57 @@ export default function CommunityProjectPage() {
     };
 
     const onRoomDisconnected = () => {
-      console.log('🔌 Room disconnected');
-      if (isMountedRef.current) {
-        safeSetState(setIsInConversation, false);
-        console.log('🔄 Reset isInConversation = false due to room disconnect');
-        
-        // Show notification if we haven't manually disconnected
-        if (!isInConversation) {
-          const notification = document.createElement('div');
-          notification.textContent = 'Connection lost. Please try again.';
-          notification.className = 'fixed bottom-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-          document.body.appendChild(notification);
-          setTimeout(() => {
-            if (document.body.contains(notification)) {
-              document.body.removeChild(notification);
-            }
-          }, 5000);
-        }
-      }
+      console.log('Room disconnected, redirecting to community page...');
+      setIsInConversation(false);
+      setIsConnecting(false);
+      setIsDisconnecting(false);
+      // Immediate redirect to prevent loading state flash
+      router.push('/community');
     };
 
+    room.on(RoomEvent.MediaDevicesError, onDeviceFailure);
+    room.on(RoomEvent.Disconnected, onRoomDisconnected);
+
+    return () => {
+      room.off(RoomEvent.MediaDevicesError, onDeviceFailure);
+      room.off(RoomEvent.Disconnected, onRoomDisconnected);
+    };
+  }, [room, router]);
+
+  // Cleanup session when user leaves the page
+  useEffect(() => {
     const handleBeforeUnload = () => {
-      console.log('🔌 Window unloading, disconnecting room...');
-      if (room.state === 'connected') {
+      if (isInConversation && room.state === 'connected') {
+        console.log('🚪 User leaving page - disconnecting from room');
         room.disconnect();
       }
     };
 
     const handleVisibilityChange = () => {
-      if (document.hidden && room.state === 'connected') {
-        console.log('🫥 Tab hidden, maintaining connection...');
-        // Keep connection alive but log the state
-      } else if (!document.hidden && room.state === 'disconnected') {
-        console.log('👁️ Tab visible, connection lost');
-        if (isMountedRef.current) {
-          safeSetState(setIsInConversation, false);
-        }
-      }
-    };
-
-    room.on(RoomEvent.Disconnected, onRoomDisconnected);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      console.log('🧹 Cleanup: Removing room event listeners');
-      room.off(RoomEvent.Disconnected, onRoomDisconnected);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      
-      if (room.state === 'connected') {
-        console.log('🔌 Cleanup: Disconnecting room...');
+      if (document.hidden && isInConversation && room.state === 'connected') {
+        console.log('👁️ Page hidden - disconnecting from room');
         room.disconnect();
       }
     };
-  }, [room, isInConversation]);
+
+    // Handle page unload (navigation, tab close, browser close)
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Handle page visibility change (tab switching, minimizing)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup function when component unmounts
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      // Disconnect room if still connected when component unmounts
+      if (isInConversation && room.state === 'connected') {
+        console.log('🧹 Component unmounting - disconnecting from room');
+        room.disconnect();
+      }
+    };
+  }, [isInConversation, room]);
 
   // Voice Assistant Components
   function SimpleVoiceAssistant() {
@@ -659,19 +569,19 @@ export default function CommunityProjectPage() {
 
   function ConversationControlBar() {
     const handleEndCall = async () => {
-      console.log('📞 End call button clicked');
+      console.log('User manually ending call...');
+      setIsDisconnecting(true);
+      setHasManuallyDisconnected(true);
       try {
-        if (room.state === 'connected') {
-          console.log('🔌 Disconnecting from room...');
-          await room.disconnect();
-        }
-        
-        if (isMountedRef.current) {
-          safeSetState(setIsInConversation, false);
-          console.log('🔄 Set isInConversation = false (manual end call)');
-        }
+        await room.disconnect();
+        // The room disconnection event will handle the redirect
       } catch (error) {
-        console.error('❌ Error ending call:', error);
+        console.error('Error disconnecting from room:', error);
+        // Fallback: direct redirect if disconnect fails
+        setIsInConversation(false);
+        setIsConnecting(false);
+        setIsDisconnecting(false);
+        router.push('/community');
       }
     };
 
