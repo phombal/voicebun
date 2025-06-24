@@ -59,6 +59,88 @@ const createSupabaseClient = () => {
   if (isSafari()) {
     console.log('🍎 Creating Safari-compatible Supabase client')
     try {
+      // Enhanced Safari storage with PKCE code verifier handling
+      const safariStorage = {
+        getItem: (key: string) => {
+          try {
+            // First try localStorage
+            const value = window.localStorage.getItem(key)
+            console.log(`🍎 Safari storage getItem(${key}):`, value ? 'found' : 'null')
+            
+            // Special handling for PKCE code verifier
+            if (!value && key.includes('code-verifier')) {
+              console.log('🔑 PKCE code verifier not found in localStorage, checking sessionStorage')
+              const sessionValue = window.sessionStorage.getItem(key)
+              if (sessionValue) {
+                console.log('✅ Found PKCE code verifier in sessionStorage')
+                return sessionValue
+              }
+            }
+            
+            return value
+          } catch (error) {
+            console.warn('🍎 Safari localStorage access failed, trying sessionStorage:', error)
+            try {
+              const sessionValue = window.sessionStorage.getItem(key)
+              console.log(`🍎 Safari sessionStorage getItem(${key}):`, sessionValue ? 'found' : 'null')
+              return sessionValue
+            } catch (sessionError) {
+              console.warn('🍎 Safari sessionStorage also failed:', sessionError)
+              return null
+            }
+          }
+        },
+        setItem: (key: string, value: string) => {
+          try {
+            window.localStorage.setItem(key, value)
+            console.log(`🍎 Safari storage setItem(${key}): success`)
+            
+            // For PKCE code verifier, also store in sessionStorage as backup
+            if (key.includes('code-verifier')) {
+              console.log('🔑 Storing PKCE code verifier backup in sessionStorage')
+              try {
+                window.sessionStorage.setItem(key, value)
+                console.log('✅ PKCE code verifier backup stored')
+              } catch (sessionError) {
+                console.warn('⚠️ Failed to store PKCE backup:', sessionError)
+              }
+            }
+          } catch (error) {
+            console.warn('🍎 Safari localStorage write failed, trying sessionStorage:', error)
+            try {
+              window.sessionStorage.setItem(key, value)
+              console.log(`🍎 Safari sessionStorage setItem(${key}): success`)
+            } catch (sessionError) {
+              console.warn('🍎 Safari sessionStorage write also failed:', sessionError)
+            }
+          }
+        },
+        removeItem: (key: string) => {
+          try {
+            window.localStorage.removeItem(key)
+            console.log(`🍎 Safari storage removeItem(${key}): success`)
+            
+            // Also remove from sessionStorage if it's a PKCE key
+            if (key.includes('code-verifier')) {
+              try {
+                window.sessionStorage.removeItem(key)
+                console.log('🔑 Removed PKCE code verifier backup from sessionStorage')
+              } catch (sessionError) {
+                console.warn('⚠️ Failed to remove PKCE backup:', sessionError)
+              }
+            }
+          } catch (error) {
+            console.warn('🍎 Safari localStorage remove failed, trying sessionStorage:', error)
+            try {
+              window.sessionStorage.removeItem(key)
+              console.log(`🍎 Safari sessionStorage removeItem(${key}): success`)
+            } catch (sessionError) {
+              console.warn('🍎 Safari sessionStorage remove also failed:', sessionError)
+            }
+          }
+        }
+      }
+
       activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
         auth: {
           storageKey: 'sb-auth-token',
@@ -67,37 +149,10 @@ const createSupabaseClient = () => {
           autoRefreshToken: true, // Enable auto-refresh for Safari - this is needed for OAuth
           detectSessionInUrl: true, // Enable URL detection for Safari - this is critical for OAuth callbacks
           debug: process.env.NODE_ENV === 'development',
-          storage: {
-            getItem: (key: string) => {
-              try {
-                const value = window.localStorage.getItem(key)
-                console.log(`🍎 Safari storage getItem(${key}):`, value ? 'found' : 'null')
-                return value
-              } catch (error) {
-                console.warn('🍎 Safari localStorage access failed:', error)
-                return null
-              }
-            },
-            setItem: (key: string, value: string) => {
-              try {
-                window.localStorage.setItem(key, value)
-                console.log(`🍎 Safari storage setItem(${key}): success`)
-              } catch (error) {
-                console.warn('🍎 Safari localStorage write failed:', error)
-              }
-            },
-            removeItem: (key: string) => {
-              try {
-                window.localStorage.removeItem(key)
-                console.log(`🍎 Safari storage removeItem(${key}): success`)
-              } catch (error) {
-                console.warn('🍎 Safari localStorage remove failed:', error)
-              }
-            }
-          }
+          storage: safariStorage
         }
       })
-      console.log('✅ Safari client created successfully')
+      console.log('✅ Safari client created successfully with enhanced PKCE storage')
     } catch (error) {
       console.error('❌ Safari client creation failed:', error)
       throw error
@@ -140,21 +195,87 @@ export const handleSafariPKCE = async () => {
   if (!code) return null
   
   console.log('🔗 PKCE code detected in URL:', code.substring(0, 10) + '...')
+  console.log('🔍 PKCE Debug Info:', {
+    isSafari: isSafari(),
+    environment: process.env.NODE_ENV,
+    currentUrl: window.location.href,
+    hasLocalStorage: (() => {
+      try {
+        window.localStorage.setItem('test', 'test')
+        window.localStorage.removeItem('test')
+        return true
+      } catch (e) {
+        return false
+      }
+    })(),
+    hasSessionStorage: (() => {
+      try {
+        window.sessionStorage.setItem('test', 'test')
+        window.sessionStorage.removeItem('test')
+        return true
+      } catch (e) {
+        return false
+      }
+    })()
+  })
   
   try {
     // Use the appropriate client for the current browser
     const client = supabase
     console.log('🔄 Exchanging PKCE code for session...')
     
+    // Check if we have the code verifier before attempting exchange
+    const storageKey = 'sb-auth-token'
+    const codeVerifierKey = `${storageKey}-code-verifier`
+    
+    // Try to find the code verifier
+    let codeVerifier = null
+    try {
+      codeVerifier = window.localStorage.getItem(codeVerifierKey)
+      if (!codeVerifier && isSafari()) {
+        console.log('🔑 Code verifier not in localStorage, checking sessionStorage...')
+        codeVerifier = window.sessionStorage.getItem(codeVerifierKey)
+      }
+    } catch (storageError) {
+      console.warn('⚠️ Storage access failed while checking code verifier:', storageError)
+    }
+    
+    console.log('🔑 Code verifier status:', {
+      found: !!codeVerifier,
+      inLocalStorage: !!window.localStorage.getItem(codeVerifierKey),
+      inSessionStorage: isSafari() ? !!window.sessionStorage.getItem(codeVerifierKey) : 'not checked'
+    })
+    
     const { data, error } = await client.auth.exchangeCodeForSession(code)
     
     if (error) {
       console.error('❌ PKCE code exchange failed:', error)
+      console.error('🔍 Exchange error details:', {
+        message: error.message,
+        status: error.status,
+        code: error.code,
+        isSafari: isSafari(),
+        hasCodeVerifier: !!codeVerifier
+      })
+      
+      // Special handling for Safari PKCE errors
+      if (isSafari() && error.message?.includes('code_verifier')) {
+        console.error('🍎 Safari PKCE Error: Code verifier missing or invalid')
+        console.error('🍎 This usually means Safari lost the code verifier during the OAuth redirect')
+        console.error('🍎 Possible solutions: Check Safari settings, try incognito mode, or use another browser')
+      }
+      
       return { error }
     }
     
     if (data.session) {
       console.log('✅ PKCE code exchange successful')
+      console.log('🎉 Session established:', {
+        userId: data.user?.id,
+        email: data.user?.email,
+        expiresAt: data.session.expires_at
+      })
+      
       // Clean the URL
       window.history.replaceState({}, document.title, window.location.pathname)
       return { session: data.session, user: data.user }
@@ -163,6 +284,12 @@ export const handleSafariPKCE = async () => {
     return null
   } catch (error) {
     console.error('❌ PKCE code exchange exception:', error)
+    console.error('🔍 Exception details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      isSafari: isSafari()
+    })
     return { error }
   }
 }
