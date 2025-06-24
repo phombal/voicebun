@@ -161,27 +161,6 @@ function AuthPageContent() {
     }
   }, [user, loading, router, searchParams])
 
-  // Add a timeout for Safari to prevent infinite loading
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const isSafariBrowser = navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome');
-      if (isSafariBrowser && loading) {
-        console.log('🍎 Safari detected on auth page, setting fallback timeout');
-        const safariTimeout = setTimeout(() => {
-          if (loading) {
-            console.log('🍎 Safari auth page timeout - forcing load completion');
-            // The auth context should handle this, but we'll add logging
-          }
-        }, 3000); // 3 second timeout for Safari
-        
-        return () => {
-          console.log('🧹 Clearing Safari timeout')
-          clearTimeout(safariTimeout)
-        }
-      }
-    }
-  }, [loading]);
-
   const handleAuthSuccess = () => {
     console.log('✅ Auth success callback triggered, redirecting to dashboard')
     const returnUrl = searchParams.get('returnUrl')

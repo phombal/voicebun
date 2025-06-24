@@ -129,92 +129,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isProduction: process.env.NODE_ENV === 'production'
     })
     
-    // For all browsers, check for PKCE code in URL first (from server redirect)
-    try {
-      console.log('🔄 checkOAuthCompletion: Attempting PKCE handling...')
-      
-      // Add timeout for PKCE handling in production
-      const pkcePromise = handleSafariPKCE()
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        const timeout = process.env.NODE_ENV === 'production' ? 3000 : 5000
-        setTimeout(() => reject(new Error('PKCE timeout')), timeout)
-      })
-      
-      const pkceResult = await Promise.race([pkcePromise, timeoutPromise])
-      
-      console.log('📝 PKCE result:', {
-        hasResult: !!pkceResult,
-        hasSession: pkceResult?.session ? true : false,
-        hasError: pkceResult?.error ? true : false,
-        errorMessage: pkceResult?.error
-      })
-      
-      if (pkceResult && pkceResult.session) {
-        console.log('✅ PKCE authentication successful')
-        debouncedUpdateAuth(pkceResult.session, 'pkce-code')
-        return true
-      } else if (pkceResult && pkceResult.error) {
-        console.error('❌ PKCE authentication failed:', pkceResult.error)
-        // Continue to cookie check as fallback
+    // Simplified approach: let Supabase handle OAuth detection automatically
+    // Only check for manual PKCE if there's a code in the URL
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get('code')
+    
+    if (code) {
+      console.log('🔗 OAuth code detected in URL, attempting PKCE exchange')
+      try {
+        const pkceResult = await handleSafariPKCE()
+        
+        if (pkceResult && pkceResult.session) {
+          console.log('✅ PKCE authentication successful')
+          debouncedUpdateAuth(pkceResult.session, 'pkce-code')
+          return true
+        } else if (pkceResult && pkceResult.error) {
+          console.error('❌ PKCE authentication failed:', pkceResult.error)
+        }
+      } catch (error) {
+        console.error('❌ PKCE handling exception:', error)
       }
-    } catch (error) {
-      console.error('❌ PKCE handling exception:', error)
-      // Continue to cookie check as fallback
     }
     
-    console.log('🍪 checkOAuthCompletion: Checking for cookie-based completion...')
-    
-    // Fallback: check for cookie-based completion (legacy or backup method)
+    // Fallback: check for cookie-based completion (legacy method)
     const authComplete = getCookie('sb-auth-complete')
     const accessToken = getCookie('sb-access-token')
     const refreshToken = getCookie('sb-refresh-token')
     
-    console.log('🍪 Cookie-based auth check:', { 
-      authComplete: !!authComplete, 
-      accessToken: !!accessToken, 
-      refreshToken: !!refreshToken,
-      environment: process.env.NODE_ENV
-    })
-    
     if (authComplete && accessToken) {
-      console.log('🍪 OAuth completion detected, setting session from cookies')
+      console.log('🍪 OAuth completion detected via cookies, setting session')
       
       try {
         // Clean up the completion flag immediately
         deleteCookie('sb-auth-complete')
         
-        // For Safari, we need to manually manage the session refresh
-        // since autoRefreshToken is disabled
         const sessionData = {
           access_token: accessToken,
           refresh_token: refreshToken || '',
-          expires_in: 3600, // Default to 1 hour
+          expires_in: 3600,
           token_type: 'bearer',
-          user: null as any // Will be populated by setSession
+          user: null as any
         }
         
-        console.log('🔧 Setting session from OAuth cookies...')
-        
-        // Add timeout for session setting in production
-        const sessionPromise = supabase.auth.setSession(sessionData)
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          const timeout = process.env.NODE_ENV === 'production' ? 2000 : 3000
-          setTimeout(() => reject(new Error('Session timeout')), timeout)
-        })
-        
-        const { data, error } = await Promise.race([sessionPromise, timeoutPromise])
-        
-        console.log('📝 setSession result:', {
-          hasData: !!data,
-          hasSession: !!data?.session,
-          hasUser: !!data?.user,
-          hasError: !!error,
-          errorMessage: error?.message
-        })
+        const { data, error } = await supabase.auth.setSession(sessionData)
         
         if (error) {
           console.error('❌ Error setting session from cookies:', error)
-          // Clean up cookies on error
           deleteCookie('sb-access-token')
           deleteCookie('sb-refresh-token')
           return false
@@ -227,36 +187,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Clean up cookies after successful session restoration
           deleteCookie('sb-access-token')
           deleteCookie('sb-refresh-token')
-          
-          // For Safari, set up manual token refresh since autoRefreshToken is disabled
-          if (isSafari() && data.session.expires_at) {
-            const expiresAt = data.session.expires_at * 1000 // Convert to milliseconds
-            const now = Date.now()
-            const timeUntilExpiry = expiresAt - now
-            const refreshAt = Math.max(timeUntilExpiry - 60000, 30000) // Refresh 1 minute early, minimum 30 seconds
-            
-            console.log(`🔄 Safari manual refresh scheduled in ${refreshAt}ms`)
-            setTimeout(async () => {
-              try {
-                console.log('🔄 Safari manual token refresh...')
-                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-                if (refreshError) {
-                  console.error('❌ Safari manual refresh failed:', refreshError)
-                } else if (refreshData.session) {
-                  console.log('✅ Safari manual refresh successful')
-                  debouncedUpdateAuth(refreshData.session, 'safari-manual-refresh')
-                }
-              } catch (error) {
-                console.error('❌ Safari manual refresh exception:', error)
-              }
-            }, refreshAt)
-          }
-          
           return true
         }
       } catch (error) {
         console.error('❌ Exception setting session from cookies:', error)
-        // Clean up cookies on error
         deleteCookie('sb-auth-complete')
         deleteCookie('sb-access-token')
         deleteCookie('sb-refresh-token')
@@ -351,8 +285,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Timeout to prevent infinite loading for Safari
     if (isSafari()) {
       console.log('🍎 Safari detected - setting timeout for auth initialization')
-      // Use shorter timeout in production for Safari
-      const safariTimeout = process.env.NODE_ENV === 'production' ? 1500 : 2000
+      // Use longer timeout since we're now relying on Supabase's built-in OAuth detection
+      const safariTimeout = process.env.NODE_ENV === 'production' ? 3000 : 4000
       console.log(`🍎 Safari timeout set to ${safariTimeout}ms`)
       
       timeoutRef.current = setTimeout(() => {
@@ -372,7 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }, safariTimeout)
     } else {
       // For other browsers, use a longer timeout but shorter in production
-      const standardTimeout = process.env.NODE_ENV === 'production' ? 3000 : 5000
+      const standardTimeout = process.env.NODE_ENV === 'production' ? 4000 : 6000
       console.log(`🌐 Standard browser timeout set to ${standardTimeout}ms`)
       
       timeoutRef.current = setTimeout(() => {
@@ -423,37 +357,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return subscription
     }
 
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        console.log('🔍 Getting initial session...')
-        
-        // First check for OAuth completion (PKCE for Safari, cookies for all)
-        const oauthHandled = await checkOAuthCompletion()
-        if (oauthHandled) {
-          console.log('✅ OAuth completion handled successfully')
-          return // Session was set, no need to continue
-        }
-        
-        const { session, error } = await auth.getSession()
-        
-        if (!isMountedRef.current) return
-        
-        if (error) {
-          console.error('❌ Error getting initial session:', error)
-          debouncedUpdateAuth(null, 'initial-session-error')
-        } else {
-          console.log('✅ Initial session:', session ? 'found' : 'not found')
-          debouncedUpdateAuth(session, 'initial-session')
-        }
-      } catch (error) {
-        console.error('❌ Exception getting initial session:', error)
-        if (isMountedRef.current) {
-          debouncedUpdateAuth(null, 'initial-session-exception')
-        }
-      }
-    }
-
     // Initialize authentication
     const initAuth = async () => {
       isMountedRef.current = true
@@ -467,7 +370,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check for Safari Private Browsing mode first
       if (isSafariPrivateBrowsing()) {
         console.warn('🔒 Safari Private Browsing detected - authentication may not work properly')
-        // In Private Browsing, just set loading to false and don't try to authenticate
         debouncedUpdateAuth(null, 'safari-private-browsing')
         return
       }
@@ -477,64 +379,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setupAuthListener()
       
       try {
-        // For Safari, try a simplified approach first
-        if (isSafari()) {
-          console.log('🍎 Safari init - checking for existing session first')
-          
-          // Quick session check for Safari
-          console.log('🔄 Safari: Getting existing session...')
-          const { session, error } = await auth.getSession()
-          
-          console.log('📝 Safari session check result:', {
-            hasSession: !!session,
-            userId: session?.user?.id,
-            hasError: !!error,
-            errorMessage: error?.message
-          })
-          
-          if (!isMountedRef.current) {
-            console.log('⚠️ Safari: Component unmounted during session check')
-            return
-          }
-          
-          if (session) {
-            console.log('✅ Safari found existing session')
-            debouncedUpdateAuth(session, 'safari-existing-session')
-            return
-          } else if (error) {
-            console.warn('⚠️ Safari session check error:', error)
-          }
-          
-          // Check for OAuth completion only if no existing session
-          console.log('🍎 Safari checking OAuth completion...')
-          const oauthHandled = await checkOAuthCompletion()
-          console.log('📝 Safari OAuth completion result:', oauthHandled)
-          
-          if (oauthHandled) {
-            console.log('✅ Safari OAuth completion handled')
-            return
-          }
-          
-          // If nothing found, complete initialization
-          console.log('🍎 Safari no auth found, completing init')
-          debouncedUpdateAuth(null, 'safari-no-auth')
+        // Simplified flow: check for OAuth completion first, then get session
+        console.log('🔄 Checking for OAuth completion...')
+        const oauthHandled = await checkOAuthCompletion()
+        
+        if (oauthHandled) {
+          console.log('✅ OAuth completion handled successfully')
+          return
+        }
+        
+        // If no OAuth completion, get the current session
+        console.log('🔄 Getting current session...')
+        const { session, error } = await auth.getSession()
+        
+        if (!isMountedRef.current) {
+          console.log('⚠️ Component unmounted during session check')
+          return
+        }
+        
+        if (error) {
+          console.error('❌ Error getting session:', error)
+          debouncedUpdateAuth(null, 'session-error')
         } else {
-          // Standard flow for other browsers
-          console.log('🌐 Standard browser init')
-          
-          // Check for OAuth completion first
-          console.log('🔄 Standard: Checking OAuth completion...')
-          const oauthHandled = await checkOAuthCompletion()
-          console.log('📝 Standard OAuth completion result:', oauthHandled)
-          
-          if (oauthHandled) {
-            console.log('✅ OAuth completion handled successfully')
-            return
-          }
-          
-          // Get initial session
-          console.log('🔄 Standard: Getting initial session...')
-          await getInitialSession()
+          console.log('✅ Session check complete:', session ? 'found' : 'not found')
+          debouncedUpdateAuth(session, 'initial-session')
         }
       } catch (error) {
         console.error('❌ Auth initialization error:', error)

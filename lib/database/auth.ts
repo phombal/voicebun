@@ -64,8 +64,8 @@ const createSupabaseClient = () => {
           storageKey: 'sb-auth-token',
           persistSession: true,
           flowType: 'pkce' as const,
-          autoRefreshToken: false, // Critical: disable auto-refresh for Safari
-          detectSessionInUrl: false, // Handle manually for better Safari control
+          autoRefreshToken: true, // Enable auto-refresh for Safari - this is needed for OAuth
+          detectSessionInUrl: true, // Enable URL detection for Safari - this is critical for OAuth callbacks
           debug: process.env.NODE_ENV === 'development',
           storage: {
             getItem: (key: string) => {
