@@ -508,7 +508,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
           return (
             <div
               key={phoneNumber.id}
-              className={`bg-white/5 rounded-xl p-6 border transition-all duration-200 hover:scale-105 hover:shadow-lg ${
+              className={`bg-white/5 rounded-xl p-6 border transition-all duration-200 hover:scale-105 hover:shadow-lg flex flex-col min-h-[280px] ${
                 isConnectedToCurrentProject
                   ? 'border-blue-500/50 bg-blue-500/10'
                   : isConnectedToOtherProject
@@ -531,8 +531,8 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
                 </div>
               </div>
 
-              {/* Phone Number */}
-              <div className="text-center mb-4">
+              {/* Phone Number and Status - Takes up available space */}
+              <div className="text-center mb-4 flex-grow">
                 <h3 className="text-white font-semibold text-lg mb-2">
                   {formatPhoneNumber(phoneNumber.phone_number)}
                 </h3>
@@ -555,97 +555,131 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
                 </div>
               </div>
 
-              {/* Action Button */}
-              <div className="flex justify-center">
-                {phoneNumber.project_id === projectId ? (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      try {
-                        disconnectPhoneNumber(phoneNumber);
-                      } catch (error) {
-                        console.error('❌ Error in disconnect handler:', error);
-                      }
-                    }}
-                    disabled={isDisconnecting === phoneNumber.id}
-                    className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
-                  >
-                    {isDisconnecting === phoneNumber.id ? (
-                      <>
-                        <LoadingSpinner size="sm" color="white" />
-                        <span>Disconnecting...</span>
-                      </>
+              {/* Action Buttons - Always at bottom */}
+              <div className="mt-auto">
+                {/* Connect/Reconnect Button - Show for unconnected or other project numbers */}
+                {!isConnectedToCurrentProject && (
+                  <div className="flex justify-center mb-3">
+                    {phoneNumber.project_id ? (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          try {
+                            reconnectPhoneNumber(phoneNumber);
+                          } catch (error) {
+                            console.error('❌ Error in reconnect handler:', error);
+                          }
+                        }}
+                        disabled={isReconnecting === phoneNumber.id}
+                        className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+                      >
+                        {isReconnecting === phoneNumber.id ? (
+                          <>
+                            <LoadingSpinner size="sm" color="white" />
+                            <span>Moving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            <span>Move to Project</span>
+                          </>
+                        )}
+                      </button>
                     ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        <span>Disconnect</span>
-                      </>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          try {
+                            connectPhoneNumber(phoneNumber);
+                          } catch (error) {
+                            console.error('❌ Error in connect handler:', error);
+                          }
+                        }}
+                        disabled={isConnecting === phoneNumber.id}
+                        className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+                      >
+                        {isConnecting === phoneNumber.id ? (
+                          <>
+                            <LoadingSpinner size="sm" color="white" />
+                            <span>Connecting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                            <span>Connect</span>
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
-                ) : phoneNumber.project_id ? (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      try {
-                        reconnectPhoneNumber(phoneNumber);
-                      } catch (error) {
-                        console.error('❌ Error in reconnect handler:', error);
-                      }
-                    }}
-                    disabled={isReconnecting === phoneNumber.id}
-                    className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
-                  >
-                    {isReconnecting === phoneNumber.id ? (
-                      <>
-                        <LoadingSpinner size="sm" color="white" />
-                        <span>Moving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                        <span>Move to Project</span>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      try {
-                        connectPhoneNumber(phoneNumber);
-                      } catch (error) {
-                        console.error('❌ Error in connect handler:', error);
-                      }
-                    }}
-                    disabled={isConnecting === phoneNumber.id}
-                    className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
-                  >
-                    {isConnecting === phoneNumber.id ? (
-                      <>
-                        <LoadingSpinner size="sm" color="white" />
-                        <span>Connecting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                        <span>Connect</span>
-                      </>
-                    )}
-                  </button>
+                  </div>
+                )}
+
+                {/* Disconnect Button - Only show at bottom for connected numbers */}
+                {isConnectedToCurrentProject && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        try {
+                          disconnectPhoneNumber(phoneNumber);
+                        } catch (error) {
+                          console.error('❌ Error in disconnect handler:', error);
+                        }
+                      }}
+                      disabled={isDisconnecting === phoneNumber.id}
+                      className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-600/50 hover:border-red-600 disabled:bg-red-500/20 disabled:cursor-not-allowed text-red-300 hover:text-white text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      {isDisconnecting === phoneNumber.id ? (
+                        <>
+                          <LoadingSpinner size="sm" color="white" />
+                          <span>Disconnecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          <span>Disconnect</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
           );
         })}
+
+        {/* Get More Numbers Card - Always visible */}
+        {onPurchaseNumber && (
+          <div className="bg-white/5 rounded-xl p-6 border border-dashed border-white/20 hover:border-white/40 transition-all duration-200 hover:scale-105 hover:shadow-lg flex flex-col items-center justify-center min-h-[280px]">
+            <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <h3 className="text-white font-semibold text-lg mb-2 text-center">Get More Numbers</h3>
+            <p className="text-white/50 text-sm text-center mb-6 max-w-[200px]">
+              Purchase additional phone numbers for this project or other voice agents
+            </p>
+            <button
+              onClick={onPurchaseNumber}
+              className="px-6 py-3 bg-white hover:bg-gray-100 text-black font-medium rounded-lg transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              <span>Browse Numbers</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
