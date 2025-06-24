@@ -85,11 +85,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log(`🔄 Auth update from ${source}:`, {
         hasSession: !!newSession,
         userId: newSession?.user?.id,
-        isSafariBrowser: isSafari()
+        isSafariBrowser: isSafari(),
+        currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+        sessionExpiresAt: newSession?.expires_at,
+        accessTokenPresent: !!newSession?.access_token,
+        refreshTokenPresent: !!newSession?.refresh_token
       })
       
       setSession(newSession)
       setUser(newSession?.user || null)
+      
+      // Safari-specific debugging for session updates
+      if (isSafari()) {
+        console.log('🍎 Safari session update details:', {
+          source,
+          hadSessionBefore: !!session,
+          hasSessionNow: !!newSession,
+          userIdBefore: session?.user?.id,
+          userIdNow: newSession?.user?.id,
+          currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+          timestamp: new Date().toISOString()
+        });
+      }
       
       // Only set loading to false after we've initialized
       if (!hasInitializedRef.current) {

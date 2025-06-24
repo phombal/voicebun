@@ -21,14 +21,34 @@ export class ClientDatabaseService {
 
   // Auth helpers
   async getCurrentUser() {
+    console.log('👤 getCurrentUser called');
     const { data: { user }, error } = await this.supabase.auth.getUser();
-    if (error) throw error;
+    
+    console.log('👤 getCurrentUser result:', {
+      hasUser: !!user,
+      userId: user?.id,
+      error: error?.message,
+      isSafari: typeof window !== 'undefined' ? /^((?!chrome|android).)*safari/i.test(navigator.userAgent) : false
+    });
+    
+    if (error) {
+      console.error('❌ getCurrentUser error:', error);
+      throw error;
+    }
     return user;
   }
 
   async getCurrentUserId(): Promise<string> {
+    console.log('🔑 getCurrentUserId called');
     const user = await this.getCurrentUser();
-    if (!user) throw new Error('User not authenticated');
+    
+    if (!user) {
+      const errorMsg = 'User not authenticated';
+      console.error('❌ getCurrentUserId:', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    console.log('✅ getCurrentUserId success:', user.id);
     return user.id;
   }
 
@@ -68,36 +88,56 @@ export class ClientDatabaseService {
     filters: ProjectFilters = {},
     pagination: PaginationParams = {}
   ): Promise<Project[]> {
-    const userId = await this.getCurrentUserId();
-
-    let query = this.supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', userId)
-      .neq('status', 'deleted');
-
-    // Apply filters
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
-    if (filters.search) {
-      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
-    }
-    if (filters.created_after) {
-      query = query.gte('created_at', filters.created_after);
-    }
-    if (filters.created_before) {
-      query = query.lte('created_at', filters.created_before);
-    }
-
-    // Apply sorting
-    const { sort_by = 'updated_at', sort_order = 'desc' } = pagination;
-    query = query.order(sort_by, { ascending: sort_order === 'asc' });
-
-    const { data, error } = await query;
+    console.log('📁 getUserProjects called');
     
-    if (error) throw error;
-    return data || [];
+    try {
+      const userId = await this.getCurrentUserId();
+      console.log('📁 getUserProjects - got userId:', userId);
+      
+      let query = this.supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', userId)
+        .neq('status', 'deleted');
+
+      // Apply filters
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.search) {
+        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      }
+      if (filters.created_after) {
+        query = query.gte('created_at', filters.created_after);
+      }
+      if (filters.created_before) {
+        query = query.lte('created_at', filters.created_before);
+      }
+
+      // Apply sorting
+      const { sort_by = 'updated_at', sort_order = 'desc' } = pagination;
+      query = query.order(sort_by, { ascending: sort_order === 'asc' });
+
+      const { data, error } = await query;
+      
+      console.log('📁 getUserProjects - database query result:', {
+        hasData: !!data,
+        dataLength: data?.length,
+        error: error?.message,
+        isSafari: typeof window !== 'undefined' ? /^((?!chrome|android).)*safari/i.test(navigator.userAgent) : false
+      });
+
+      if (error) {
+        console.error('❌ getUserProjects database error:', error);
+        throw error;
+      }
+
+      console.log('✅ getUserProjects success - returning', data?.length || 0, 'projects');
+      return data || [];
+    } catch (error) {
+      console.error('❌ getUserProjects caught error:', error);
+      throw error;
+    }
   }
 
   async updateProject(projectId: string, updates: Partial<Omit<Project, 'id' | 'created_at'>>): Promise<Project> {

@@ -488,18 +488,18 @@ if __name__ == "__main__":
           
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-4">
-            <a
-              href="/projects"
+            <button
+              onClick={() => router.push('/projects')}
               className="text-white/70 hover:text-white transition-colors"
             >
               Projects
-            </a>
-            <a
-              href="/community"
+            </button>
+            <button
+              onClick={() => router.push('/community')}
               className="text-white/70 hover:text-white transition-colors"
             >
               Community
-            </a>
+            </button>
             <UserProfile />
           </div>
 
@@ -528,9 +528,11 @@ if __name__ == "__main__":
               </div>
               
               <div className="p-4 space-y-2">
-                <a
-                  href="/dashboard"
-                  onClick={() => setShowMobileMenu(false)}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    router.push('/dashboard');
+                  }}
                   className="w-full text-left px-4 py-3 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10 block"
                 >
                   <div className="flex items-center space-x-3">
@@ -542,11 +544,13 @@ if __name__ == "__main__":
                     </svg>
                     <span>Dashboard</span>
                   </div>
-                </a>
+                </button>
                 
-                <a
-                  href="/projects"
-                  onClick={() => setShowMobileMenu(false)}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    router.push('/projects');
+                  }}
                   className="w-full text-left px-4 py-3 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10 block"
                 >
                   <div className="flex items-center space-x-3">
@@ -555,11 +559,13 @@ if __name__ == "__main__":
                     </svg>
                     <span>Projects</span>
                   </div>
-                </a>
+                </button>
                 
-                <a
-                  href="/community"
-                  onClick={() => setShowMobileMenu(false)}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    router.push('/community');
+                  }}
                   className="w-full text-left px-4 py-3 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10 block"
                 >
                   <div className="flex items-center space-x-3">
@@ -568,7 +574,7 @@ if __name__ == "__main__":
                     </svg>
                     <span>Community</span>
                   </div>
-                </a>
+                </button>
               </div>
             </div>
           </div>

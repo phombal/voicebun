@@ -86,12 +86,12 @@ export default function ProfilePage() {
             />
           </div>
           <div className="flex items-center space-x-4">
-            <a
-              href="/projects"
+            <button
+              onClick={() => router.push('/projects')}
               className="text-white/70 hover:text-white transition-colors"
             >
               Projects
-            </a>
+            </button>
             <UserProfile />
           </div>
         </div>

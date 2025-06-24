@@ -62,52 +62,122 @@ export default function ProjectsPage() {
 
   // Safari-specific session check with extended timeout
   useEffect(() => {
+    console.log('🔍 Safari session check effect triggered:', {
+      isSafari: isSafari(),
+      loading,
+      user: !!user,
+      safariSessionCheck,
+      userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'server'
+    });
+
     if (isSafari() && !loading && !user && !safariSessionCheck) {
       console.log('🍎 Safari detected: Giving extra time for session restoration...');
+      console.log('🍎 Safari state before timeout:', {
+        loading,
+        user: !!user,
+        userId: user?.id,
+        safariSessionCheck,
+        currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
+      });
+      
       setSafariSessionCheck(true);
       
       // Give Safari extra time to restore the session
       const safariTimeout = setTimeout(() => {
         console.log('🍎 Safari session check timeout completed');
+        console.log('🍎 Safari state after timeout:', {
+          loading,
+          user: !!user,
+          userId: user?.id,
+          currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
+        });
+        
         if (!user) {
           console.log('🍎 Safari: No user found after extended wait, redirecting to landing');
           router.push('/');
+        } else {
+          console.log('🍎 Safari: User found after timeout, staying on projects page');
         }
-      }, 2000); // 2 seconds for Safari session restoration
+      }, 3000); // Increased to 3 seconds for Safari session restoration
       
-      return () => clearTimeout(safariTimeout);
+      return () => {
+        console.log('🍎 Safari timeout cleanup');
+        clearTimeout(safariTimeout);
+      };
     }
   }, [loading, user, safariSessionCheck, router]);
 
   // Redirect unauthenticated users to landing (with Safari protection)
   useEffect(() => {
+    console.log('🔄 Redirect effect triggered:', {
+      isSafari: isSafari(),
+      safariSessionCheck,
+      loading,
+      user: !!user,
+      shouldWaitForSafari: isSafari() && !safariSessionCheck
+    });
+
     // For Safari: wait for the extended session check to complete
     if (isSafari() && !safariSessionCheck) {
+      console.log('🍎 Safari: Waiting for session check to complete before redirect logic');
       return; // Don't redirect yet, let Safari session check run first
     }
     
     // For non-Safari browsers or after Safari session check
     if (!loading && !user) {
-      console.log('🔄 Redirecting unauthenticated user to landing page');
+      console.log('🔄 Redirecting unauthenticated user to landing page', {
+        isSafari: isSafari(),
+        safariSessionCheck,
+        loading,
+        user: !!user
+      });
       router.push('/');
+    } else if (!loading && user) {
+      console.log('✅ User authenticated, staying on projects page', {
+        userId: user.id,
+        email: user.email
+      });
     }
   }, [user, loading, router, safariSessionCheck]);
 
   // Load user projects
   useEffect(() => {
-    if (!user) return;
+    console.log('📂 Projects loading effect triggered:', {
+      user: !!user,
+      userId: user?.id,
+      loadingProjects,
+      isSafari: isSafari()
+    });
+
+    if (!user) {
+      console.log('📂 No user, skipping project load');
+      return;
+    }
     
     const loadProjects = async () => {
+      console.log('📂 Starting to load projects for user:', user.id);
       try {
         const userProjects = await getUserProjects();
+        console.log('📂 Raw projects from database:', userProjects.length, 'projects');
+        
         const projectsData = userProjects.map((project: DatabaseProject) => ({
           ...project,
           description: project.description || undefined
         }));
+        
+        console.log('📂 Processed projects data:', projectsData.length, 'projects');
         setProjects(projectsData);
+        console.log('✅ Projects set successfully');
       } catch (error) {
-        console.error('Failed to load projects:', error);
+        console.error('❌ Failed to load projects:', error);
+        console.error('❌ Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : 'No stack',
+          isSafari: isSafari(),
+          userId: user?.id
+        });
       } finally {
+        console.log('📂 Setting loadingProjects to false');
         setLoadingProjects(false);
       }
     };
@@ -312,12 +382,34 @@ export default function ProjectsPage() {
   };
 
   if (loading || (user && loadingProjects)) {
+    console.log('🔄 Showing loading state:', {
+      loading,
+      user: !!user,
+      loadingProjects,
+      isSafari: isSafari(),
+      reason: loading ? 'auth loading' : 'projects loading'
+    });
     return <LoadingBun message="Loading projects..." />;
   }
 
   if (!user) {
+    console.log('🚫 No user, returning null (should redirect):', {
+      loading,
+      user: !!user,
+      safariSessionCheck,
+      isSafari: isSafari()
+    });
     return null; // Will redirect
   }
+
+  console.log('✅ Rendering projects page:', {
+    loading,
+    user: !!user,
+    userId: user?.id,
+    projectsCount: projects.length,
+    loadingProjects,
+    isSafari: isSafari()
+  });
 
   return (
     <div className="min-h-screen bg-black" style={{ 
@@ -337,18 +429,18 @@ export default function ProjectsPage() {
             />
           </div>
           <div className="flex items-center space-x-4">
-            <a
-              href="/projects"
+            <button
+              onClick={() => router.push('/projects')}
               className="text-white hover:text-white transition-colors"
             >
               Projects
-            </a>
-            <a
-              href="/community"
+            </button>
+            <button
+              onClick={() => router.push('/community')}
               className="text-white/70 hover:text-white transition-colors"
             >
               Community
-            </a>
+            </button>
             <UserProfile />
           </div>
         </div>
