@@ -20,9 +20,6 @@ export default function ProjectPage() {
   const [config, setConfig] = useState<VoiceAgentConfigType | null>(null);
   const [code, setCode] = useState<string>("");
   
-  // Safari session validation ref to prevent multiple validations
-  const safariValidationRef = useRef(false);
-
   // Function to track project views
   const trackProjectView = async (projectId: string) => {
     try {
@@ -39,100 +36,64 @@ export default function ProjectPage() {
     }
   };
 
-  // Safari-specific session validation
-  const validateSafariSession = useCallback(async () => {
-    if (typeof window === 'undefined') return false;
-    
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
-                    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                    (navigator.vendor && navigator.vendor.indexOf('Apple') > -1);
-    
-    if (!isSafari) return false;
-    
-    // Prevent multiple validations
-    if (safariValidationRef.current) {
-      console.log('🍎 Safari validation already in progress');
-      return false;
-    }
-    
-    safariValidationRef.current = true;
-    
+  // Function to clear stuck auth state
+  const clearAuthState = useCallback(() => {
     try {
-      console.log('🍎 Safari session validation for project page:', {
-        hasUser: !!user,
-        loading,
-        projectId,
-        currentPath: window.location.pathname
-      });
-      
-      // Check if we have auth tokens in storage
-      const storageKey = 'sb-auth-token';
-      const accessTokenKey = `${storageKey}-access-token`;
-      
-      let hasTokens = false;
-      try {
-        hasTokens = !!(window.localStorage.getItem(accessTokenKey) || 
-                      window.sessionStorage.getItem(accessTokenKey));
-      } catch (storageError) {
-        console.warn('🍎 Storage access failed:', storageError);
-      }
-      
-      console.log('🍎 Safari token check:', {
-        hasTokens,
-        hasUser: !!user,
-        loading
-      });
-      
-      // If we have tokens but no user and not loading, there might be a session issue
-      if (hasTokens && !user && !loading) {
-        console.log('🍎 Safari: Tokens found but no user - possible session desync');
-        
-        // Give the auth system a moment to catch up
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Check again
-        if (!user && !loading) {
-          console.log('🍎 Safari: Session desync confirmed, redirecting to home');
-          router.push('/');
-          return true;
+      console.log('🧹 Clearing potentially stuck auth state...');
+      // Clear Supabase auth tokens
+      const keysToCheck = ['sb-auth-token', 'sb-session'];
+      keysToCheck.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
+          // Also check with project-specific keys
+          localStorage.removeItem(`${key}-access-token`);
+          sessionStorage.removeItem(`${key}-access-token`);
+          localStorage.removeItem(`${key}-refresh-token`);
+          sessionStorage.removeItem(`${key}-refresh-token`);
+        } catch (err) {
+          console.warn(`Failed to clear ${key}:`, err);
         }
-      }
-      
-      return false;
-    } finally {
-      safariValidationRef.current = false;
-    }
-  }, [user, loading, router, projectId]);
-
-  // Redirect unauthenticated users to landing with Safari validation
-  useEffect(() => {
-    const handleAuthRedirect = async () => {
-      console.log('🔐 Project auth check:', {
-        loading,
-        hasUser: !!user,
-        userId: user?.id,
-        projectId,
-        userAgent: typeof window !== 'undefined' ? navigator.userAgent.substring(0, 50) : 'server'
       });
+      console.log('✅ Auth state cleared');
+    } catch (error) {
+      console.error('Failed to clear auth state:', error);
+    }
+  }, []);
+
+  // Expose clear function to window for manual debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).clearVoiceBunAuth = () => {
+        clearAuthState();
+        window.location.href = '/';
+      };
+    }
+  }, [clearAuthState]);
+
+  // Simple auth check with timeout to prevent endless loops
+  useEffect(() => {
+    // Set a maximum wait time for auth to resolve
+    const authTimeout = setTimeout(() => {
+      if (loading) {
+        console.log('⏰ Auth timeout reached, clearing state and redirecting');
+        clearAuthState();
+        router.push('/');
+      }
+    }, 6000); // 6 second timeout (slightly longer than AuthContext's 5 seconds)
+
+    // Clear timeout if auth resolves
+    if (!loading) {
+      clearTimeout(authTimeout);
       
-      if (!loading && !user) {
+      if (!user) {
         console.log('❌ No authenticated user, redirecting to home');
         router.push('/');
-        return;
       }
-      
-      // Safari-specific validation
-      if (!loading) {
-        const safariHandled = await validateSafariSession();
-        if (safariHandled) {
-          console.log('🍎 Safari validation handled redirect');
-          return;
-        }
-      }
-    };
-    
-    handleAuthRedirect();
-  }, [user, loading, router, validateSafariSession]);
+    }
+
+    return () => clearTimeout(authTimeout);
+  }, [user, loading, router, clearAuthState]);
 
   // Load project data
   useEffect(() => {

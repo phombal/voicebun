@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 interface Message {
@@ -64,9 +64,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY is not configured');
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('ANTHROPIC_API_KEY is not configured');
+      return NextResponse.json({ error: 'Anthropic API key not configured' }, { status: 500 });
     }
 
     console.log('Starting configuration chat request with', messages.length, 'messages');
@@ -84,8 +84,8 @@ CONFIGURATION FIELDS AND OPTIONS:
 - systemPrompt: Free text for agent behavior and personality
 - agentInstructions: Additional instructions for the agent
 - firstMessageMode: "wait" | "speak_first" | "speak_first_with_model_generated_message"
-- llmProvider: "openai" | "anthropic" | "xai"
-- llmModel: For OpenAI: "gpt-4o-mini" | "gpt-4o" | "gpt-4.1" | "gpt-4.1-mini" | "gpt-4.1-nano", For Anthropic: "claude-opus-4" | "claude-sonnet-4" | "claude-3-5-haiku", For xAI: "grok-2"
+- llmProvider: "anthropic" | "openai" | "xai" (Anthropic recommended)
+- llmModel: For Anthropic: "claude-opus-4" | "claude-sonnet-4" | "claude-3-5-haiku" | "claude-3-5-sonnet-latest", For OpenAI: "gpt-4o-mini" | "gpt-4o", For xAI: "grok-2"
 - llmTemperature: 0.0 to 2.0 (0 = conservative, 1 = balanced, 2 = creative)
 - llmMaxResponseLength: 150 | 300 | 500 | 1000 (tokens)
 - sttProvider: "deepgram" (only option)
@@ -133,43 +133,40 @@ Examples of good suggestions:
 
 Your primary job is to help users optimize their voice agent configuration for their specific use case.`;
 
-          // Convert messages to OpenAI format
-          const openaiMessages = [
-            { role: 'system' as const, content: systemPrompt },
-            ...messages.map(msg => ({
-              role: msg.role as 'user' | 'assistant',
-              content: msg.content
-            }))
-          ];
-
-          console.log('Creating OpenAI stream...');
+          console.log('Creating Anthropic stream...');
 
           // Create the streaming request
-          const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: openaiMessages,
+          const response = await anthropic.messages.create({
+            model: 'claude-3-5-sonnet-latest',
             max_tokens: 2000,
             temperature: 0.7,
+            system: systemPrompt,
+            messages: messages.map(msg => ({
+              role: msg.role,
+              content: msg.content
+            })),
             stream: true,
           });
 
-          console.log('OpenAI stream created, processing chunks...');
+          console.log('Anthropic stream created, processing chunks...');
 
           let fullContent = '';
 
           for await (const chunk of response) {
-            const delta = chunk.choices[0]?.delta?.content || '';
-            if (delta) {
-              fullContent += delta;
-              
-              // Send incremental update
-              const data = JSON.stringify({
-                type: 'content_delta',
-                content: delta,
-                fullContent: fullContent
-              });
-              
-              controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              const delta = chunk.delta.text;
+              if (delta) {
+                fullContent += delta;
+                
+                // Send incremental update
+                const data = JSON.stringify({
+                  type: 'content_delta',
+                  content: delta,
+                  fullContent: fullContent
+                });
+                
+                controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
+              }
             }
           }
 

@@ -760,6 +760,30 @@ Just tell me what you want your voice agent to do or any issues you're experienc
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
 
+    // Function to detect if user wants to create functions
+    const detectFunctionRequest = (message: string): boolean => {
+      const functionKeywords = [
+        'create function', 'add function', 'make function', 'build function',
+        'generate function', 'function for', 'need function', 'function to',
+        'integrate', 'connect to', 'api for', 'webhook', 'automation',
+        'schedule meeting', 'send email', 'hangup', 'voicemail', 'sms',
+        'spreadsheet', 'calendar', 'booking', 'ticket', 'log data',
+        'workiz', 'zapier', 'salesforce', 'hubspot', 'monday.com'
+      ];
+      
+      const lowerMessage = message.toLowerCase();
+      const detected = functionKeywords.some(keyword => lowerMessage.includes(keyword));
+      
+      // Add debugging
+      console.log('🔍 Function detection in GeneratedCodeDisplay:', {
+        message: lowerMessage,
+        detected,
+        matchingKeywords: functionKeywords.filter(keyword => lowerMessage.includes(keyword))
+      });
+      
+      return detected;
+    };
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -776,6 +800,100 @@ Just tell me what you want your voice agent to do or any issues you're experienc
     setIsGenerating(true);
 
     try {
+      // Check if this is a function generation request
+      if (detectFunctionRequest(inputMessage)) {
+        console.log('🚀 Generating functions for:', inputMessage);
+        
+        // Generate functions using the function API
+        const response = await fetch('/api/generate-function', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            prompt: inputMessage,
+            projectId: project.id
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        // Check if this is a documentation request
+        if (result.request_documentation) {
+          console.log('📚 Documentation request received:', result.service);
+          
+          // Add assistant message requesting documentation
+          const assistantMessage: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `${result.message}\n\n**Please provide:**\n- API endpoint URLs\n- Authentication methods (API keys, OAuth, etc.)\n- Request/response examples\n- Required and optional parameters\n\nOnce you provide the documentation, I'll generate accurate function configurations for ${result.service}.`,
+            timestamp: new Date(),
+            checkpoint: true,
+          };
+
+          setMessages(prev => [...prev, assistantMessage]);
+          setIsGenerating(false);
+          return;
+        }
+        
+        if (result.functions && result.functions.length > 0) {
+          // Add assistant message with generated functions
+          const assistantMessage: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `I've generated ${result.functions.length} function(s) for you:\n\n${result.functions.map((func: any, index: number) => 
+              `**${index + 1}. ${func.name}**\n${func.description || 'No description provided'}`
+            ).join('\n\n')}\n\nWould you like me to add these functions to your project configuration?`,
+            timestamp: new Date(),
+            checkpoint: true,
+          };
+
+          setMessages(prev => [...prev, assistantMessage]);
+
+          // Update project config with new functions
+          setProjectConfig(prev => ({
+            ...prev,
+            functionsEnabled: true,
+            customFunctions: [...(prev.customFunctions || []), ...result.functions]
+          }));
+
+          // Show success notification
+          const notification = document.createElement('div');
+          notification.innerHTML = `
+            <div class="flex items-center space-x-3">
+              <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <div>
+                <div class="font-medium">Functions Generated</div>
+                <div class="text-sm opacity-90">Added ${result.functions.length} function(s) to your project</div>
+              </div>
+            </div>
+          `;
+          notification.className = 'fixed bottom-4 right-4 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-sm';
+          document.body.appendChild(notification);
+          setTimeout(() => {
+            if (document.body.contains(notification)) {
+              document.body.removeChild(notification);
+            }
+          }, 6000);
+        } else {
+          throw new Error('No functions were generated');
+        }
+
+        setIsGenerating(false);
+        return;
+      }
+
+      // If not a function request, proceed with regular config chat
+      console.log('📝 Routing to configuration chat');
+
       // Prepare messages for API
       const messagesToSend = [...messages, userMessage].map(msg => ({
         role: msg.role,
@@ -1506,6 +1624,17 @@ For now, you can still manually configure your voice agent using the tabs above.
               onInputChange={setInputMessage}
               onSendMessage={sendMessage}
               isGenerating={isGenerating}
+              projectId={project?.id || currentProject?.id}
+              onFunctionsGenerated={(functions) => {
+                // Add generated functions to the project configuration
+                setProjectConfig(prev => ({
+                  ...prev,
+                  customFunctions: [...(prev.customFunctions || []), ...functions]
+                }));
+                
+                // Log for debugging
+                console.log('Generated functions added to project:', functions);
+              }}
             />
           </div>
 
