@@ -945,7 +945,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
   return (
     <div className="h-full bg-black overflow-y-auto" ref={functionsTabContainerRef} onScroll={handleScroll} onWheel={handleWheel} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       {/* Combined Functions Configuration Section */}
-      <div className="bg-white/10 backdrop-blur-sm h-full p-8 pb-24 w-full">
+      <div className="bg-white/10 backdrop-blur-sm min-h-full p-8 pb-24 w-full">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
             <svg className="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
