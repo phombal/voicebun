@@ -41,7 +41,6 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
-  const [safariSessionCheck, setSafariSessionCheck] = useState(false); // Safari-specific session check
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     project: Project | null;
@@ -52,154 +51,12 @@ export default function ProjectsPage() {
     isDeleting: false
   });
 
-  // Safari detection function
-  const isSafari = () => {
-    if (typeof window === 'undefined') return false
-    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
-           /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-           (navigator.vendor && navigator.vendor.indexOf('Apple') > -1)
-  };
-
-  // Safari session validation to prevent desync
-  const validateSafariSession = useCallback(async () => {
-    if (!isSafari() || typeof window === 'undefined') return false;
-    
-    console.log('🍎 Safari session validation for projects page:', {
-      hasUser: !!user,
-      loading,
-      currentPath: window.location.pathname
-    });
-    
-    // Check if we have auth tokens in storage
-    const storageKey = 'sb-auth-token';
-    const accessTokenKey = `${storageKey}-access-token`;
-    
-    let hasTokens = false;
-    try {
-      hasTokens = !!(window.localStorage.getItem(accessTokenKey) || 
-                    window.sessionStorage.getItem(accessTokenKey));
-    } catch (storageError) {
-      console.warn('🍎 Storage access failed:', storageError);
-    }
-    
-    console.log('🍎 Safari token check on projects page:', {
-      hasTokens,
-      hasUser: !!user,
-      loading
-    });
-    
-    // If we have tokens but no user and not loading, there might be a session issue
-    if (hasTokens && !user && !loading) {
-      console.log('🍎 Safari: Tokens found but no user on projects page - possible session desync');
-      
-      // Give the auth system a brief moment to catch up
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Check again
-      if (!user && !loading) {
-        console.log('🍎 Safari: Session desync confirmed on projects page, redirecting to home');
-        router.push('/');
-        return true;
-      }
-    }
-    
-    return false;
-  }, [user, loading, router]);
-
-  // Safari-specific session check with extended timeout
-  useEffect(() => {
-    console.log('🔍 Safari session check effect triggered:', {
-      isSafari: isSafari(),
-      loading,
-      user: !!user,
-      safariSessionCheck,
-      userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'server'
-    });
-
-    if (isSafari() && !loading && !user && !safariSessionCheck) {
-      console.log('🍎 Safari detected: Giving extra time for session restoration...');
-      console.log('🍎 Safari state before timeout:', {
-        loading,
-        user: !!user,
-        userId: user?.id,
-        safariSessionCheck,
-        currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
-      });
-      
-      setSafariSessionCheck(true);
-      
-      // Give Safari extra time to restore the session
-      const safariTimeout = setTimeout(async () => {
-        console.log('🍎 Safari session check timeout completed');
-        console.log('🍎 Safari state after timeout:', {
-          loading,
-          user: !!user,
-          userId: user?.id,
-          currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
-        });
-        
-        // Validate session before redirecting
-        const sessionHandled = await validateSafariSession();
-        if (sessionHandled) {
-          console.log('🍎 Safari: Session validation handled redirect');
-          return;
-        }
-        
-        if (!user) {
-          console.log('🍎 Safari: No user found after extended wait, redirecting to landing');
-          router.push('/');
-        } else {
-          console.log('🍎 Safari: User found after timeout, staying on projects page');
-        }
-      }, 3000); // Increased to 3 seconds for Safari session restoration
-      
-      return () => {
-        console.log('🍎 Safari timeout cleanup');
-        clearTimeout(safariTimeout);
-      };
-    }
-  }, [loading, user, safariSessionCheck, router, validateSafariSession]);
-
-  // Redirect unauthenticated users to landing (with Safari protection)
-  useEffect(() => {
-    console.log('🔄 Redirect effect triggered:', {
-      isSafari: isSafari(),
-      safariSessionCheck,
-      loading,
-      user: !!user,
-      shouldWaitForSafari: isSafari() && !safariSessionCheck
-    });
-
-    // For Safari: wait for the extended session check to complete
-    if (isSafari() && !safariSessionCheck) {
-      console.log('🍎 Safari: Waiting for session check to complete before redirect logic');
-      return; // Don't redirect yet, let Safari session check run first
-    }
-    
-    // For non-Safari browsers or after Safari session check
-    if (!loading && !user) {
-      console.log('🔄 Redirecting unauthenticated user to landing page', {
-        isSafari: isSafari(),
-        safariSessionCheck,
-        loading,
-        user: !!user
-      });
-      router.push('/');
-    } else if (!loading && user) {
-      console.log('✅ User authenticated, staying on projects page', {
-        userId: user.id,
-        email: user.email
-      });
-    }
-  }, [user, loading, router, safariSessionCheck]);
-
   // Load user projects
   useEffect(() => {
     console.log('📂 Projects loading effect triggered:', {
       user: !!user,
       userId: user?.id,
       loadingProjects,
-      isSafari: isSafari()
     });
 
     if (!user) {
@@ -226,7 +83,6 @@ export default function ProjectsPage() {
         console.error('❌ Error details:', {
           message: error instanceof Error ? error.message : 'Unknown error',
           stack: error instanceof Error ? error.stack : 'No stack',
-          isSafari: isSafari(),
           userId: user?.id
         });
       } finally {
@@ -273,7 +129,7 @@ export default function ProjectsPage() {
   };
 
   const handleCreateNewProject = async () => {
-    if (!user || creatingProject) return;
+    if (!user || false) return;
     
     setCreatingProject(true);
     
@@ -434,12 +290,62 @@ export default function ProjectsPage() {
     }
   };
 
+  // Clear auth state utility function
+  const clearAuthState = () => {
+    try {
+      localStorage.removeItem('sb-auth-token-access-token');
+      localStorage.removeItem('sb-auth-token-refresh-token');
+      sessionStorage.removeItem('sb-auth-token-access-token');
+      sessionStorage.removeItem('sb-auth-token-refresh-token');
+      console.log('🧹 Auth state cleared');
+    } catch (error) {
+      console.warn('Failed to clear auth state:', error);
+    }
+  };
+
+  // Expose clearAuthState to window for debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).clearAuthState = clearAuthState;
+    }
+  }, []);
+
+  // Simple authentication timeout to prevent endless loading
+  useEffect(() => {
+    if (loading) {
+      const authTimeout = setTimeout(() => {
+        console.log('⏰ Authentication timeout reached, clearing state and redirecting');
+        clearAuthState();
+        router.push('/');
+      }, 6000); // 6 second timeout
+
+      return () => clearTimeout(authTimeout);
+    }
+  }, [loading, router]);
+
+  // Redirect unauthenticated users to landing
+  useEffect(() => {
+    console.log('🔄 Redirect effect triggered:', {
+      loading,
+      user: !!user
+    });
+    
+    if (!loading && !user) {
+      console.log('🔄 Redirecting unauthenticated user to landing page');
+      router.push('/');
+    } else if (!loading && user) {
+      console.log('✅ User authenticated, staying on projects page', {
+        userId: user.id,
+        email: user.email
+      });
+    }
+  }, [user, loading, router]);
+
   if (loading || (user && loadingProjects)) {
     console.log('🔄 Showing loading state:', {
       loading,
       user: !!user,
       loadingProjects,
-      isSafari: isSafari(),
       reason: loading ? 'auth loading' : 'projects loading'
     });
     return <LoadingBun message="Loading projects..." />;
@@ -449,8 +355,7 @@ export default function ProjectsPage() {
     console.log('🚫 No user, returning null (should redirect):', {
       loading,
       user: !!user,
-      safariSessionCheck,
-      isSafari: isSafari()
+      creatingProject
     });
     return null; // Will redirect
   }
@@ -460,8 +365,7 @@ export default function ProjectsPage() {
     user: !!user,
     userId: user?.id,
     projectsCount: projects.length,
-    loadingProjects,
-    isSafari: isSafari()
+    loadingProjects
   });
 
   return (
