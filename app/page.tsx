@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { clientDb } from '@/lib/database/client-service';
+import { LoadingBun } from '@/components/LoadingBun';
 
 function isSafari() {
   if (typeof window === 'undefined') return false
@@ -173,27 +174,15 @@ function LandingPageContent() {
   // Show loading state
   if (loading || isRedirecting) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="text-gray-600">
-            {isRedirecting 
-              ? 'Redirecting to dashboard...' 
-              : loading 
-                ? 'Loading your session...' 
-                : 'Preparing your experience...'
-            }
-          </p>
-          {showManualOverride && (
-            <button
-              onClick={handleManualOverride}
-              className="mt-4 bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors font-medium text-sm sm:text-base"
-            >
-              Manual Override
-            </button>
-          )}
-        </div>
-      </div>
+      <LoadingBun 
+        message={
+          isRedirecting 
+            ? 'Redirecting to dashboard...' 
+            : loading 
+              ? 'Loading your session...' 
+              : 'Preparing your experience...'
+        }
+      />
     );
   }
 
@@ -350,14 +339,7 @@ function AuthPromptModal({ onClose }: {
 
 export default function LandingPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<LoadingBun message="Loading..." />}>
       <LandingPageContent />
     </Suspense>
   );
