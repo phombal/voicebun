@@ -338,8 +338,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('🔔 Auth state change:', event, {
           hasSession: !!session,
           userId: session?.user?.id,
-          isSafariBrowser: isSafari()
+          isSafariBrowser: isSafari(),
+          currentUrl: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
         })
+        
+        // Safari-specific debugging for session persistence
+        if (isSafari()) {
+          console.log('🍎 Safari auth state change details:', {
+            event,
+            hasSession: !!session,
+            userId: session?.user?.id,
+            currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+            sessionExpiresAt: session?.expires_at,
+            accessTokenLength: session?.access_token?.length || 0
+          });
+          
+          // Check if we're losing session during navigation
+          if (event === 'SIGNED_OUT' && typeof window !== 'undefined' && window.location.pathname !== '/') {
+            console.warn('🍎 Safari: Session lost during navigation to:', window.location.pathname);
+            console.warn('🍎 This might be a Safari session persistence issue');
+          }
+        }
         
         // Clear timeout on any auth state change
         if (timeoutRef.current) {

@@ -136,8 +136,33 @@ export function useDatabase() {
 
   // Get user's projects
   const getUserProjects = useCallback(async () => {
-    if (!user) throw new Error('User not authenticated');
-    return await dbInstance.getUserProjects();
+    if (!user) {
+      console.warn('⚠️ getUserProjects called without user, this might be a timing issue');
+      throw new Error('User not authenticated');
+    }
+    
+    console.log('📂 Getting user projects for:', user.id);
+    
+    try {
+      const projects = await dbInstance.getUserProjects();
+      console.log('✅ Successfully loaded projects:', projects.length);
+      return projects;
+    } catch (error) {
+      console.error('❌ Failed to get user projects:', error);
+      
+      // If it's an auth error and we're in Safari, it might be a timing issue
+      if (error instanceof Error && error.message.includes('auth') && typeof window !== 'undefined') {
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+                         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                         (navigator.vendor && navigator.vendor.indexOf('Apple') > -1);
+        
+        if (isSafari) {
+          console.log('🍎 Safari auth error detected, this might be a session timing issue');
+        }
+      }
+      
+      throw error;
+    }
   }, [user]);
 
   // Update project

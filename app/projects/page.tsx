@@ -41,6 +41,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [safariSessionCheck, setSafariSessionCheck] = useState(false); // Safari-specific session check
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     project: Project | null;
@@ -51,12 +52,46 @@ export default function ProjectsPage() {
     isDeleting: false
   });
 
-  // Redirect unauthenticated users to landing
+  // Safari detection function
+  const isSafari = () => {
+    if (typeof window === 'undefined') return false
+    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+           /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+           (navigator.vendor && navigator.vendor.indexOf('Apple') > -1)
+  };
+
+  // Safari-specific session check with extended timeout
   useEffect(() => {
+    if (isSafari() && !loading && !user && !safariSessionCheck) {
+      console.log('🍎 Safari detected: Giving extra time for session restoration...');
+      setSafariSessionCheck(true);
+      
+      // Give Safari extra time to restore the session
+      const safariTimeout = setTimeout(() => {
+        console.log('🍎 Safari session check timeout completed');
+        if (!user) {
+          console.log('🍎 Safari: No user found after extended wait, redirecting to landing');
+          router.push('/');
+        }
+      }, 2000); // 2 seconds for Safari session restoration
+      
+      return () => clearTimeout(safariTimeout);
+    }
+  }, [loading, user, safariSessionCheck, router]);
+
+  // Redirect unauthenticated users to landing (with Safari protection)
+  useEffect(() => {
+    // For Safari: wait for the extended session check to complete
+    if (isSafari() && !safariSessionCheck) {
+      return; // Don't redirect yet, let Safari session check run first
+    }
+    
+    // For non-Safari browsers or after Safari session check
     if (!loading && !user) {
+      console.log('🔄 Redirecting unauthenticated user to landing page');
       router.push('/');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, safariSessionCheck]);
 
   // Load user projects
   useEffect(() => {
