@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent white flash during page transitions */
+html {
+  background-color: #000000;
+}
+
+body {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+/* Ensure smooth transitions without flashes */
+#__next {
+  background-color: #000000;
+}
+
 :root {
   --lk-va-bar-width: 72px;
   --lk-control-bar-height: unset;

@@ -17,6 +17,9 @@ export const righteous = Righteous({
 
 export const metadata: Metadata = {
   title: "Voice Assistant",
+  themeColor: "#000000",
+  viewport: "width=device-width, initial-scale=1",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -25,8 +28,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`h-full ${publicSans400.className}`}>
-      <body className="h-full">
+    <html lang="en" className={`h-full bg-black ${publicSans400.className}`}>
+      <head>
+        <meta name="theme-color" content="#000000" />
+        <meta name="msapplication-navbutton-color" content="#000000" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
+      <body className="h-full bg-black text-white">
         <ErrorBoundary>
           <AuthProvider>
             <ErrorBoundary>

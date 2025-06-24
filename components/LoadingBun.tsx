@@ -15,9 +15,15 @@ export function LoadingBun({
   className = "min-h-screen bg-black flex items-center justify-center" 
 }: LoadingBunProps) {
   return (
-    <div className={className} style={{ 
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-    }}>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={`${className} transition-opacity duration-300`} 
+      style={{ 
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        backgroundColor: '#000000' // Ensure black background
+      }}
+    >
       <div className="text-center">
         {/* Animated VoiceBun Logo */}
         <motion.div
@@ -64,7 +70,7 @@ export function LoadingBun({
           {message}
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

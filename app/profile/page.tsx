@@ -10,6 +10,7 @@ import UserPlanCard from '@/components/UserPlanCard';
 import { User, Phone, CreditCard, Settings, Trash2, Edit3 } from 'lucide-react';
 import { Project, PhoneNumber } from '@/lib/database/types';
 import Image from 'next/image';
+import { LoadingBun } from '@/components/LoadingBun';
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
@@ -50,16 +51,7 @@ export default function ProfilePage() {
   }, [getUserProjects, getUserPhoneNumbers, user]);
 
   if (loading || (user && loadingData)) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center" style={{ 
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-      }}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white/70">Loading profile...</p>
-        </div>
-      </div>
-    );
+    return <LoadingBun message="Loading profile..." />;
   }
 
   if (!user) {
@@ -91,6 +83,12 @@ export default function ProfilePage() {
               className="text-white/70 hover:text-white transition-colors"
             >
               Projects
+            </button>
+            <button
+              onClick={() => router.push('/community')}
+              className="text-white/70 hover:text-white transition-colors"
+            >
+              Community
             </button>
             <UserProfile />
           </div>
