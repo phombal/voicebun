@@ -1,5 +1,5 @@
 import "@livekit/components-styles";
-import { Metadata } from "next";
+import { Metadata, Viewport } from "next";
 import { Public_Sans, Righteous } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -17,8 +17,12 @@ export const righteous = Righteous({
 
 export const metadata: Metadata = {
   title: "Voice Assistant",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
   themeColor: "#000000",
-  viewport: "width=device-width, initial-scale=1",
   colorScheme: "dark",
 };
 

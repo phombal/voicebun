@@ -1034,8 +1034,45 @@ For now, you can still manually configure your voice agent using the tabs above.
   };
 
   // Handle outbound test call
-  const handleOutboundTestAPI = async (/* phoneNumberId: string, toNumber: string */) => {
-      // Handle outbound test API calls internally in PhoneNumbersTab
+  const handleOutboundTestAPI = async (phoneNumberId: string, toNumber: string) => {
+    if (!user || !project) {
+      throw new Error('User or project not available for outbound call');
+    }
+
+    console.log('📞 Initiating outbound test call:', {
+      phoneNumberId,
+      toNumber,
+      projectId: project.id,
+      userId: user.id
+    });
+
+    try {
+      const response = await fetch('/api/make-outbound-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumberId,
+          projectId: project.id,
+          userId: user.id,
+          toNumber
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('❌ Outbound call API error:', result);
+        throw new Error(result.error || 'Failed to initiate outbound call');
+      }
+
+      console.log('✅ Outbound call initiated successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Outbound test call failed:', error);
+      throw error;
+    }
   };
 
   // const startConversation = async () => {
