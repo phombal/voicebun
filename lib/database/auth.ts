@@ -21,169 +21,229 @@ const isSafari = () => {
          (navigator.vendor && navigator.vendor.indexOf('Apple') > -1)
 }
 
-// Store the active client
+// Store the active client and creation promise
 let activeClient: ReturnType<typeof createClient<Database>> | null = null
+let clientCreationPromise: Promise<ReturnType<typeof createClient<Database>>> | null = null
 
 // Create and return the appropriate client based on environment
-const createSupabaseClient = () => {
+const createSupabaseClient = async (): Promise<ReturnType<typeof createClient<Database>>> => {
   // Return existing client if already created
   if (activeClient) {
     console.log('♻️ Returning existing Supabase client')
     return activeClient
   }
   
-  console.log('🚀 Creating new Supabase client...', {
-    isServer: typeof window === 'undefined',
-    isSafariBrowser: typeof window !== 'undefined' ? isSafari() : false,
-    url: typeof window !== 'undefined' ? window.location.href : 'server'
+  // If client is already being created, wait for it
+  if (clientCreationPromise) {
+    console.log('⏳ Waiting for existing client creation to complete...')
+    return await clientCreationPromise
+  }
+  
+  // Create new promise for client creation
+  clientCreationPromise = new Promise((resolve, reject) => {
+    try {
+      console.log('🚀 Creating new Supabase client...', {
+        isServer: typeof window === 'undefined',
+        isSafariBrowser: typeof window !== 'undefined' ? isSafari() : false,
+        url: typeof window !== 'undefined' ? window.location.href : 'server'
+      })
+      
+      // Server-side: use safe defaults
+      if (typeof window === 'undefined') {
+        console.log('🖥️ Creating server-side Supabase client')
+        activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            storageKey: 'sb-auth-token',
+            persistSession: false, // No persistence on server
+            flowType: 'pkce' as const,
+            autoRefreshToken: false, // No auto-refresh on server
+            detectSessionInUrl: false, // No URL detection on server
+            debug: false
+          }
+        })
+        console.log('✅ Server client created')
+        resolve(activeClient)
+        return
+      }
+      
+      // Client-side: detect Safari and create appropriate client
+      if (isSafari()) {
+        console.log('🍎 Creating Safari-compatible Supabase client')
+        try {
+          // Enhanced Safari storage with PKCE code verifier handling
+          const safariStorage = {
+            getItem: (key: string) => {
+              try {
+                // First try localStorage
+                const value = window.localStorage.getItem(key)
+                console.log(`🍎 Safari storage getItem(${key}):`, value ? 'found' : 'null')
+                
+                // Special handling for PKCE code verifier
+                if (!value && key.includes('code-verifier')) {
+                  console.log('🔑 PKCE code verifier not found in localStorage, checking sessionStorage')
+                  const sessionValue = window.sessionStorage.getItem(key)
+                  if (sessionValue) {
+                    console.log('✅ Found PKCE code verifier in sessionStorage')
+                    return sessionValue
+                  }
+                }
+                
+                return value
+              } catch (error) {
+                console.warn('🍎 Safari localStorage access failed, trying sessionStorage:', error)
+                try {
+                  const sessionValue = window.sessionStorage.getItem(key)
+                  console.log(`🍎 Safari sessionStorage getItem(${key}):`, sessionValue ? 'found' : 'null')
+                  return sessionValue
+                } catch (sessionError) {
+                  console.warn('🍎 Safari sessionStorage also failed:', sessionError)
+                  return null
+                }
+              }
+            },
+            setItem: (key: string, value: string) => {
+              try {
+                window.localStorage.setItem(key, value)
+                console.log(`🍎 Safari storage setItem(${key}): success`)
+                
+                // For PKCE code verifier, also store in sessionStorage as backup
+                if (key.includes('code-verifier')) {
+                  console.log('🔑 Storing PKCE code verifier backup in sessionStorage')
+                  try {
+                    window.sessionStorage.setItem(key, value)
+                    console.log('✅ PKCE code verifier backup stored')
+                  } catch (sessionError) {
+                    console.warn('⚠️ Failed to store PKCE backup:', sessionError)
+                  }
+                }
+              } catch (error) {
+                console.warn('🍎 Safari localStorage write failed, trying sessionStorage:', error)
+                try {
+                  window.sessionStorage.setItem(key, value)
+                  console.log(`🍎 Safari sessionStorage setItem(${key}): success`)
+                } catch (sessionError) {
+                  console.warn('🍎 Safari sessionStorage write also failed:', sessionError)
+                }
+              }
+            },
+            removeItem: (key: string) => {
+              try {
+                window.localStorage.removeItem(key)
+                console.log(`🍎 Safari storage removeItem(${key}): success`)
+                
+                // Also remove from sessionStorage if it's a PKCE key
+                if (key.includes('code-verifier')) {
+                  try {
+                    window.sessionStorage.removeItem(key)
+                    console.log('🔑 Removed PKCE code verifier backup from sessionStorage')
+                  } catch (sessionError) {
+                    console.warn('⚠️ Failed to remove PKCE backup:', sessionError)
+                  }
+                }
+              } catch (error) {
+                console.warn('🍎 Safari localStorage remove failed, trying sessionStorage:', error)
+                try {
+                  window.sessionStorage.removeItem(key)
+                  console.log(`🍎 Safari sessionStorage removeItem(${key}): success`)
+                } catch (sessionError) {
+                  console.warn('🍎 Safari sessionStorage remove also failed:', sessionError)
+                }
+              }
+            }
+          }
+
+          activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+            auth: {
+              storageKey: 'sb-auth-token',
+              persistSession: true,
+              flowType: 'pkce' as const,
+              autoRefreshToken: true, // Enable auto-refresh for Safari - this is needed for OAuth
+              detectSessionInUrl: true, // Enable URL detection for Safari - this is critical for OAuth callbacks
+              debug: process.env.NODE_ENV === 'development',
+              storage: safariStorage
+            }
+          })
+          console.log('✅ Safari client created successfully with enhanced PKCE storage')
+          resolve(activeClient)
+        } catch (error) {
+          console.error('❌ Safari client creation failed:', error)
+          reject(error)
+        }
+      } else {
+        console.log('🌐 Creating standard browser Supabase client')
+        try {
+          activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+            auth: {
+              storageKey: 'sb-auth-token',
+              persistSession: true,
+              flowType: 'pkce' as const,
+              autoRefreshToken: true, // Enable for standard browsers
+              detectSessionInUrl: true, // Enable for standard browsers
+              debug: process.env.NODE_ENV === 'development',
+              storage: window.localStorage
+            }
+          })
+          console.log('✅ Standard client created successfully')
+          resolve(activeClient)
+        } catch (error) {
+          console.error('❌ Standard client creation failed:', error)
+          reject(error)
+        }
+      }
+      
+      console.log('✅ Supabase client created successfully')
+    } catch (error) {
+      console.error('❌ Client creation failed:', error)
+      reject(error)
+    }
   })
   
-  // Server-side: use safe defaults
+  try {
+    const client = await clientCreationPromise
+    clientCreationPromise = null // Clear the promise
+    return client
+  } catch (error) {
+    clientCreationPromise = null // Clear the promise on error
+    throw error
+  }
+}
+
+// Export the client creation function - note: this is now async
+const getSupabaseClient = () => {
+  // For server-side, create immediately
   if (typeof window === 'undefined') {
-    console.log('🖥️ Creating server-side Supabase client')
-    activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    if (activeClient) return activeClient
+    return createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         storageKey: 'sb-auth-token',
-        persistSession: false, // No persistence on server
+        persistSession: false,
         flowType: 'pkce' as const,
-        autoRefreshToken: false, // No auto-refresh on server
-        detectSessionInUrl: false, // No URL detection on server
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
         debug: false
       }
     })
-    console.log('✅ Server client created')
-    return activeClient
   }
   
-  // Client-side: detect Safari and create appropriate client
-  if (isSafari()) {
-    console.log('🍎 Creating Safari-compatible Supabase client')
-    try {
-      // Enhanced Safari storage with PKCE code verifier handling
-      const safariStorage = {
-        getItem: (key: string) => {
-          try {
-            // First try localStorage
-            const value = window.localStorage.getItem(key)
-            console.log(`🍎 Safari storage getItem(${key}):`, value ? 'found' : 'null')
-            
-            // Special handling for PKCE code verifier
-            if (!value && key.includes('code-verifier')) {
-              console.log('🔑 PKCE code verifier not found in localStorage, checking sessionStorage')
-              const sessionValue = window.sessionStorage.getItem(key)
-              if (sessionValue) {
-                console.log('✅ Found PKCE code verifier in sessionStorage')
-                return sessionValue
-              }
-            }
-            
-            return value
-          } catch (error) {
-            console.warn('🍎 Safari localStorage access failed, trying sessionStorage:', error)
-            try {
-              const sessionValue = window.sessionStorage.getItem(key)
-              console.log(`🍎 Safari sessionStorage getItem(${key}):`, sessionValue ? 'found' : 'null')
-              return sessionValue
-            } catch (sessionError) {
-              console.warn('🍎 Safari sessionStorage also failed:', sessionError)
-              return null
-            }
-          }
-        },
-        setItem: (key: string, value: string) => {
-          try {
-            window.localStorage.setItem(key, value)
-            console.log(`🍎 Safari storage setItem(${key}): success`)
-            
-            // For PKCE code verifier, also store in sessionStorage as backup
-            if (key.includes('code-verifier')) {
-              console.log('🔑 Storing PKCE code verifier backup in sessionStorage')
-              try {
-                window.sessionStorage.setItem(key, value)
-                console.log('✅ PKCE code verifier backup stored')
-              } catch (sessionError) {
-                console.warn('⚠️ Failed to store PKCE backup:', sessionError)
-              }
-            }
-          } catch (error) {
-            console.warn('🍎 Safari localStorage write failed, trying sessionStorage:', error)
-            try {
-              window.sessionStorage.setItem(key, value)
-              console.log(`🍎 Safari sessionStorage setItem(${key}): success`)
-            } catch (sessionError) {
-              console.warn('🍎 Safari sessionStorage write also failed:', sessionError)
-            }
-          }
-        },
-        removeItem: (key: string) => {
-          try {
-            window.localStorage.removeItem(key)
-            console.log(`🍎 Safari storage removeItem(${key}): success`)
-            
-            // Also remove from sessionStorage if it's a PKCE key
-            if (key.includes('code-verifier')) {
-              try {
-                window.sessionStorage.removeItem(key)
-                console.log('🔑 Removed PKCE code verifier backup from sessionStorage')
-              } catch (sessionError) {
-                console.warn('⚠️ Failed to remove PKCE backup:', sessionError)
-              }
-            }
-          } catch (error) {
-            console.warn('🍎 Safari localStorage remove failed, trying sessionStorage:', error)
-            try {
-              window.sessionStorage.removeItem(key)
-              console.log(`🍎 Safari sessionStorage removeItem(${key}): success`)
-            } catch (sessionError) {
-              console.warn('🍎 Safari sessionStorage remove also failed:', sessionError)
-            }
-          }
-        }
-      }
-
-      activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          storageKey: 'sb-auth-token',
-          persistSession: true,
-          flowType: 'pkce' as const,
-          autoRefreshToken: true, // Enable auto-refresh for Safari - this is needed for OAuth
-          detectSessionInUrl: true, // Enable URL detection for Safari - this is critical for OAuth callbacks
-          debug: process.env.NODE_ENV === 'development',
-          storage: safariStorage
-        }
-      })
-      console.log('✅ Safari client created successfully with enhanced PKCE storage')
-    } catch (error) {
-      console.error('❌ Safari client creation failed:', error)
-      throw error
-    }
-  } else {
-    console.log('🌐 Creating standard browser Supabase client')
-    try {
-      activeClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          storageKey: 'sb-auth-token',
-          persistSession: true,
-          flowType: 'pkce' as const,
-          autoRefreshToken: true, // Enable for standard browsers
-          detectSessionInUrl: true, // Enable for standard browsers
-          debug: process.env.NODE_ENV === 'development',
-          storage: window.localStorage
-        }
-      })
-      console.log('✅ Standard client created successfully')
-    } catch (error) {
-      console.error('❌ Standard client creation failed:', error)
-      throw error
-    }
+  // For client-side, ensure we have the client
+  if (!activeClient && !clientCreationPromise) {
+    createSupabaseClient().catch(console.error)
   }
   
-  console.log('✅ Supabase client created successfully')
-  return activeClient
+  return activeClient || createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storageKey: 'sb-auth-token',
+      persistSession: true,
+      flowType: 'pkce' as const,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      debug: process.env.NODE_ENV === 'development'
+    }
+  })
 }
 
 // Export the client
-export const supabase = createSupabaseClient()
+export const supabase = getSupabaseClient()
 
 // Helper function to handle PKCE code exchange for all browsers
 export const handleSafariPKCE = async () => {

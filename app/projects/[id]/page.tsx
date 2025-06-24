@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Project, VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
@@ -19,6 +19,9 @@ export default function ProjectPage() {
   const [loadingProject, setLoadingProject] = useState(true);
   const [config, setConfig] = useState<VoiceAgentConfigType | null>(null);
   const [code, setCode] = useState<string>("");
+  
+  // Safari session validation ref to prevent multiple validations
+  const safariValidationRef = useRef(false);
 
   // Function to track project views
   const trackProjectView = async (projectId: string) => {
@@ -36,12 +39,100 @@ export default function ProjectPage() {
     }
   };
 
-  // Redirect unauthenticated users to landing
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
+  // Safari-specific session validation
+  const validateSafariSession = useCallback(async () => {
+    if (typeof window === 'undefined') return false;
+    
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+                    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.vendor && navigator.vendor.indexOf('Apple') > -1);
+    
+    if (!isSafari) return false;
+    
+    // Prevent multiple validations
+    if (safariValidationRef.current) {
+      console.log('🍎 Safari validation already in progress');
+      return false;
     }
-  }, [user, loading, router]);
+    
+    safariValidationRef.current = true;
+    
+    try {
+      console.log('🍎 Safari session validation for project page:', {
+        hasUser: !!user,
+        loading,
+        projectId,
+        currentPath: window.location.pathname
+      });
+      
+      // Check if we have auth tokens in storage
+      const storageKey = 'sb-auth-token';
+      const accessTokenKey = `${storageKey}-access-token`;
+      
+      let hasTokens = false;
+      try {
+        hasTokens = !!(window.localStorage.getItem(accessTokenKey) || 
+                      window.sessionStorage.getItem(accessTokenKey));
+      } catch (storageError) {
+        console.warn('🍎 Storage access failed:', storageError);
+      }
+      
+      console.log('🍎 Safari token check:', {
+        hasTokens,
+        hasUser: !!user,
+        loading
+      });
+      
+      // If we have tokens but no user and not loading, there might be a session issue
+      if (hasTokens && !user && !loading) {
+        console.log('🍎 Safari: Tokens found but no user - possible session desync');
+        
+        // Give the auth system a moment to catch up
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Check again
+        if (!user && !loading) {
+          console.log('🍎 Safari: Session desync confirmed, redirecting to home');
+          router.push('/');
+          return true;
+        }
+      }
+      
+      return false;
+    } finally {
+      safariValidationRef.current = false;
+    }
+  }, [user, loading, router, projectId]);
+
+  // Redirect unauthenticated users to landing with Safari validation
+  useEffect(() => {
+    const handleAuthRedirect = async () => {
+      console.log('🔐 Project auth check:', {
+        loading,
+        hasUser: !!user,
+        userId: user?.id,
+        projectId,
+        userAgent: typeof window !== 'undefined' ? navigator.userAgent.substring(0, 50) : 'server'
+      });
+      
+      if (!loading && !user) {
+        console.log('❌ No authenticated user, redirecting to home');
+        router.push('/');
+        return;
+      }
+      
+      // Safari-specific validation
+      if (!loading) {
+        const safariHandled = await validateSafariSession();
+        if (safariHandled) {
+          console.log('🍎 Safari validation handled redirect');
+          return;
+        }
+      }
+    };
+    
+    handleAuthRedirect();
+  }, [user, loading, router, validateSafariSession]);
 
   // Load project data
   useEffect(() => {

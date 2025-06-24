@@ -60,92 +60,99 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authListenerRef = useRef<any>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Add synchronization locks to prevent race conditions
+  const authUpdateLockRef = useRef(false)
+  const sessionValidationLockRef = useRef(false)
+  const oauthCheckLockRef = useRef(false)
 
-  // Enhanced Safari token validation helper
+  // Enhanced Safari token validation helper with lock
   const validateSafariSession = useCallback(async () => {
     if (!isSafari() || typeof window === 'undefined') return null
     
-    console.log('🍎 Validating Safari session...')
+    // Prevent concurrent validation
+    if (sessionValidationLockRef.current) {
+      console.log('🍎 Safari session validation already in progress, skipping...')
+      return null
+    }
     
-    // Check if we have tokens in storage
-    const storageKey = 'sb-auth-token'
-    const accessTokenKey = `${storageKey}-access-token`
-    const refreshTokenKey = `${storageKey}-refresh-token`
+    sessionValidationLockRef.current = true
     
     try {
-      // Check localStorage first
-      let accessToken = window.localStorage.getItem(accessTokenKey)
-      let refreshToken = window.localStorage.getItem(refreshTokenKey)
+      console.log('🍎 Validating Safari session...')
       
-      // If not found, check sessionStorage
-      if (!accessToken) {
-        accessToken = window.sessionStorage.getItem(accessTokenKey)
-        refreshToken = window.sessionStorage.getItem(refreshTokenKey)
-      }
+      // Check if we have tokens in storage
+      const storageKey = 'sb-auth-token'
+      const accessTokenKey = `${storageKey}-access-token`
+      const refreshTokenKey = `${storageKey}-refresh-token`
       
-      console.log('🍎 Safari token check:', {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        accessTokenLength: accessToken?.length || 0,
-        refreshTokenLength: refreshToken?.length || 0
-      })
-      
-      if (accessToken) {
-        // Try to validate the session with Supabase
-        console.log('🍎 Attempting to restore session from tokens...')
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken || ''
+      try {
+        // Check localStorage first
+        let accessToken = window.localStorage.getItem(accessTokenKey)
+        let refreshToken = window.localStorage.getItem(refreshTokenKey)
+        
+        // If not found, check sessionStorage
+        if (!accessToken) {
+          accessToken = window.sessionStorage.getItem(accessTokenKey)
+          refreshToken = window.sessionStorage.getItem(refreshTokenKey)
+        }
+        
+        console.log('🍎 Safari token check:', {
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+          accessTokenLength: accessToken?.length || 0,
+          refreshTokenLength: refreshToken?.length || 0
         })
         
-        if (error) {
-          console.error('🍎 Safari session restoration failed:', error)
-          // Clear invalid tokens
-          try {
-            window.localStorage.removeItem(accessTokenKey)
-            window.localStorage.removeItem(refreshTokenKey)
-            window.sessionStorage.removeItem(accessTokenKey)
-            window.sessionStorage.removeItem(refreshTokenKey)
-          } catch (cleanupError) {
-            console.warn('🍎 Token cleanup failed:', cleanupError)
+        if (accessToken) {
+          // Try to validate the session with Supabase
+          console.log('🍎 Attempting to restore session from tokens...')
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || ''
+          })
+          
+          if (error) {
+            console.error('🍎 Safari session restoration failed:', error)
+            // Clear invalid tokens
+            try {
+              window.localStorage.removeItem(accessTokenKey)
+              window.localStorage.removeItem(refreshTokenKey)
+              window.sessionStorage.removeItem(accessTokenKey)
+              window.sessionStorage.removeItem(refreshTokenKey)
+            } catch (cleanupError) {
+              console.warn('🍎 Token cleanup failed:', cleanupError)
+            }
+            return null
           }
-          return null
+          
+          if (data.session) {
+            console.log('✅ Safari session restored successfully')
+            return data.session
+          }
         }
         
-        if (data.session) {
-          console.log('✅ Safari session restored successfully')
-          return data.session
-        }
+        return null
+      } catch (error) {
+        console.error('🍎 Safari session validation error:', error)
+        return null
       }
-      
-      return null
-    } catch (error) {
-      console.error('🍎 Safari session validation error:', error)
-      return null
+    } finally {
+      sessionValidationLockRef.current = false
     }
   }, [])
 
-  // Debounced auth state update to prevent rapid state changes
-  const debouncedUpdateAuth = useCallback((newSession: Session | null, source: string) => {
-    console.log(`🔄 debouncedUpdateAuth called from ${source}:`, {
-      hasSession: !!newSession,
-      userId: newSession?.user?.id,
-      isSafariBrowser: isSafari(),
-      currentLoading: loading,
-      hasInitialized: hasInitializedRef.current
-    })
-    
-    if (debounceRef.current) {
-      console.log('🧹 Clearing existing debounce timeout')
-      clearTimeout(debounceRef.current)
+  // Synchronized auth state update to prevent race conditions
+  const updateAuthState = useCallback((newSession: Session | null, source: string) => {
+    // Prevent concurrent auth updates
+    if (authUpdateLockRef.current) {
+      console.log(`🔒 Auth update from ${source} blocked - update in progress`)
+      return
     }
     
-    debounceRef.current = setTimeout(() => {
-      if (!isMountedRef.current) {
-        console.log('⚠️ Component unmounted, skipping auth update')
-        return
-      }
-      
+    authUpdateLockRef.current = true
+    
+    try {
       console.log(`🔄 Auth update from ${source}:`, {
         hasSession: !!newSession,
         userId: newSession?.user?.id,
@@ -155,6 +162,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         accessTokenPresent: !!newSession?.access_token,
         refreshTokenPresent: !!newSession?.refresh_token
       })
+      
+      // Only update if there's an actual change
+      const hasChanged = (
+        (session?.user?.id !== newSession?.user?.id) ||
+        (!!session !== !!newSession) ||
+        (session?.access_token !== newSession?.access_token)
+      )
+      
+      if (!hasChanged && hasInitializedRef.current) {
+        console.log(`🔄 Auth state unchanged for ${source}, skipping update`)
+        authUpdateLockRef.current = false
+        return
+      }
       
       setSession(newSession)
       setUser(newSession?.user || null)
@@ -193,109 +213,154 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn('Failed to ensure user plan:', err)
         )
       }
-    }, 50) // Reduced debounce time for faster response
-  }, [loading])
+    } finally {
+      authUpdateLockRef.current = false
+    }
+  }, [session])
 
-  // Check for OAuth completion via PKCE code (all browsers) or cookies (fallback)
+  // Debounced version with improved logic
+  const debouncedUpdateAuth = useCallback((newSession: Session | null, source: string) => {
+    console.log(`🔄 debouncedUpdateAuth called from ${source}:`, {
+      hasSession: !!newSession,
+      userId: newSession?.user?.id,
+      isSafariBrowser: isSafari(),
+      currentLoading: loading,
+      hasInitialized: hasInitializedRef.current
+    })
+    
+    if (debounceRef.current) {
+      console.log('🧹 Clearing existing debounce timeout')
+      clearTimeout(debounceRef.current)
+    }
+    
+    debounceRef.current = setTimeout(() => {
+      if (!isMountedRef.current) {
+        console.log('⚠️ Component unmounted, skipping auth update')
+        return
+      }
+      
+      updateAuthState(newSession, source)
+    }, 50) // Reduced debounce time for faster response
+  }, [updateAuthState, loading])
+
+  // Check for OAuth completion via PKCE code (all browsers) or cookies (fallback) with lock
   const checkOAuthCompletion = useCallback(async () => {
     if (typeof window === 'undefined') {
       return false
     }
     
-    // For Safari, first try to validate existing session
-    if (isSafari()) {
-      console.log('🍎 Safari detected - checking existing session first...')
-      const existingSession = await validateSafariSession()
-      if (existingSession) {
-        console.log('✅ Safari: Found valid existing session')
-        debouncedUpdateAuth(existingSession, 'safari-existing-session')
-        return true
-      }
-      console.log('🍎 Safari: No valid existing session found, checking OAuth...')
+    // Prevent concurrent OAuth checks
+    if (oauthCheckLockRef.current) {
+      console.log('🔒 OAuth completion check already in progress, skipping...')
+      return false
     }
     
-    // Simplified approach: let Supabase handle OAuth detection automatically
-    // Only check for manual PKCE if there's a code in the URL
-    const urlParams = new URLSearchParams(window.location.search)
-    const code = urlParams.get('code')
+    oauthCheckLockRef.current = true
     
-    if (code) {
-      console.log('🔗 OAuth code detected, attempting PKCE exchange...')
-      try {
-        const pkceResult = await handleSafariPKCE()
-        
-        if (pkceResult && pkceResult.session) {
-          console.log('✅ PKCE authentication successful')
-          debouncedUpdateAuth(pkceResult.session, 'pkce-code')
+    try {
+      // For Safari, first try to validate existing session (only if not already validating)
+      if (isSafari() && !sessionValidationLockRef.current) {
+        console.log('🍎 Safari detected - checking existing session first...')
+        const existingSession = await validateSafariSession()
+        if (existingSession) {
+          console.log('✅ Safari: Found valid existing session')
+          debouncedUpdateAuth(existingSession, 'safari-existing-session')
           return true
-        } else if (pkceResult && pkceResult.error) {
-          console.error('❌ PKCE authentication failed:', pkceResult.error)
+        }
+        console.log('🍎 Safari: No valid existing session found, checking OAuth...')
+      }
+      
+      // Simplified approach: let Supabase handle OAuth detection automatically
+      // Only check for manual PKCE if there's a code in the URL
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+      
+      if (code) {
+        console.log('🔗 OAuth code detected, attempting PKCE exchange...')
+        try {
+          const pkceResult = await handleSafariPKCE()
           
-          // For Safari PKCE failures, try alternative method
-          if (isSafari() && pkceResult.error.message?.includes('code_verifier')) {
-            console.log('🍎 Safari PKCE failed - this might be a storage issue')
-            console.log('🍎 Clearing URL and letting user retry authentication')
+          if (pkceResult && pkceResult.session) {
+            console.log('✅ PKCE authentication successful')
+            debouncedUpdateAuth(pkceResult.session, 'pkce-code')
+            return true
+          } else if (pkceResult && pkceResult.error) {
+            console.error('❌ PKCE authentication failed:', pkceResult.error)
+            
+            // For Safari PKCE failures, try alternative method
+            if (isSafari() && pkceResult.error.message?.includes('code_verifier')) {
+              console.log('🍎 Safari PKCE failed - this might be a storage issue')
+              console.log('🍎 Clearing URL and letting user retry authentication')
+              window.history.replaceState({}, document.title, window.location.pathname)
+            }
+          }
+        } catch (error) {
+          console.error('❌ PKCE handling exception:', error)
+          
+          // Clear the code from URL if PKCE failed
+          if (isSafari()) {
+            console.log('🍎 Safari: Clearing failed OAuth code from URL')
             window.history.replaceState({}, document.title, window.location.pathname)
           }
         }
-      } catch (error) {
-        console.error('❌ PKCE handling exception:', error)
-        
-        // Clear the code from URL if PKCE failed
-        if (isSafari()) {
-          console.log('🍎 Safari: Clearing failed OAuth code from URL')
-          window.history.replaceState({}, document.title, window.location.pathname)
-        }
       }
-    }
-    
-    // Fallback: check for cookie-based completion (legacy method)
-    const authComplete = getCookie('sb-auth-complete')
-    const accessToken = getCookie('sb-access-token')
-    const refreshToken = getCookie('sb-refresh-token')
-    
-    if (authComplete && accessToken) {
-      console.log('🍪 Cookie-based authentication detected')
-      try {
-        // Clean up the completion flag immediately
-        deleteCookie('sb-auth-complete')
-        
-        const sessionData = {
-          access_token: accessToken,
-          refresh_token: refreshToken || '',
-          expires_in: 3600,
-          token_type: 'bearer',
-          user: null as any
-        }
-        
-        const { data, error } = await supabase.auth.setSession(sessionData)
-        
-        if (error) {
-          console.error('❌ Error setting session from cookies:', error)
-          deleteCookie('sb-access-token')
-          deleteCookie('sb-refresh-token')
-          return false
-        }
-        
-        if (data.session && data.user) {
-          console.log('✅ Cookie-based authentication successful')
-          debouncedUpdateAuth(data.session, 'oauth-cookies')
+      
+      // Skip cookie fallback if we already have a session or are validating one
+      if (session || sessionValidationLockRef.current) {
+        console.log('🍪 Skipping cookie check - session exists or validation in progress')
+        return false
+      }
+      
+      // Fallback: check for cookie-based completion (legacy method)
+      const authComplete = getCookie('sb-auth-complete')
+      const accessToken = getCookie('sb-access-token')
+      const refreshToken = getCookie('sb-refresh-token')
+      
+      if (authComplete && accessToken) {
+        console.log('🍪 Cookie-based authentication detected')
+        try {
+          // Clean up the completion flag immediately
+          deleteCookie('sb-auth-complete')
           
-          // Clean up cookies after successful session restoration
+          const sessionData = {
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+            expires_in: 3600,
+            token_type: 'bearer',
+            user: null as any
+          }
+          
+          const { data, error } = await supabase.auth.setSession(sessionData)
+          
+          if (error) {
+            console.error('❌ Error setting session from cookies:', error)
+            deleteCookie('sb-access-token')
+            deleteCookie('sb-refresh-token')
+            return false
+          }
+          
+          if (data.session && data.user) {
+            console.log('✅ Cookie-based authentication successful')
+            debouncedUpdateAuth(data.session, 'oauth-cookies')
+            
+            // Clean up cookies after successful session restoration
+            deleteCookie('sb-access-token')
+            deleteCookie('sb-refresh-token')
+            return true
+          }
+        } catch (error) {
+          console.error('❌ Exception setting session from cookies:', error)
+          deleteCookie('sb-auth-complete')
           deleteCookie('sb-access-token')
           deleteCookie('sb-refresh-token')
-          return true
         }
-      } catch (error) {
-        console.error('❌ Exception setting session from cookies:', error)
-        deleteCookie('sb-auth-complete')
-        deleteCookie('sb-access-token')
-        deleteCookie('sb-refresh-token')
       }
+      
+      return false
+    } finally {
+      oauthCheckLockRef.current = false
     }
-    
-    return false
-  }, [debouncedUpdateAuth, validateSafariSession])
+  }, [debouncedUpdateAuth, validateSafariSession, session])
 
   const signOut = async () => {
     console.log('🚪 Signing out user')
@@ -311,6 +376,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       debounceRef.current = null
     }
     
+    // Clear locks to prevent stuck states
+    authUpdateLockRef.current = false
+    sessionValidationLockRef.current = false
+    oauthCheckLockRef.current = false
+    
     // Clean up any leftover OAuth cookies
     deleteCookie('sb-auth-complete')
     deleteCookie('sb-access-token')
@@ -325,6 +395,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
     }
   }
+
+  // Debug utility to reset auth state (for Safari debugging)
+  const resetAuthState = useCallback(() => {
+    console.log('🔧 Resetting auth state - clearing all locks and timeouts')
+    
+    // Clear all locks
+    authUpdateLockRef.current = false
+    sessionValidationLockRef.current = false
+    oauthCheckLockRef.current = false
+    
+    // Clear all timeouts
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    
+    // Clear any OAuth cookies
+    deleteCookie('sb-auth-complete')
+    deleteCookie('sb-access-token')
+    deleteCookie('sb-refresh-token')
+    
+    // Reset state
+    hasInitializedRef.current = false
+    setLoading(true)
+    
+    // Restart auth initialization
+    console.log('🔧 Restarting auth initialization after reset...')
+    checkOAuthCompletion().then((handled) => {
+      if (!handled) {
+        auth.getSession().then(({ session, error }) => {
+          if (error) {
+            console.error('🔧 Session check after reset failed:', error)
+            updateAuthState(null, 'reset-error')
+          } else {
+            updateAuthState(session, 'reset-session')
+          }
+        })
+      }
+    }).catch((error) => {
+      console.error('🔧 OAuth check after reset failed:', error)
+      updateAuthState(null, 'reset-oauth-error')
+    })
+  }, [updateAuthState, checkOAuthCompletion])
+
+  // Expose reset function in development mode
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+      // @ts-ignore - Global debug function
+      window.resetAuthState = resetAuthState
+      console.log('🔧 Debug: resetAuthState() is available in console')
+    }
+  }, [resetAuthState])
 
   // Main auth initialization useEffect
   useEffect(() => {
@@ -453,6 +580,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const setupAuthListener = () => {
       console.log('👂 Setting up auth state listener...')
       
+      // Ensure we don't have multiple listeners
+      if (authListenerRef.current) {
+        console.log('👂 Auth listener already exists, unsubscribing first...')
+        authListenerRef.current.unsubscribe()
+        authListenerRef.current = null
+      }
+      
       const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
         if (!isMountedRef.current) {
           console.log('⚠️ Auth state change ignored - component unmounted')
@@ -491,8 +625,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           timeoutRef.current = null
         }
         
-        // Update auth state
-        debouncedUpdateAuth(session, `auth-change-${event}`)
+        // Use direct update for auth state changes to avoid conflicts
+        updateAuthState(session, `auth-change-${event}`)
       })
 
       authListenerRef.current = subscription
@@ -500,7 +634,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return subscription
     }
 
-    // Initialize authentication
+    // Initialize authentication with better sequencing
     const initAuth = async () => {
       isMountedRef.current = true
       hasInitializedRef.current = false
@@ -513,34 +647,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check for Safari Private Browsing mode first
       if (isSafariPrivateBrowsing()) {
         console.warn('🔒 Safari Private Browsing detected - authentication may not work properly')
-        debouncedUpdateAuth(null, 'safari-private-browsing')
+        updateAuthState(null, 'safari-private-browsing')
         return
       }
       
-      // Setup auth listener for all browsers
+      // Setup auth listener for all browsers FIRST
       console.log('👂 initAuth: Setting up auth listener...')
       setupAuthListener()
       
       try {
-        // For Safari, first try to validate existing tokens
+        // For Safari, try OAuth completion check first (most likely to succeed)
         if (isSafari()) {
-          console.log('🍎 Safari detected - attempting token validation first...')
-          const existingSession = await validateSafariSession()
-          if (existingSession) {
-            console.log('✅ Safari: Valid session found during init')
-            debouncedUpdateAuth(existingSession, 'safari-init-session')
+          console.log('🍎 Safari detected - checking OAuth completion first...')
+          const oauthHandled = await checkOAuthCompletion()
+          if (oauthHandled) {
+            console.log('✅ Safari: OAuth completion handled successfully')
             return
           }
-          console.log('🍎 Safari: No valid session found, proceeding with OAuth check...')
-        }
-        
-        // Check for OAuth completion first, then get session
-        console.log('🔄 Checking for OAuth completion...')
-        const oauthHandled = await checkOAuthCompletion()
-        
-        if (oauthHandled) {
-          console.log('✅ OAuth completion handled successfully')
-          return
+          console.log('🍎 Safari: No OAuth completion, proceeding with session check...')
+        } else {
+          // For other browsers, check OAuth completion first too
+          console.log('🔄 Checking for OAuth completion...')
+          const oauthHandled = await checkOAuthCompletion()
+          if (oauthHandled) {
+            console.log('✅ OAuth completion handled successfully')
+            return
+          }
         }
         
         // If no OAuth completion, get the current session
@@ -575,15 +707,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
           
-          debouncedUpdateAuth(null, 'session-error')
+          updateAuthState(null, 'session-error')
         } else {
           console.log('✅ Session check complete:', session ? 'found' : 'not found')
-          debouncedUpdateAuth(session, 'initial-session')
+          updateAuthState(session, 'initial-session')
         }
       } catch (error) {
         console.error('❌ Auth initialization error:', error)
         if (isMountedRef.current) {
-          debouncedUpdateAuth(null, 'auth-init-error')
+          updateAuthState(null, 'auth-init-error')
         }
       }
       

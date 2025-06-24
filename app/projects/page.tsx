@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Project as DatabaseProject } from '@/lib/database/types';
 import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
@@ -60,6 +60,52 @@ export default function ProjectsPage() {
            (navigator.vendor && navigator.vendor.indexOf('Apple') > -1)
   };
 
+  // Safari session validation to prevent desync
+  const validateSafariSession = useCallback(async () => {
+    if (!isSafari() || typeof window === 'undefined') return false;
+    
+    console.log('🍎 Safari session validation for projects page:', {
+      hasUser: !!user,
+      loading,
+      currentPath: window.location.pathname
+    });
+    
+    // Check if we have auth tokens in storage
+    const storageKey = 'sb-auth-token';
+    const accessTokenKey = `${storageKey}-access-token`;
+    
+    let hasTokens = false;
+    try {
+      hasTokens = !!(window.localStorage.getItem(accessTokenKey) || 
+                    window.sessionStorage.getItem(accessTokenKey));
+    } catch (storageError) {
+      console.warn('🍎 Storage access failed:', storageError);
+    }
+    
+    console.log('🍎 Safari token check on projects page:', {
+      hasTokens,
+      hasUser: !!user,
+      loading
+    });
+    
+    // If we have tokens but no user and not loading, there might be a session issue
+    if (hasTokens && !user && !loading) {
+      console.log('🍎 Safari: Tokens found but no user on projects page - possible session desync');
+      
+      // Give the auth system a brief moment to catch up
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Check again
+      if (!user && !loading) {
+        console.log('🍎 Safari: Session desync confirmed on projects page, redirecting to home');
+        router.push('/');
+        return true;
+      }
+    }
+    
+    return false;
+  }, [user, loading, router]);
+
   // Safari-specific session check with extended timeout
   useEffect(() => {
     console.log('🔍 Safari session check effect triggered:', {
@@ -83,7 +129,7 @@ export default function ProjectsPage() {
       setSafariSessionCheck(true);
       
       // Give Safari extra time to restore the session
-      const safariTimeout = setTimeout(() => {
+      const safariTimeout = setTimeout(async () => {
         console.log('🍎 Safari session check timeout completed');
         console.log('🍎 Safari state after timeout:', {
           loading,
@@ -91,6 +137,13 @@ export default function ProjectsPage() {
           userId: user?.id,
           currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
         });
+        
+        // Validate session before redirecting
+        const sessionHandled = await validateSafariSession();
+        if (sessionHandled) {
+          console.log('🍎 Safari: Session validation handled redirect');
+          return;
+        }
         
         if (!user) {
           console.log('🍎 Safari: No user found after extended wait, redirecting to landing');
@@ -105,7 +158,7 @@ export default function ProjectsPage() {
         clearTimeout(safariTimeout);
       };
     }
-  }, [loading, user, safariSessionCheck, router]);
+  }, [loading, user, safariSessionCheck, router, validateSafariSession]);
 
   // Redirect unauthenticated users to landing (with Safari protection)
   useEffect(() => {
