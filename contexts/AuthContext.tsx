@@ -61,6 +61,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Enhanced Safari token validation helper
+  const validateSafariSession = useCallback(async () => {
+    if (!isSafari() || typeof window === 'undefined') return null
+    
+    console.log('🍎 Validating Safari session...')
+    
+    // Check if we have tokens in storage
+    const storageKey = 'sb-auth-token'
+    const accessTokenKey = `${storageKey}-access-token`
+    const refreshTokenKey = `${storageKey}-refresh-token`
+    
+    try {
+      // Check localStorage first
+      let accessToken = window.localStorage.getItem(accessTokenKey)
+      let refreshToken = window.localStorage.getItem(refreshTokenKey)
+      
+      // If not found, check sessionStorage
+      if (!accessToken) {
+        accessToken = window.sessionStorage.getItem(accessTokenKey)
+        refreshToken = window.sessionStorage.getItem(refreshTokenKey)
+      }
+      
+      console.log('🍎 Safari token check:', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        accessTokenLength: accessToken?.length || 0,
+        refreshTokenLength: refreshToken?.length || 0
+      })
+      
+      if (accessToken) {
+        // Try to validate the session with Supabase
+        console.log('🍎 Attempting to restore session from tokens...')
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || ''
+        })
+        
+        if (error) {
+          console.error('🍎 Safari session restoration failed:', error)
+          // Clear invalid tokens
+          try {
+            window.localStorage.removeItem(accessTokenKey)
+            window.localStorage.removeItem(refreshTokenKey)
+            window.sessionStorage.removeItem(accessTokenKey)
+            window.sessionStorage.removeItem(refreshTokenKey)
+          } catch (cleanupError) {
+            console.warn('🍎 Token cleanup failed:', cleanupError)
+          }
+          return null
+        }
+        
+        if (data.session) {
+          console.log('✅ Safari session restored successfully')
+          return data.session
+        }
+      }
+      
+      return null
+    } catch (error) {
+      console.error('🍎 Safari session validation error:', error)
+      return null
+    }
+  }, [])
+
   // Debounced auth state update to prevent rapid state changes
   const debouncedUpdateAuth = useCallback((newSession: Session | null, source: string) => {
     console.log(`🔄 debouncedUpdateAuth called from ${source}:`, {
@@ -135,16 +199,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check for OAuth completion via PKCE code (all browsers) or cookies (fallback)
   const checkOAuthCompletion = useCallback(async () => {
     if (typeof window === 'undefined') {
-      console.log('🌐 checkOAuthCompletion: Running on server, skipping')
       return false
     }
     
-    console.log('🔍 checkOAuthCompletion: Starting OAuth completion check', {
-      url: window.location.href,
-      isSafariBrowser: isSafari(),
-      environment: process.env.NODE_ENV,
-      isProduction: process.env.NODE_ENV === 'production'
-    })
+    // For Safari, first try to validate existing session
+    if (isSafari()) {
+      console.log('🍎 Safari detected - checking existing session first...')
+      const existingSession = await validateSafariSession()
+      if (existingSession) {
+        console.log('✅ Safari: Found valid existing session')
+        debouncedUpdateAuth(existingSession, 'safari-existing-session')
+        return true
+      }
+      console.log('🍎 Safari: No valid existing session found, checking OAuth...')
+    }
     
     // Simplified approach: let Supabase handle OAuth detection automatically
     // Only check for manual PKCE if there's a code in the URL
@@ -152,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const code = urlParams.get('code')
     
     if (code) {
-      console.log('🔗 OAuth code detected in URL, attempting PKCE exchange')
+      console.log('🔗 OAuth code detected, attempting PKCE exchange...')
       try {
         const pkceResult = await handleSafariPKCE()
         
@@ -162,9 +230,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return true
         } else if (pkceResult && pkceResult.error) {
           console.error('❌ PKCE authentication failed:', pkceResult.error)
+          
+          // For Safari PKCE failures, try alternative method
+          if (isSafari() && pkceResult.error.message?.includes('code_verifier')) {
+            console.log('🍎 Safari PKCE failed - this might be a storage issue')
+            console.log('🍎 Clearing URL and letting user retry authentication')
+            window.history.replaceState({}, document.title, window.location.pathname)
+          }
         }
       } catch (error) {
         console.error('❌ PKCE handling exception:', error)
+        
+        // Clear the code from URL if PKCE failed
+        if (isSafari()) {
+          console.log('🍎 Safari: Clearing failed OAuth code from URL')
+          window.history.replaceState({}, document.title, window.location.pathname)
+        }
       }
     }
     
@@ -174,8 +255,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const refreshToken = getCookie('sb-refresh-token')
     
     if (authComplete && accessToken) {
-      console.log('🍪 OAuth completion detected via cookies, setting session')
-      
+      console.log('🍪 Cookie-based authentication detected')
       try {
         // Clean up the completion flag immediately
         deleteCookie('sb-auth-complete')
@@ -198,7 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         if (data.session && data.user) {
-          console.log('✅ Session set successfully from OAuth cookies')
+          console.log('✅ Cookie-based authentication successful')
           debouncedUpdateAuth(data.session, 'oauth-cookies')
           
           // Clean up cookies after successful session restoration
@@ -214,9 +294,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     
-    console.log('❌ checkOAuthCompletion: No OAuth completion found')
     return false
-  }, [debouncedUpdateAuth])
+  }, [debouncedUpdateAuth, validateSafariSession])
 
   const signOut = async () => {
     console.log('🚪 Signing out user')
@@ -301,24 +380,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Timeout to prevent infinite loading for Safari
     if (isSafari()) {
-      console.log('🍎 Safari detected - setting timeout for auth initialization')
-      // Use longer timeout since we're now relying on Supabase's built-in OAuth detection
-      const safariTimeout = process.env.NODE_ENV === 'production' ? 3000 : 4000
+      console.log('🍎 Safari detected - setting aggressive timeout for auth initialization')
+      // Reduced timeout for Safari to prevent hanging
+      const safariTimeout = process.env.NODE_ENV === 'production' ? 2000 : 3000
       console.log(`🍎 Safari timeout set to ${safariTimeout}ms`)
       
       timeoutRef.current = setTimeout(() => {
         if (loading && !hasInitializedRef.current && isMountedRef.current) {
-          console.log('⏰ Safari auth timeout - forcing completion')
+          console.log('⏰ Safari auth timeout - forcing completion with fallback check')
           console.log('🔍 Safari timeout state:', {
             loading,
             hasInitialized: hasInitializedRef.current,
             isMounted: isMountedRef.current,
-            environment: process.env.NODE_ENV
+            environment: process.env.NODE_ENV,
+            currentUrl: typeof window !== 'undefined' ? window.location.href : 'unknown'
           })
-          hasInitializedRef.current = true
-          setLoading(false)
-          setUser(null)
-          setSession(null)
+          
+          // Before giving up, try one last session validation for Safari
+          if (typeof window !== 'undefined') {
+            console.log('🍎 Safari timeout: Attempting final session validation...')
+            validateSafariSession().then((session) => {
+              if (session && isMountedRef.current) {
+                console.log('✅ Safari timeout: Found session on final check')
+                hasInitializedRef.current = true
+                setSession(session)
+                setUser(session.user)
+                setLoading(false)
+              } else {
+                console.log('❌ Safari timeout: No session found, completing with null state')
+                hasInitializedRef.current = true
+                setLoading(false)
+                setUser(null)
+                setSession(null)
+              }
+            }).catch((error) => {
+              console.error('❌ Safari timeout: Final validation failed:', error)
+              hasInitializedRef.current = true
+              setLoading(false)
+              setUser(null)
+              setSession(null)
+            })
+          } else {
+            hasInitializedRef.current = true
+            setLoading(false)
+            setUser(null)
+            setSession(null)
+          }
         }
       }, safariTimeout)
     } else {
@@ -415,7 +522,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setupAuthListener()
       
       try {
-        // Simplified flow: check for OAuth completion first, then get session
+        // For Safari, first try to validate existing tokens
+        if (isSafari()) {
+          console.log('🍎 Safari detected - attempting token validation first...')
+          const existingSession = await validateSafariSession()
+          if (existingSession) {
+            console.log('✅ Safari: Valid session found during init')
+            debouncedUpdateAuth(existingSession, 'safari-init-session')
+            return
+          }
+          console.log('🍎 Safari: No valid session found, proceeding with OAuth check...')
+        }
+        
+        // Check for OAuth completion first, then get session
         console.log('🔄 Checking for OAuth completion...')
         const oauthHandled = await checkOAuthCompletion()
         
@@ -435,6 +554,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (error) {
           console.error('❌ Error getting session:', error)
+          
+          // For Safari, if session fails, clear any stale tokens
+          if (isSafari()) {
+            console.log('🍎 Safari session error - clearing potentially stale tokens')
+            try {
+              const storageKey = 'sb-auth-token'
+              const suffixes = ['access-token', 'refresh-token', 'code-verifier']
+              suffixes.forEach(suffix => {
+                const key = `${storageKey}-${suffix}`
+                try {
+                  window.localStorage.removeItem(key)
+                  window.sessionStorage.removeItem(key)
+                } catch (removeError) {
+                  console.warn(`🍎 Failed to remove ${key}:`, removeError)
+                }
+              })
+            } catch (cleanupError) {
+              console.warn('🍎 Token cleanup failed:', cleanupError)
+            }
+          }
+          
           debouncedUpdateAuth(null, 'session-error')
         } else {
           console.log('✅ Session check complete:', session ? 'found' : 'not found')
