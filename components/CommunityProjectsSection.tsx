@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Play, ArrowRight, Search } from 'lucide-react';
 import Link from 'next/link';
@@ -62,6 +62,18 @@ export default function CommunityProjectsSection({
   const { getUserProjects } = useDatabase();
   const { user } = useAuth();
 
+  // Stable user ID to prevent unnecessary re-fetches
+  const userId = useMemo(() => user?.id, [user?.id]);
+  
+  // Stable user data to prevent unnecessary re-fetches
+  const userData = useMemo(() => ({
+    name: user?.user_metadata?.name || user?.email?.split('@')[0] || 'You',
+    email: user?.email
+  }), [user?.user_metadata?.name, user?.email]);
+  
+  // Store the latest fetch function to avoid dependency loops in intervals
+  const fetchFeaturedProjectsRef = useRef<(silent?: boolean) => Promise<void>>();
+
   const fetchFeaturedProjects = useCallback(async (silent = false) => {
     try {
       console.log(`🚀 Starting fetchFeaturedProjects (${silent ? 'silent' : 'visible'}) for projectType: ${projectType}`);
@@ -75,7 +87,7 @@ export default function CommunityProjectsSection({
       
       let projects: any[] = [];
       
-      if (projectType === 'user' && user) {
+      if (projectType === 'user' && userId) {
         // Fetch user's own projects using the database hook
         const userProjects = await getUserProjects();
         // Convert user projects to the format expected by the component
@@ -83,8 +95,8 @@ export default function CommunityProjectsSection({
           id: project.id,
           name: project.name,
           description: project.description,
-          user_name: user.user_metadata?.name || user.email?.split('@')[0] || 'You',
-          user_email: user.email,
+          user_name: userData.name,
+          user_email: userData.email,
           created_at: project.created_at,
           category: project.category,
           project_emoji: project.project_emoji,
@@ -149,50 +161,76 @@ export default function CommunityProjectsSection({
         setProjectsLoading(false);
       }
     }
-  }, [projectType, user, getUserProjects, limit]);
+  }, [projectType, userId, userData, getUserProjects, limit]); // Simplified dependencies
 
-  // Initial data fetch
+  // Update ref whenever fetchFeaturedProjects changes (but only for community projects to avoid loops)
   useEffect(() => {
-    // Only fetch if we have the necessary data
-    if (projectType === 'community' || (projectType === 'user' && user)) {
-      fetchFeaturedProjects();
+    if (projectType === 'community') {
+      fetchFeaturedProjectsRef.current = fetchFeaturedProjects;
     }
-  }, [fetchFeaturedProjects, projectType, user]);
+  }, [fetchFeaturedProjects, projectType]);
+
+  // Initial data fetch - with more stable dependencies
+  useEffect(() => {
+    console.log(`🔄 Initial fetch effect triggered:`, {
+      projectType,
+      userId: !!userId,
+      hasConditions: projectType === 'community' || (projectType === 'user' && userId)
+    });
+    
+    // Only fetch if we have the necessary data
+    if (projectType === 'community' || (projectType === 'user' && userId)) {
+      fetchFeaturedProjects();
+    } else {
+      console.log('🚫 Skipping initial fetch - conditions not met');
+      setProjectsLoading(false);
+    }
+  }, [projectType, userId]); // Removed fetchFeaturedProjects from dependencies to prevent loops
 
   // Auto-refresh every 30 seconds when page is visible
   useEffect(() => {
     // Only auto-refresh for community projects, not user projects
     if (projectType !== 'community') {
+      console.log(`🚫 Skipping auto-refresh for projectType: ${projectType}`);
       return;
     }
 
+    console.log('⏰ Setting up auto-refresh interval for community projects');
     const interval = setInterval(() => {
-      if (!document.hidden) {
+      if (!document.hidden && projectType === 'community' && fetchFeaturedProjectsRef.current) {
         console.log('🔄 Auto-refreshing community projects...');
-        fetchFeaturedProjects(true); // Silent refresh
+        fetchFeaturedProjectsRef.current(true); // Silent refresh using ref
       }
     }, 30000); // 30 seconds
 
-    return () => clearInterval(interval);
-  }, [fetchFeaturedProjects, projectType]);
+    return () => {
+      console.log('🧹 Cleaning up auto-refresh interval');
+      clearInterval(interval);
+    };
+  }, [projectType]); // Stable dependencies
 
   // Refresh when user returns to the tab
   useEffect(() => {
     // Only auto-refresh for community projects, not user projects
     if (projectType !== 'community') {
+      console.log(`🚫 Skipping visibility change listener for projectType: ${projectType}`);
       return;
     }
 
+    console.log('👁️ Setting up visibility change listener for community projects');
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (!document.hidden && projectType === 'community' && fetchFeaturedProjectsRef.current) {
         console.log('👁️ Page became visible - refreshing community projects...');
-        fetchFeaturedProjects(true); // Silent refresh
+        fetchFeaturedProjectsRef.current(true); // Silent refresh using ref
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchFeaturedProjects, projectType]);
+    return () => {
+      console.log('🧹 Cleaning up visibility change listener');
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [projectType]); // Stable dependencies
 
   // Manual refresh function
   const handleManualRefresh = () => {
