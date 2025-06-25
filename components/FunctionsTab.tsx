@@ -2270,9 +2270,7 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                   <div className="space-y-2">
                     {[
                       { id: 'call_started', label: 'Call Started', description: 'When a call begins' },
-                      { id: 'call_ended', label: 'Call Ended', description: 'When a call ends (includes transcript)' },
-                      { id: 'function_called', label: 'Function Called', description: 'When the agent calls a function' },
-                      { id: 'error_occurred', label: 'Error Occurred', description: 'When an error happens during the call' }
+                      { id: 'call_ended', label: 'Call Ended', description: 'When a call ends (includes transcript)' }
                     ].map((event) => (
                       <div key={event.id} className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg">
                         <input
@@ -2301,93 +2299,6 @@ export function FunctionsTab({ projectConfig, setProjectConfig, projectId }: Fun
                       </div>
                     ))}
                   </div>
-                </div>
-
-                {/* Test Webhook */}
-                <div className="pt-4 border-t border-white/20">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex-1 min-w-0 mr-4">
-                      <h4 className="text-sm font-medium text-white">Test Webhook</h4>
-                      <p className="text-xs text-white/50">Send a sample payload to verify your webhook is working</p>
-                    </div>
-                    <button
-                      onClick={testWebhook}
-                      disabled={testingWebhook || !projectConfig.webhookUrl}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center space-x-2 flex-shrink-0"
-                    >
-                      {testingWebhook ? (
-                        <>
-                          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          <span>Testing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                          <span>Test Webhook</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Webhook Test Results */}
-                  {webhookTestResult && (
-                    <div className={`p-4 rounded-lg border ${
-                      webhookTestResult.success 
-                        ? 'bg-green-900/20 border-green-500/30 text-green-100' 
-                        : 'bg-red-900/20 border-red-500/30 text-red-100'
-                    }`}>
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0">
-                          {webhookTestResult.success ? (
-                            <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium mb-2">
-                            {webhookTestResult.success ? 'Webhook Test Successful' : 'Webhook Test Failed'}
-                          </h4>
-                          <p className="text-sm mb-3 break-words">{webhookTestResult.message}</p>
-                          
-                          {webhookTestResult.data && (
-                            <div className="space-y-3">
-                              <div>
-                                <h5 className="text-sm font-medium mb-1">Sample Payload Sent:</h5>
-                                <div className="bg-black/30 rounded p-3 text-xs font-mono max-h-40 overflow-y-auto overflow-x-auto">
-                                  <pre className="text-gray-300 whitespace-pre-wrap break-all">{JSON.stringify(webhookTestResult.data.payload, null, 2)}</pre>
-                                </div>
-                              </div>
-                              {webhookTestResult.data.response && (
-                                <div>
-                                  <h5 className="text-sm font-medium mb-1">Response:</h5>
-                                  <div className="bg-black/30 rounded p-3 text-xs font-mono overflow-x-auto">
-                                    <pre className="text-gray-300 whitespace-pre-wrap break-all">{JSON.stringify(webhookTestResult.data.response, null, 2)}</pre>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => setWebhookTestResult(null)}
-                          className="flex-shrink-0 text-white/50 hover:text-white/70"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

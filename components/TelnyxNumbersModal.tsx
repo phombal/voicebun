@@ -64,9 +64,13 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
       const numbers = data.data || [];
       setTelnyxNumbers(numbers);
       console.log('📱 Available Telnyx numbers:', numbers.length);
+      
+      // Only show error notification for actual API failures, not when there are no numbers
     } catch (error) {
       console.error('Error fetching Telnyx numbers:', error);
-      // Show error notification
+      // Clear the numbers array on error
+      setTelnyxNumbers([]);
+      // Show error notification only for actual API errors
       const notification = document.createElement('div');
       notification.textContent = 'Failed to load Telnyx phone numbers. Please try again.';
       notification.className = 'fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';

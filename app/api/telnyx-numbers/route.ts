@@ -60,6 +60,25 @@ export async function GET(request: NextRequest) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Telnyx API error response:', errorText);
+        
+        // Check if this is a "no numbers found" error (400 with specific error code)
+        if (response.status === 400) {
+          try {
+            const errorData = JSON.parse(errorText);
+            const hasNoNumbersError = errorData.errors?.some((error: any) => 
+              error.code === "10031" || error.detail?.includes("No numbers found")
+            );
+            
+            if (hasNoNumbersError) {
+              console.log('📱 No numbers found for the given filters - returning empty result');
+              // Return empty result instead of throwing error
+              return NextResponse.json({ data: [] });
+            }
+          } catch (parseError) {
+            // If we can't parse the error, continue with the original error handling
+          }
+        }
+        
         throw new Error(`Telnyx API error: ${response.status} ${response.statusText}`);
       }
 
