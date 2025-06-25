@@ -41,11 +41,19 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
   const [telnyxNumbers, setTelnyxNumbers] = useState<TelnyxNumber[]>([]);
   const [isLoadingTelnyxNumbers, setIsLoadingTelnyxNumbers] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState<string | null>(null);
+  const [filterPattern, setFilterPattern] = useState<string>('');
 
-  const fetchTelnyxNumbers = async () => {
+  const fetchTelnyxNumbers = async (startsWith?: string) => {
     setIsLoadingTelnyxNumbers(true);
     try {
-      const response = await fetch('/api/telnyx-numbers');
+      // Build query parameters for filters
+      const params = new URLSearchParams();
+      if (startsWith?.trim()) {
+        params.append('starts_with', startsWith.trim());
+      }
+
+      const url = `/api/telnyx-numbers${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch Telnyx phone numbers');
       }
@@ -211,6 +219,10 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
     }
   };
 
+  const handleApplyFilters = () => {
+    fetchTelnyxNumbers(filterPattern);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -235,6 +247,70 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
           </button>
         </div>
 
+        {/* Filter Input */}
+        <div className="mb-6">
+          <div className="flex items-center space-x-4">
+            {/* Pattern Filter */}
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-white/70 mb-2">
+                Numbers Starting With
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={filterPattern}
+                  onChange={(e) => setFilterPattern(e.target.value)}
+                  placeholder="Enter pattern (e.g., 555, 212, TACO)"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                  <svg className="w-5 h-5 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-white/50 mt-1">
+                Filter numbers that start with your desired pattern.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col justify-end space-y-2">
+              <button
+                onClick={handleApplyFilters}
+                disabled={isLoadingTelnyxNumbers}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors whitespace-nowrap flex items-center space-x-2"
+              >
+                {isLoadingTelnyxNumbers ? (
+                  <>
+                    <LoadingSpinner size="sm" color="white" />
+                    <span>Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <span>Apply Filters</span>
+                  </>
+                )}
+              </button>
+
+              {filterPattern && (
+                <button
+                  onClick={() => {
+                    setFilterPattern('');
+                    fetchTelnyxNumbers(); // Fetch all numbers without filters
+                  }}
+                  className="px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white/70 hover:text-white transition-colors whitespace-nowrap text-sm"
+                >
+                  Clear Filter
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
         {isLoadingTelnyxNumbers ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center space-y-4">
@@ -250,12 +326,25 @@ export function TelnyxNumbersModal({ isOpen, onClose, onSelectNumber, userId, pr
               </svg>
             </div>
             <p className="text-white/70 font-medium">No phone numbers available</p>
-            <p className="text-white/50 text-sm mt-1">Please try again later or contact support</p>
+            <p className="text-white/50 text-sm mt-1">
+              {filterPattern 
+                ? `No numbers found starting with "${filterPattern}". Try a different pattern or contact support.`
+                : 'Please try again later or contact support'
+              }
+            </p>
           </div>
         ) : (
           <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin smooth-scroll">
             <div className="text-sm text-white/60 mb-4 px-1">
-              Found {telnyxNumbers.length} available phone number{telnyxNumbers.length !== 1 ? 's' : ''} 
+              {filterPattern ? (
+                <>
+                  Found {telnyxNumbers.length} number{telnyxNumbers.length !== 1 ? 's' : ''} starting with "{filterPattern}"
+                </>
+              ) : (
+                <>
+                  Found {telnyxNumbers.length} available phone number{telnyxNumbers.length !== 1 ? 's' : ''} 
+                </>
+              )}
             </div>
             
             {telnyxNumbers.map((number, index) => (

@@ -21,14 +21,29 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      // Get filter parameters from query string
+      const { searchParams } = new URL(request.url);
+      const startsWith = searchParams.get('starts_with');
+
+      console.log('🔍 Filter parameters received:');
+      console.log('   • starts_with:', startsWith);
+
       // Search for fresh, purchasable numbers using working API key and filters
       const url = new URL('https://api.telnyx.com/v2/available_phone_numbers');
+      
+      // Base filters
       url.searchParams.append('filter[limit]', '20');
-      url.searchParams.append('filter[country_code]', 'US');
       url.searchParams.append('filter[phone_number_type]', 'local');
       url.searchParams.append('filter[features][]', 'voice');
       url.searchParams.append('filter[features][]', 'sms');
+      url.searchParams.append('filter[country_code]', 'US');
       url.searchParams.append('sort[cost_information][monthly_cost]', 'asc');
+      
+      // Apply dynamic filters
+      if (startsWith && startsWith.trim()) {
+        url.searchParams.append('filter[phone_number][starts_with]', startsWith.trim());
+        console.log('   • Applied starts_with filter:', startsWith.trim());
+      }
       
       console.log('📡 Making Telnyx API request to:', url.toString());
       
@@ -53,6 +68,9 @@ export async function GET(request: NextRequest) {
       // Debug logging to see what Telnyx is returning
       console.log('✅ Telnyx API Response successful');
       console.log('📱 Phone numbers count:', data.data?.length || 0);
+      if (data.data?.length > 0) {
+        console.log('📱 Sample numbers:', data.data.slice(0, 3).map((n: any) => n.phone_number));
+      }
       
       // Return the phone numbers data
       return NextResponse.json(data);
