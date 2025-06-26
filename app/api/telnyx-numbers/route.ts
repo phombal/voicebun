@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const startsWithFilter = searchParams.get('starts_with') || '';
   const countryCode = searchParams.get('country_code') || 'US';
-  const limit = searchParams.get('limit') || '250';
+  const limit = searchParams.get('limit') || '20';
 
   try {
     // Create cache parameters that include all relevant search criteria
@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
       features: 'voice,sms', // Fixed features we always include
       sort: 'best_effort,phone_number' // Fixed sorting we always use
     };
+
+    console.log('🔧 Cache parameters:', cacheParams);
 
     // Use Redis caching for the API response
     const phoneNumbers = await cache.cacheApiResponse(
@@ -50,8 +52,9 @@ export async function GET(request: NextRequest) {
         params.append('sort[]', 'best_effort');
         params.append('sort[]', 'phone_number');
 
-        if (startsWithFilter) {
-          params.append('filter[starts_with]', startsWithFilter);
+        // Only add starts_with filter if it has a value
+        if (startsWithFilter && startsWithFilter.trim()) {
+          params.append('filter[phone_number][starts_with]', startsWithFilter.trim());
         }
 
         const url = `${baseUrl}?${params.toString()}`;
