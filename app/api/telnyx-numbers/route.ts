@@ -17,18 +17,29 @@ export async function GET(request: NextRequest) {
   // Get query parameters
   const { searchParams } = new URL(request.url);
   const startsWithFilter = searchParams.get('starts_with') || '';
+  const countryCode = searchParams.get('country_code') || 'US';
+  const limit = searchParams.get('limit') || '250';
 
   try {
+    // Create cache parameters that include all relevant search criteria
+    const cacheParams = {
+      starts_with: startsWithFilter,
+      country_code: countryCode,
+      limit: limit,
+      features: 'voice,sms', // Fixed features we always include
+      sort: 'best_effort,phone_number' // Fixed sorting we always use
+    };
+
     // Use Redis caching for the API response
     const phoneNumbers = await cache.cacheApiResponse(
       'telnyx-numbers',
-      { starts_with: startsWithFilter },
+      cacheParams,
       async () => {
         // This function will only be called if the data is not in cache
         const baseUrl = 'https://api.telnyx.com/v2/available_phone_numbers';
         const params = new URLSearchParams({
-          'filter[country_code]': 'US',
-          'filter[limit]': '250',
+          'filter[country_code]': countryCode,
+          'filter[limit]': limit,
         });
 
         // Add multiple feature filters

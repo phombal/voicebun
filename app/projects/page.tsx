@@ -51,18 +51,40 @@ export default function ProjectsPage() {
     isDeleting: false
   });
 
+  // Safety net: automatically reset loadingProjects if it gets stuck
+  useEffect(() => {
+    if (loadingProjects && user && !loading) {
+      console.log('🛡️ Safety net: loadingProjects has been true with authenticated user, setting timeout');
+      const safetyTimeout = setTimeout(() => {
+        console.log('⚠️ Safety timeout: forcing loadingProjects to false to prevent infinite loading');
+        setLoadingProjects(false);
+      }, 15000); // 15 second safety net
+      
+      return () => clearTimeout(safetyTimeout);
+    }
+  }, [loadingProjects, user, loading]);
+
   // Load user projects
   useEffect(() => {
-    console.log('📂 Projects loading effect triggered:', {
+    console.log('📂 Projects useEffect triggered:', {
       user: !!user,
       userId: user?.id,
-      loadingProjects,
+      loadingProjects
     });
 
+    // Reset loading state when user changes
     if (!user) {
-      console.log('📂 No user, skipping project load');
+      console.log('📂 No user, resetting loading state');
+      setLoadingProjects(false);
+      setProjects([]);
       return;
     }
+    
+    // Set timeout fallback to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Projects loading timeout reached, forcing completion');
+      setLoadingProjects(false);
+    }, 10000); // 10 second timeout
     
     const loadProjects = async () => {
       console.log('📂 Starting to load projects for user:', user.id);
@@ -85,14 +107,25 @@ export default function ProjectsPage() {
           stack: error instanceof Error ? error.stack : 'No stack',
           userId: user?.id
         });
+        // Set empty projects on error to prevent infinite loading
+        setProjects([]);
       } finally {
         console.log('📂 Setting loadingProjects to false');
+        clearTimeout(timeoutId); // Clear timeout since we completed
         setLoadingProjects(false);
       }
     };
 
-    loadProjects();
-  }, [getUserProjects, user]);
+    // Only load if we haven't loaded yet
+    if (loadingProjects) {
+      loadProjects();
+    }
+    
+    // Cleanup function
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [user?.id, getUserProjects]); // Simplified dependencies
 
   const confirmDeleteProject = async () => {
     if (!deleteModal.project) return;
