@@ -51,6 +51,40 @@ export default function ProjectsPage() {
     isDeleting: false
   });
 
+  // Utility function to invalidate user projects cache
+  const invalidateProjectsCache = useCallback(async (action: string) => {
+    if (!user) return;
+    
+    try {
+      await fetch('/api/user/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          action
+        }),
+      });
+      console.log(`✅ Invalidated user projects cache due to: ${action}`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to invalidate cache for action: ${action}`, error);
+    }
+  }, [user]);
+
+  // Function to refresh projects (useful for debugging or manual refresh)
+  const refreshProjects = useCallback(async () => {
+    if (!user) return;
+    
+    console.log('🔄 Manually refreshing projects...');
+    setLoadingProjects(true);
+    
+    // Invalidate cache first
+    await invalidateProjectsCache('manual_refresh');
+    
+    // The useEffect will automatically reload when loadingProjects becomes true
+  }, [user, invalidateProjectsCache]);
+
   // Safety net: automatically reset loadingProjects if it gets stuck
   useEffect(() => {
     if (loadingProjects && user && !loading) {
@@ -89,10 +123,20 @@ export default function ProjectsPage() {
     const loadProjects = async () => {
       console.log('📂 Starting to load projects for user:', user.id);
       try {
-        const userProjects = await getUserProjects();
-        console.log('📂 Raw projects from database:', userProjects.length, 'projects');
+        // Use the new cached API endpoint
+        const response = await fetch(`/api/user/projects?userId=${encodeURIComponent(user.id)}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
-        const projectsData = userProjects.map((project: DatabaseProject) => ({
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch projects');
+        }
+        
+        console.log('📂 Raw projects from API:', data.projects.length, 'projects');
+        
+        const projectsData = data.projects.map((project: DatabaseProject) => ({
           ...project,
           description: project.description || undefined
         }));
@@ -125,7 +169,7 @@ export default function ProjectsPage() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [user?.id, getUserProjects]); // Simplified dependencies
+  }, [user?.id]); // Removed getUserProjects dependency since we're using fetch now
 
   const confirmDeleteProject = async () => {
     if (!deleteModal.project) return;
@@ -137,6 +181,9 @@ export default function ProjectsPage() {
       
       // Remove the project from the local state
       setProjects(prev => prev.filter(p => p.id !== deleteModal.project!.id));
+      
+      // Invalidate the user's projects cache
+      await invalidateProjectsCache('project_deleted');
       
       // Close the modal
       setDeleteModal({
@@ -316,6 +363,9 @@ export default function ProjectsPage() {
       // Navigate directly to the project console
       router.push(`/projects/${project.id}`);
       
+      // Invalidate the user's projects cache to show the new project
+      await invalidateProjectsCache('project_created');
+      
     } catch (error) {
       console.error('Error creating new project:', error);
     } finally {
@@ -340,8 +390,9 @@ export default function ProjectsPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       (window as any).clearAuthState = clearAuthState;
+      (window as any).refreshProjects = refreshProjects;
     }
-  }, []);
+  }, [refreshProjects]);
 
   // Simple authentication timeout to prevent endless loading
   useEffect(() => {
