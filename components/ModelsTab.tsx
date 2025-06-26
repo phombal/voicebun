@@ -5,7 +5,7 @@ interface ModelsTabProps {
     systemPrompt: string;
     agentInstructions: string;
     firstMessageMode: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
-    llmProvider: 'openai' | 'anthropic' | 'google' | 'azure' | 'xai';
+    llmProvider: 'openai' | 'xai';
     llmModel: string;
     llmTemperature: number;
     llmMaxResponseLength: 150 | 300 | 500 | 1000;
@@ -41,7 +41,7 @@ interface ModelsTabProps {
     systemPrompt: string;
     agentInstructions: string;
     firstMessageMode: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
-    llmProvider: 'openai' | 'anthropic' | 'google' | 'azure' | 'xai';
+    llmProvider: 'openai' | 'xai';
     llmModel: string;
     llmTemperature: number;
     llmMaxResponseLength: 150 | 300 | 500 | 1000;
@@ -104,6 +104,56 @@ export function ModelsTab({
   onModelChange
 }: ModelsTabProps) {
   const modelsTabContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log('🔍 ModelsTab DEBUG:');
+    console.log('   • projectConfig.llmProvider:', projectConfig.llmProvider);
+    console.log('   • projectConfig.llmModel:', projectConfig.llmModel);
+    console.log('   • modelsByProvider keys:', Object.keys(modelsByProvider));
+    console.log('   • modelsByProvider[openai]:', modelsByProvider.openai);
+    console.log('   • modelsByProvider[xai]:', modelsByProvider.xai);
+    console.log('   • Available models for current provider:', modelsByProvider[projectConfig.llmProvider]);
+    console.log('   • Is current model valid?:', modelsByProvider[projectConfig.llmProvider]?.some(model => model.value === projectConfig.llmModel));
+  }, [projectConfig.llmProvider, projectConfig.llmModel]);
+
+  // Validate and fix model selection when component mounts or provider changes
+  React.useEffect(() => {
+    const availableModels = modelsByProvider[projectConfig.llmProvider];
+    const currentModel = projectConfig.llmModel;
+    
+    console.log('🔧 Model validation check:');
+    console.log('   • Provider:', projectConfig.llmProvider);
+    console.log('   • Current model:', currentModel);
+    console.log('   • Available models:', availableModels);
+    
+    // Check if the current provider is supported
+    if (!availableModels) {
+      console.log(`🔧 Unsupported provider "${projectConfig.llmProvider}". Switching to OpenAI.`);
+      const defaultModel = modelsByProvider.openai[0].value;
+      setProjectConfig(prev => ({
+        ...prev,
+        llmProvider: 'openai',
+        llmModel: defaultModel
+      }));
+      onModelChange?.(defaultModel);
+      return;
+    }
+    
+    // Check if current model is valid for the selected provider
+    const isValidModel = availableModels?.some(model => model.value === currentModel);
+    console.log('   • Is valid model?:', isValidModel);
+    
+    if (!isValidModel && availableModels?.length > 0) {
+      console.log(`🔧 Invalid model "${currentModel}" for provider "${projectConfig.llmProvider}". Setting to "${availableModels[0].value}"`);
+      const firstModel = availableModels[0].value;
+      setProjectConfig(prev => ({ 
+        ...prev, 
+        llmModel: firstModel
+      }));
+      onModelChange?.(firstModel);
+    }
+  }, [projectConfig.llmProvider, projectConfig.llmModel, setProjectConfig, onModelChange]);
 
   // Prevent scroll propagation to parent elements
   const handleScroll = (e: React.UIEvent) => {
@@ -200,16 +250,32 @@ export function ModelsTab({
                   <select 
                     value={projectConfig.llmModel}
                     onChange={(e) => {
+                      console.log('🔄 Model changed to:', e.target.value);
                       setProjectConfig(prev => ({ ...prev, llmModel: e.target.value }));
                       onModelChange?.(e.target.value);
                     }}
                     className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/30 appearance-none cursor-pointer transition-all duration-200 hover:bg-white/10 pr-10"
                   >
-                    {modelsByProvider[projectConfig.llmProvider]?.map(model => (
-                      <option key={model.value} value={model.value} className="bg-gray-700 text-white">
-                        {model.label}
-                      </option>
-                    ))}
+                    {(() => {
+                      const models = modelsByProvider[projectConfig.llmProvider];
+                      console.log('🎯 Rendering models for provider:', projectConfig.llmProvider);
+                      console.log('🎯 Available models:', models);
+                      console.log('🎯 Current llmModel value:', projectConfig.llmModel);
+                      
+                      if (!models) {
+                        console.log('❌ No models found for provider:', projectConfig.llmProvider);
+                        return <option value="">No models available</option>;
+                      }
+                      
+                      return models.map(model => {
+                        console.log('🎯 Rendering model option:', model.value, model.label);
+                        return (
+                          <option key={model.value} value={model.value} className="bg-gray-700 text-white">
+                            {model.label}
+                          </option>
+                        );
+                      });
+                    })()}
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                     <svg className="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
