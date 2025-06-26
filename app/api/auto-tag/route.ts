@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { autoTagProject } from '@/lib/auto-tagger';
+import { CacheManager } from '@/lib/redis';
+import crypto from 'crypto';
+
+const cacheManager = new CacheManager();
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +15,21 @@ export async function POST(request: NextRequest) {
         { error: 'System prompt is required for auto-tagging' },
         { status: 400 }
       );
+    }
+
+    // Create a hash of the input content for caching
+    const contentHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({ systemPrompt, title, description, publicDescription }))
+      .digest('hex');
+    
+    const cacheKey = `api:auto-tag:${contentHash}`;
+    
+    // Check cache first
+    const cached = await cacheManager.get(cacheKey);
+    if (cached) {
+      console.log('✅ Returning cached auto-tag result');
+      return NextResponse.json(cached);
     }
 
     console.log('🏷️ Auto-tagging request received for project:', title || 'Untitled');
@@ -35,10 +54,16 @@ export async function POST(request: NextRequest) {
     const finalCategory = category || 'other';
     console.log('🏷️ Final category being returned:', finalCategory);
 
-    return NextResponse.json({
+    const result = {
       success: true,
       category: finalCategory
-    });
+    };
+
+    // Cache for 24 hours (86400 seconds) since same content should always get same category
+    await cacheManager.set(cacheKey, result, 86400);
+    console.log('📦 Cached auto-tag result for 24 hours');
+
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('❌ Auto-tagging API error:', error);

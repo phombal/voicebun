@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServiceRole } from '@/lib/database/server';
+import { cache } from '@/lib/redis';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -115,41 +116,49 @@ function checkMemory(): HealthCheck['checks']['memory'] {
 
 export async function GET() {
   try {
-    // Run all health checks in parallel
-    const [databaseCheck, environmentCheck, memoryCheck] = await Promise.all([
-      checkDatabase(),
-      Promise.resolve(checkEnvironment()),
-      Promise.resolve(checkMemory()),
-    ]);
-    
-    // Determine overall status
-    const checks = {
-      database: databaseCheck,
-      environment: environmentCheck,
-      memory: memoryCheck,
-    };
-    
-    const hasUnhealthy = Object.values(checks).some(check => check.status === 'unhealthy');
-    const hasDegraded = Object.values(checks).some(check => check.status === 'degraded');
-    
-    let overallStatus: HealthCheck['status'] = 'healthy';
-    if (hasUnhealthy) {
-      overallStatus = 'unhealthy';
-    } else if (hasDegraded) {
-      overallStatus = 'degraded';
-    }
-    
-    const healthCheck: HealthCheck = {
-      status: overallStatus,
-      timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0',
-      uptime: process.uptime(),
-      checks,
-    };
+    // Use caching for health check to reduce database load
+    const healthCheck = await cache.cacheApiResponse(
+      'health-check',
+      {}, // No parameters for health check
+      async () => {
+        // Run all health checks in parallel
+        const [databaseCheck, environmentCheck, memoryCheck] = await Promise.all([
+          checkDatabase(),
+          Promise.resolve(checkEnvironment()),
+          Promise.resolve(checkMemory()),
+        ]);
+        
+        // Determine overall status
+        const checks = {
+          database: databaseCheck,
+          environment: environmentCheck,
+          memory: memoryCheck,
+        };
+        
+        const hasUnhealthy = Object.values(checks).some(check => check.status === 'unhealthy');
+        const hasDegraded = Object.values(checks).some(check => check.status === 'degraded');
+        
+        let overallStatus: HealthCheck['status'] = 'healthy';
+        if (hasUnhealthy) {
+          overallStatus = 'unhealthy';
+        } else if (hasDegraded) {
+          overallStatus = 'degraded';
+        }
+        
+        return {
+          status: overallStatus,
+          timestamp: new Date().toISOString(),
+          version: process.env.npm_package_version || '1.0.0',
+          uptime: process.uptime(),
+          checks,
+        };
+      },
+      30 // Cache for 30 seconds only (health checks should be fairly fresh)
+    );
     
     // Return appropriate HTTP status code
-    const statusCode = overallStatus === 'healthy' ? 200 : 
-                      overallStatus === 'degraded' ? 200 : 503;
+    const statusCode = healthCheck.status === 'healthy' ? 200 : 
+                      healthCheck.status === 'degraded' ? 200 : 503;
     
     return NextResponse.json(healthCheck, { status: statusCode });
     

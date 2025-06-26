@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { CacheManager } from '@/lib/redis';
 
 // Get Telnyx API key from environment variables
 const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
@@ -7,9 +8,20 @@ if (!TELNYX_API_KEY) {
   throw new Error('TELNYX_API_KEY environment variable is required');
 }
 
+const cacheManager = new CacheManager();
+
 export async function GET() {
   try {
     console.log('🔍 Checking Telnyx account status...');
+
+    // Check cache first
+    const cacheKey = 'api:telnyx-account-status';
+    const cached = await cacheManager.get(cacheKey);
+    
+    if (cached) {
+      console.log('✅ Returning cached Telnyx account status');
+      return NextResponse.json(cached);
+    }
 
     // Get account information
     const accountResponse = await fetch('https://api.telnyx.com/v2/account', {
@@ -104,7 +116,7 @@ export async function GET() {
 
     console.log('✅ Account status retrieved successfully');
 
-    return NextResponse.json({
+    const result = {
       success: true,
       account: {
         id: accountData.data?.id,
@@ -121,7 +133,13 @@ export async function GET() {
         phoneNumberSearch: searchPermissions
       },
       recommendations: getAccountRecommendations(accountData.data, searchPermissions)
-    });
+    };
+
+    // Cache for 5 minutes (300 seconds)
+    await cacheManager.set(cacheKey, result, 300);
+    console.log('📦 Cached Telnyx account status for 5 minutes');
+
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('❌ Error checking account status:', error);

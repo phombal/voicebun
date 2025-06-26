@@ -1,9 +1,23 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { User } from '@supabase/supabase-js';
+import { CacheManager } from '@/lib/redis';
+
+const cacheManager = new CacheManager();
 
 export async function GET() {
   try {
+    // Check cache first
+    const cacheKey = 'api:community-projects';
+    const cached = await cacheManager.get(cacheKey);
+    
+    if (cached) {
+      console.log('✅ Returning cached community projects');
+      return NextResponse.json(cached);
+    }
+
+    console.log('🔍 Fetching community projects from database...');
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -70,11 +84,17 @@ export async function GET() {
       project_data: project.project_data?.[0] || null // project_data is an array, get first item
     })) || [];
 
-    return NextResponse.json({
+    const result = {
       success: true,
       projects: enrichedProjects,
       total: enrichedProjects.length
-    });
+    };
+
+    // Cache for 10 minutes (600 seconds)
+    await cacheManager.set(cacheKey, result, 600);
+    console.log('📦 Cached community projects for 10 minutes');
+
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('Community projects API error:', error);
