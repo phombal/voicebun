@@ -22,32 +22,6 @@ const isSafari = () => {
          (navigator.vendor && navigator.vendor.indexOf('Apple') > -1)
 }
 
-// Quick check for existing session in localStorage
-const hasStoredSession = () => {
-  if (typeof window === 'undefined') return false
-  try {
-    const storedAuth = localStorage.getItem('sb-auth-token')
-    if (!storedAuth) return false
-    
-    const authData = JSON.parse(storedAuth)
-    const session = authData?.session || authData
-    
-    // Check if session exists and hasn't expired
-    if (session?.access_token && session?.expires_at) {
-      const expiresAt = new Date(session.expires_at * 1000)
-      const now = new Date()
-      const bufferTime = 5 * 60 * 1000 // 5 minutes buffer
-      
-      return expiresAt.getTime() > (now.getTime() + bufferTime)
-    }
-    
-    return false
-  } catch (error) {
-    console.warn('Failed to check stored session:', error)
-    return false
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -161,8 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('🚀 Auth context mounting...', {
       environment: process.env.NODE_ENV,
       isSafari: isSafari(),
-      url: typeof window !== 'undefined' ? window.location.href : 'server',
-      hasStoredSession: hasStoredSession()
+      url: typeof window !== 'undefined' ? window.location.href : 'server'
     })
     
     // Prevent multiple initializations
@@ -174,13 +147,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializingRef.current = true
     isMountedRef.current = true
     
-    // Early exit if we have a valid stored session - reduces perceived loading time
-    if (hasStoredSession()) {
-      console.log('⚡ Found valid stored session, proceeding with fast initialization')
-    }
-    
-    // Reduced timeout from 5 seconds to 2 seconds for faster UX
-    const timeoutDuration = 2000 // 2 seconds - much more reasonable
+    // Set a reasonable timeout to prevent infinite loading
+    const timeoutDuration = 5000 // 5 seconds for all browsers
     console.log(`⏰ Setting auth timeout to ${timeoutDuration}ms`)
     
     timeoutRef.current = setTimeout(() => {
@@ -237,35 +205,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Don't return here - let the auth state change handler update the state
         }
         
-        // Get the current session with a shorter timeout for faster response
+        // Get the current session
         console.log('🔄 Getting current session...')
+        const { session, error } = await auth.getSession()
         
-        // Use Promise.race to timeout the session request faster
-        const sessionPromise = auth.getSession()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 1500) // 1.5 second timeout
-        )
+        if (!isMountedRef.current) {
+          console.log('⚠️ Component unmounted during session check')
+          return
+        }
         
-        try {
-          const { session, error } = await Promise.race([sessionPromise, timeoutPromise]) as any
-          
-          if (!isMountedRef.current) {
-            console.log('⚠️ Component unmounted during session check')
-            return
-          }
-          
-          if (error) {
-            console.error('❌ Error getting session:', error)
-            updateAuthState(null, 'session-error')
-          } else {
-            console.log('✅ Session check complete:', session ? 'found' : 'not found')
-            updateAuthState(session, 'initial-session')
-          }
-        } catch (timeoutError) {
-          console.warn('⏰ Session request timed out, continuing without session')
-          if (isMountedRef.current) {
-            updateAuthState(null, 'session-timeout')
-          }
+        if (error) {
+          console.error('❌ Error getting session:', error)
+          updateAuthState(null, 'session-error')
+        } else {
+          console.log('✅ Session check complete:', session ? 'found' : 'not found')
+          updateAuthState(session, 'initial-session')
         }
       } catch (error) {
         console.error('❌ Auth initialization error:', error)

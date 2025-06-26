@@ -14,16 +14,6 @@ export function LoadingBun({
   message = "Loading...", 
   className = "min-h-screen bg-black flex items-center justify-center" 
 }: LoadingBunProps) {
-  const [dots, setDots] = useState(0)
-  
-  // Animate dots for better visual feedback
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setDots(prev => (prev + 1) % 4)
-    }, 400) // Faster animation for more responsive feel
-    return () => clearInterval(interval)
-  }, [])
-
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -35,13 +25,13 @@ export function LoadingBun({
       }}
     >
       <div className="text-center">
-        {/* Animated VoiceBun Logo - faster animation */}
+        {/* Animated VoiceBun Logo */}
         <motion.div
           animate={{ 
-            x: [-15, 15, -15], // Reduced movement for subtlety
+            x: [-20, 20, -20],
           }}
           transition={{ 
-            duration: 1.5, // Faster animation
+            duration: 2,
             repeat: Infinity,
             ease: "easeInOut"
           }}
@@ -56,52 +46,29 @@ export function LoadingBun({
           />
         </motion.div>
 
-        {/* Loading Dots - more responsive animation */}
+        {/* Loading Dots */}
         <div className="flex justify-center space-x-2 mb-8">
           {[0, 1, 2].map((i) => (
             <motion.div
               key={i}
               animate={{
-                scale: [1, 1.3, 1], // Slightly more pronounced
-                opacity: [0.4, 1, 0.4] // Better contrast
+                scale: [1, 1.2, 1],
+                opacity: [0.5, 1, 0.5]
               }}
               transition={{
-                duration: 1.2, // Faster animation
+                duration: 1.5,
                 repeat: Infinity,
-                delay: i * 0.15 // Tighter timing
+                delay: i * 0.2
               }}
               className="w-3 h-3 bg-white rounded-full"
             />
           ))}
         </div>
 
-        {/* Loading Message with animated dots */}
-        <div className="text-white/90 text-lg leading-relaxed max-w-md mx-auto">
-          <span>{message}</span>
-          <span className="inline-block w-8 text-left">
-            {'.'.repeat(dots)}
-          </span>
-        </div>
-        
-        {/* Subtle progress indicator */}
-        <motion.div 
-          className="mt-6 mx-auto w-48 h-1 bg-white/10 rounded-full overflow-hidden"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-        >
-          <motion.div
-            className="h-full bg-white/30 rounded-full"
-            animate={{ 
-              x: ['-100%', '100%']
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-          />
-        </motion.div>
+        {/* Loading Message */}
+        <p className="text-white/90 text-lg leading-relaxed">
+          {message}
+        </p>
       </div>
     </motion.div>
   );
