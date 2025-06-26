@@ -38,19 +38,17 @@ function LandingPageContent() {
     });
   }, [loading, user, isRedirecting]);
 
-  // Show manual override after extended loading
+  // Manual override to skip loading after a delay
   useEffect(() => {
-    if (loading && !user) {
-      const overrideTimeout = setTimeout(() => {
-        console.log('⏰ Showing manual override button due to extended loading');
-        setShowManualOverride(true);
-      }, 5000); // Show override after 5 seconds
+    const timer = setTimeout(() => {
+      if (loading) {
+        console.log('Manual override: allowing user to continue after timeout')
+        setShowManualOverride(true)
+      }
+    }, 3000) // Reduced from 5000ms to 3000ms (3 seconds)
 
-      return () => clearTimeout(overrideTimeout);
-    } else {
-      setShowManualOverride(false);
-    }
-  }, [loading, user]);
+    return () => clearTimeout(timer)
+  }, [loading])
 
   // Get user plan data if authenticated (non-blocking)
   useEffect(() => {
@@ -174,14 +172,13 @@ function LandingPageContent() {
   // Show loading state
   if (loading || isRedirecting) {
     return (
-      <LoadingBun 
+      <LoadingBun
         message={
-          isRedirecting 
-            ? 'Redirecting to dashboard...' 
-            : loading 
-              ? 'Loading your session...' 
-              : 'Preparing your experience...'
+          showManualOverride 
+            ? "Taking longer than expected? You can continue below or wait a moment more..."
+            : "Checking your session... This usually takes just a moment"
         }
+        className="min-h-screen bg-black flex flex-col items-center justify-center"
       />
     );
   }

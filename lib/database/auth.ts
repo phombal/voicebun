@@ -62,6 +62,10 @@ const createSupabaseClient = (): ReturnType<typeof createClient<Database>> => {
 // Get the Supabase client
 export const supabase = createSupabaseClient()
 
+// Simple session cache to avoid redundant API calls
+let sessionCache: { session: any; timestamp: number } | null = null
+const CACHE_DURATION = 30000 // 30 seconds
+
 // Auth helper functions
 export const auth = {
   async signUp(email: string, password: string, fullName?: string) {
@@ -82,6 +86,8 @@ export const auth = {
       email,
       password
     })
+    // Clear cache on new sign in
+    sessionCache = null
     return { data, error }
   },
 
@@ -134,6 +140,8 @@ export const auth = {
   },
 
   async signOut() {
+    // Clear session cache on sign out
+    sessionCache = null
     const { error } = await supabase.auth.signOut()
     return { error }
   },
@@ -144,12 +152,34 @@ export const auth = {
   },
 
   async getSession() {
+    // Check cache first for faster response
+    if (typeof window !== 'undefined' && sessionCache) {
+      const now = Date.now()
+      if (now - sessionCache.timestamp < CACHE_DURATION) {
+        console.log('⚡ Using cached session for faster response')
+        return { session: sessionCache.session, error: null }
+      }
+    }
+    
     const { data: { session }, error } = await supabase.auth.getSession()
+    
+    // Cache the result for future calls
+    if (typeof window !== 'undefined' && !error) {
+      sessionCache = {
+        session,
+        timestamp: Date.now()
+      }
+    }
+    
     return { session, error }
   },
 
   // Listen to auth changes
   onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
-    return supabase.auth.onAuthStateChange(callback)
+    return supabase.auth.onAuthStateChange((event, session) => {
+      // Clear cache on auth state changes
+      sessionCache = null
+      callback(event, session)
+    })
   }
 } 
