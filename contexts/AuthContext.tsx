@@ -34,6 +34,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Single lock to prevent race conditions
   const initializingRef = useRef(false)
+  const initializationAttemptRef = useRef(0) // Track initialization attempts
+  const maxInitializationAttempts = 3 // Prevent infinite retry loops
 
   // Simple, reliable auth state update
   const updateAuthState = useCallback((newSession: Session | null, source: string) => {
@@ -45,7 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log(`🔄 Auth update from ${source}:`, {
       hasSession: !!newSession,
       userId: newSession?.user?.id,
-      currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
+      currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+      attempt: initializationAttemptRef.current
     })
     
     setSession(newSession)
@@ -54,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Only set loading to false after we've initialized
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true
-      console.log('✅ Auth initialized')
+      console.log('✅ Auth initialized successfully')
     }
     setLoading(false)
     
@@ -64,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
     }
+    
+    // Reset initialization lock since we completed successfully
+    initializingRef.current = false
     
     // Ensure user plan exists (non-blocking)
     if (newSession?.user?.id) {
@@ -135,7 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('🚀 Auth context mounting...', {
       environment: process.env.NODE_ENV,
       isSafari: isSafari(),
-      url: typeof window !== 'undefined' ? window.location.href : 'server'
+      url: typeof window !== 'undefined' ? window.location.href : 'server',
+      attempt: initializationAttemptRef.current + 1
     })
     
     // Prevent multiple initializations
@@ -144,12 +151,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     
+    // Prevent infinite retry loops
+    initializationAttemptRef.current += 1
+    if (initializationAttemptRef.current > maxInitializationAttempts) {
+      console.error('🚫 Max auth initialization attempts reached, forcing completion')
+      setLoading(false)
+      setUser(null)
+      setSession(null)
+      return
+    }
+    
     initializingRef.current = true
     isMountedRef.current = true
     
     // Set a reasonable timeout to prevent infinite loading
     const timeoutDuration = 5000 // 5 seconds for all browsers
-    console.log(`⏰ Setting auth timeout to ${timeoutDuration}ms`)
+    console.log(`⏰ Setting auth timeout to ${timeoutDuration}ms (attempt ${initializationAttemptRef.current})`)
     
     timeoutRef.current = setTimeout(() => {
       if (loading && !hasInitializedRef.current && isMountedRef.current) {
@@ -158,6 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
         setUser(null)
         setSession(null)
+        initializingRef.current = false
       }
     }, timeoutDuration)
 

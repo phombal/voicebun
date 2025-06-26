@@ -58,6 +58,13 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
   // Load user's phone numbers
   const loadPhoneNumbers = useCallback(async () => {
     setIsLoading(true);
+    
+    // Set timeout fallback to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Phone numbers loading timeout reached, forcing completion');
+      setIsLoading(false);
+    }, 10000); // 10 second timeout
+    
     try {
       if (!user) {
         setPhoneNumbers([]);
@@ -70,6 +77,7 @@ export function PhoneNumberManager({ projectId, onPhoneNumberAssigned, onPurchas
       console.error('❌ Error loading phone numbers:', error);
       setPhoneNumbers([]);
     } finally {
+      clearTimeout(timeoutId); // Clear timeout since we completed
       setIsLoading(false);
     }
   }, [user]);

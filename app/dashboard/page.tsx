@@ -71,7 +71,15 @@ function DashboardContent() {
 
   // Load user projects on component mount
   useEffect(() => {
-    if (!user) return;
+    if (!user || loading) return;
+    
+    console.log('📂 Dashboard: Loading projects for user:', user.id);
+    
+    // Set timeout fallback to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Dashboard projects loading timeout reached, forcing completion');
+      setLoadingProjects(false);
+    }, 10000); // 10 second timeout
     
     const loadProjects = async () => {
       try {
@@ -84,12 +92,18 @@ function DashboardContent() {
       } catch (error) {
         console.error('Failed to load projects:', error);
       } finally {
+        clearTimeout(timeoutId); // Clear timeout since we completed
         setLoadingProjects(false);
       }
     };
 
     loadProjects();
-  }, [getUserProjects, user]);
+    
+    // Cleanup function
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [user?.id, loading]); // More specific dependencies to prevent infinite loops
 
   const generateAgent = useCallback(async () => {
     if (!prompt.trim()) return;

@@ -26,6 +26,17 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
+// Development-only loading state monitor
+function LoadingStateMonitor() {
+  if (process.env.NODE_ENV !== 'development') return null;
+  
+  return (
+    <div className="fixed top-4 right-4 z-50 bg-black/80 text-white text-xs p-2 rounded font-mono">
+      <div id="loading-monitor">Loading states will appear here in dev mode</div>
+    </div>
+  );
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -46,6 +57,7 @@ export default function RootLayout({
             </ErrorBoundary>
           </AuthProvider>
         </ErrorBoundary>
+        <LoadingStateMonitor />
       </body>
     </html>
   );

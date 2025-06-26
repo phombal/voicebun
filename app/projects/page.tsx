@@ -96,14 +96,15 @@ export default function ProjectsPage() {
       
       return () => clearTimeout(safetyTimeout);
     }
-  }, [loadingProjects, user, loading]);
+  }, [user, loading]); // Removed loadingProjects to prevent infinite loops
 
   // Load user projects
   useEffect(() => {
     console.log('📂 Projects useEffect triggered:', {
       user: !!user,
       userId: user?.id,
-      loadingProjects
+      loadingProjects,
+      loading
     });
 
     // Reset loading state when user changes
@@ -111,6 +112,11 @@ export default function ProjectsPage() {
       console.log('📂 No user, resetting loading state');
       setLoadingProjects(false);
       setProjects([]);
+      return;
+    }
+    
+    // Don't load if auth is still loading or if we're already loading projects
+    if (loading || !loadingProjects) {
       return;
     }
     
@@ -170,6 +176,13 @@ export default function ProjectsPage() {
       clearTimeout(timeoutId);
     };
   }, [user?.id]); // Removed getUserProjects dependency since we're using fetch now
+
+  // Reset loading state when user changes (separate effect to avoid conflicts)
+  useEffect(() => {
+    if (user) {
+      setLoadingProjects(true);
+    }
+  }, [user?.id]);
 
   const confirmDeleteProject = async () => {
     if (!deleteModal.project) return;
