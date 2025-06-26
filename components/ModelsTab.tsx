@@ -5,7 +5,7 @@ interface ModelsTabProps {
     systemPrompt: string;
     agentInstructions: string;
     firstMessageMode: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
-    llmProvider: 'openai' | 'xai';
+    llmProvider: 'openai' | 'anthropic' | 'google' | 'azure' | 'xai';
     llmModel: string;
     llmTemperature: number;
     llmMaxResponseLength: 150 | 300 | 500 | 1000;
@@ -41,7 +41,7 @@ interface ModelsTabProps {
     systemPrompt: string;
     agentInstructions: string;
     firstMessageMode: 'wait' | 'speak_first' | 'speak_first_with_model_generated_message';
-    llmProvider: 'openai' | 'xai';
+    llmProvider: 'openai' | 'anthropic' | 'google' | 'azure' | 'xai';
     llmModel: string;
     llmTemperature: number;
     llmMaxResponseLength: 150 | 300 | 500 | 1000;
@@ -80,6 +80,9 @@ interface ModelsTabProps {
 
 const providers = [
   { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google' },
+  { value: 'azure', label: 'Azure OpenAI' },
   { value: 'xai', label: 'xAI' }
 ];
 
@@ -90,6 +93,22 @@ const modelsByProvider: { [key: string]: { value: string; label: string }[] } = 
     { value: 'gpt-4.1', label: 'GPT-4.1' },
     { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
     { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' }
+  ],
+  anthropic: [
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }
+  ],
+  google: [
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { value: 'gemini-pro', label: 'Gemini Pro' }
+  ],
+  azure: [
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Azure)' },
+    { value: 'gpt-4o', label: 'GPT-4o (Azure)' },
+    { value: 'gpt-4', label: 'GPT-4 (Azure)' },
+    { value: 'gpt-35-turbo', label: 'GPT-3.5 Turbo (Azure)' }
   ],
   xai: [
     { value: 'grok-3', label: 'Grok-3' }
