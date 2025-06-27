@@ -71,7 +71,7 @@ export default function ProfilePage() {
             <Image 
               src="/VoiceBun-White.png" 
               alt="VoiceBun" 
-              width={40}
+              width={120}
               height={40}
               className="h-10 w-auto cursor-pointer"
               onClick={() => router.push('/dashboard')}
@@ -209,10 +209,6 @@ export default function ProfilePage() {
                   <div className="text-center">
                     <div className="text-2xl font-bold text-white mb-1">{phoneNumbers.filter(p => p.is_active).length}</div>
                     <div className="text-white/70 text-sm">Active Phone Numbers</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white mb-1">0 min</div>
-                    <div className="text-white/70 text-sm">This Month's Usage</div>
                   </div>
                 </div>
               </div>
