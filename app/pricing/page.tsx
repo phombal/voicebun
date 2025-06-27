@@ -64,7 +64,6 @@ const plans: PricingPlan[] = [
     features: [
       'Everything in Professional, plus',
       'Unlimited phone numbers',
-      'White-label solution',
       '24/7 phone support',
       'SLA guarantee',
       'Custom voice models'
