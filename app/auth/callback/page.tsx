@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/database/auth'
 
-export default function AuthCallback() {
+function AuthCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'error'>('loading')
@@ -118,5 +118,30 @@ export default function AuthCallback() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Loading fallback component
+function CallbackLoading() {
+  return (
+    <div className="min-h-screen" style={{ 
+      background: 'radial-gradient(circle, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 61%, rgba(33, 33, 33, 1) 100%)',
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+    }}>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Completing authentication...</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AuthCallback() {
+  return (
+    <Suspense fallback={<CallbackLoading />}>
+      <AuthCallbackContent />
+    </Suspense>
   )
 } 
