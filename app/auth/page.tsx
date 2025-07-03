@@ -24,6 +24,18 @@ function AuthPageContent() {
     url: typeof window !== 'undefined' ? window.location.href : 'server'
   })
 
+  // Set mode based on URL parameter
+  useEffect(() => {
+    const urlMode = searchParams.get('mode')
+    if (urlMode === 'signup') {
+      console.log('📍 URL parameter detected: setting mode to signup')
+      setMode('signup')
+    } else if (urlMode === 'signin') {
+      console.log('📍 URL parameter detected: setting mode to signin')
+      setMode('signin')
+    }
+  }, [searchParams])
+
   // HIGHEST PRIORITY: Handle authenticated users immediately
   useEffect(() => {
     if (user && !loading && !redirectingRef.current) {
