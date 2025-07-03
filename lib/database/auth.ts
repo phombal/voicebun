@@ -107,12 +107,27 @@ export const auth = {
 
   // Google OAuth authentication
   async signInWithGoogle() {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+    try {
+      console.log('🔄 Initiating Google OAuth sign-in...')
+      console.log('🔗 Redirect URL will be:', `${window.location.origin}/auth/callback`)
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+      
+      if (error) {
+        console.error('❌ Google OAuth error:', error)
+      } else {
+        console.log('✅ Google OAuth initiated successfully')
       }
-    })
-    return { data, error }
+      
+      return { data, error }
+    } catch (err) {
+      console.error('❌ Google OAuth exception:', err)
+      return { data: null, error: err }
+    }
   }
 } 

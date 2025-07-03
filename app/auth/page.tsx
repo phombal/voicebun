@@ -22,9 +22,20 @@ function AuthPageContent() {
   useEffect(() => {
     if (user && !loading) {
       console.log('✅ User authenticated, redirecting to home page')
+      console.log('👤 User details:', { id: user.id, email: user.email })
       router.push('/')
     }
   }, [user, loading, router])
+
+  // Debug auth state changes
+  useEffect(() => {
+    console.log('🔍 Auth page state change:', { 
+      hasUser: !!user, 
+      loading, 
+      userId: user?.id,
+      userEmail: user?.email 
+    })
+  }, [user, loading])
 
   const handleSuccess = () => {
     console.log('✅ Auth successful, redirecting to home page')

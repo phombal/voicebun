@@ -13,11 +13,15 @@
    - **Client ID**: Use the value from your `.env` file: `34921648870-glkks6c7q3v8u0nru0pocpdvt128jq0c.apps.googleusercontent.com`
    - **Client Secret**: Use the value from your `.env` file: `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`
 
-4. **Set Redirect URLs**
-   - For development: `http://localhost:3000/auth/callback`
-   - For production: `https://www.voicebun.com/auth/callback`
+4. **⚠️ CRITICAL: Set Redirect URLs in Supabase**
+   - **Site URL**: `https://www.voicebun.com` (for production)
+   - **Redirect URLs**: Add both of these URLs:
+     - `http://localhost:3000/auth/callback` (for development)
+     - `https://www.voicebun.com/auth/callback` (for production)
+   
+   **Note**: These redirect URLs must match exactly what's configured in Google Cloud Console (next step).
 
-## Step 2: Update Google Cloud Console (if needed)
+## Step 2: Update Google Cloud Console
 
 1. **Go to Google Cloud Console**
    - Visit [Google Cloud Console](https://console.cloud.google.com/)
@@ -27,8 +31,8 @@
    - Go to "APIs & Services" > "Credentials"
    - Find your OAuth 2.0 client ID
    - Add the following to "Authorized redirect URIs":
-     - `https://kewyqwirvvwghejezeyl.supabase.co/auth/v1/callback` (your Supabase URL)
-     - `http://localhost:3000/auth/callback` (for development)
+     - `https://kewyqwirvvwghejezeyl.supabase.co/auth/v1/callback` (your Supabase URL + /auth/v1/callback)
+     - `http://localhost:3000/auth/callback` (for development testing)
      - `https://www.voicebun.com/auth/callback` (for production)
 
 ## Step 3: Test the Integration
@@ -49,9 +53,23 @@
 
 ## Troubleshooting
 
-- **Error: "redirect_uri_mismatch"**: Make sure the redirect URI in Google Cloud Console matches exactly
-- **Error: "invalid_client"**: Check that your Client ID and Secret are correctly set in Supabase
-- **Error: "access_denied"**: The user cancelled the OAuth flow or your app needs verification
+- **Error: "redirect_uri_mismatch"**: 
+  - Check that redirect URIs in Google Cloud Console match exactly
+  - Ensure Supabase redirect URLs are configured properly
+  - Verify the Supabase URL format: `https://[your-project].supabase.co/auth/v1/callback`
+
+- **Error: "invalid_client"**: 
+  - Check that your Client ID and Secret are correctly set in Supabase
+  - Verify the credentials match what's in Google Cloud Console
+
+- **Error: "access_denied"**: 
+  - The user cancelled the OAuth flow
+  - Your app may need verification in Google Cloud Console
+
+- **Redirected back to login page**: 
+  - Check browser console for authentication errors
+  - Verify Supabase Site URL is set correctly
+  - Ensure cookies are enabled in browser
 
 ## Features Added
 
@@ -60,5 +78,6 @@
 - ✅ Unified home page (works for both authenticated and unauthenticated users)
 - ✅ Beautiful Google button with official branding
 - ✅ Error handling for failed authentication
+- ✅ Enhanced debugging and logging
 
 The Google authentication is now fully integrated into your VoiceBun application! 
