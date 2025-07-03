@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import AuthForm from '@/components/auth/AuthForm'
 import { useAuth } from '@/contexts/AuthContext'
 import { motion } from 'framer-motion'
+import { auth } from '@/lib/database/auth'
 
 function AuthPageContent() {
   const router = useRouter()
@@ -12,6 +13,7 @@ function AuthPageContent() {
   const { user, loading } = useAuth()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [oauthError, setOauthError] = useState<string | null>(null)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const redirectingRef = useRef(false)
   
   console.log('🔍 AuthPageContent render:', { 
@@ -90,6 +92,131 @@ function AuthPageContent() {
 
   const handleModeChange = (newMode: 'signin' | 'signup') => {
     setMode(newMode)
+  }
+
+  const handleGoogleSignIn = async () => {
+    console.log('🔄 Google sign-in button clicked')
+    console.log('🌐 Auth page environment:', {
+      userAgent: navigator.userAgent,
+      isSafari: /^((?!chrome|android).)*safari/i.test(navigator.userAgent),
+      cookiesEnabled: navigator.cookieEnabled,
+      url: window.location.href,
+      hasUser: !!user,
+      isLoading: loading,
+      timestamp: new Date().toISOString()
+    })
+    
+    // Safari-specific pre-flight checks
+    if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+      console.log('🍎 Safari pre-flight checks:')
+      
+      // Check storage access
+      try {
+        if ('requestStorageAccess' in document) {
+          console.log('🍎 Safari has storage access API')
+          const hasAccess = await document.hasStorageAccess()
+          console.log('🍎 Current storage access:', hasAccess)
+          
+          if (!hasAccess) {
+            console.log('🍎 Requesting storage access...')
+            try {
+              await document.requestStorageAccess()
+              console.log('✅ Safari storage access granted')
+            } catch (accessError) {
+              console.warn('⚠️ Safari storage access denied:', accessError)
+            }
+          }
+        } else {
+          console.log('🍎 No storage access API available')
+        }
+      } catch (e) {
+        console.warn('🍎 Storage access check failed:', e)
+      }
+      
+      // Check if third-party cookies are blocked
+      try {
+        document.cookie = 'safari-3p-test=test; path=/; SameSite=None; Secure'
+        const has3pCookies = document.cookie.includes('safari-3p-test=test')
+        console.log('🍪 Safari 3rd party cookies:', has3pCookies ? 'ALLOWED' : 'BLOCKED')
+        if (has3pCookies) {
+          document.cookie = 'safari-3p-test=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+        }
+      } catch (e) {
+        console.warn('🍪 Safari 3rd party cookie test failed:', e)
+      }
+    }
+    
+    setIsGoogleLoading(true)
+    console.log('⏰ Starting Google OAuth flow...')
+    
+    try {
+      const startTime = Date.now()
+      const result = await auth.signInWithGoogle()
+      const endTime = Date.now()
+      
+      console.log('📊 Google OAuth initiation result:', {
+        duration: endTime - startTime + 'ms',
+        hasData: !!result.data,
+        hasError: !!result.error,
+        errorMessage: result.error?.message,
+        dataUrl: result.data?.url ? 'URL present' : 'No URL'
+      })
+      
+      if (result.error) {
+        console.error('❌ Google OAuth initiation failed:', result.error)
+        console.error('🔍 OAuth error analysis:', {
+          name: result.error.name,
+          message: result.error.message,
+          isSafari: /^((?!chrome|android).)*safari/i.test(navigator.userAgent),
+          cookiesEnabled: navigator.cookieEnabled
+        })
+        setOauthError('Failed to initiate Google sign-in. Please try again.')
+      } else {
+        console.log('✅ Google OAuth initiated successfully')
+        
+        // In Safari, track if the page change actually happens
+        if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+          console.log('🍎 Safari: Monitoring for page change...')
+          
+          // Check every 500ms for 5 seconds to see if we're still on the same page
+          let checkCount = 0
+          const maxChecks = 10
+          const pageChangeInterval = setInterval(() => {
+            checkCount++
+            const currentUrl = window.location.href
+            const stillOnAuthPage = currentUrl.includes('/auth') && !currentUrl.includes('/auth/callback')
+            
+            console.log(`🍎 Safari page check ${checkCount}/${maxChecks}:`, {
+              currentUrl: currentUrl,
+              stillOnAuthPage,
+              timestamp: new Date().toISOString()
+            })
+            
+            if (!stillOnAuthPage || checkCount >= maxChecks) {
+              clearInterval(pageChangeInterval)
+              if (stillOnAuthPage && checkCount >= maxChecks) {
+                console.warn('🍎 Safari: Still on auth page after 5 seconds - possible redirect failure')
+              }
+            }
+          }, 500)
+        }
+      }
+    } catch (err) {
+      console.error('❌ Google sign-in exception:', err)
+      console.error('🔍 Exception details:', {
+        name: (err as Error).name,
+        message: (err as Error).message,
+        stack: (err as Error).stack?.substring(0, 300),
+        isSafari: /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+      })
+      setOauthError('An unexpected error occurred. Please try again.')
+    } finally {
+      // Don't set loading to false immediately in case of redirect
+      setTimeout(() => {
+        console.log('⏰ Auth page: Setting loading to false after timeout')
+        setIsGoogleLoading(false)
+      }, 3000) // Give time for potential redirect
+    }
   }
 
   // Show loading state during auth initialization
@@ -173,6 +300,9 @@ function AuthPageContent() {
               mode={mode} 
               onSuccess={handleSuccess}
               onModeChange={handleModeChange}
+              onGoogleSignIn={handleGoogleSignIn}
+              isGoogleLoading={isGoogleLoading}
+              error={oauthError}
             />
           </motion.div>
         </div>

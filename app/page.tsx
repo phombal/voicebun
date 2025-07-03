@@ -693,8 +693,8 @@ if __name__ == "__main__":
           )}
 
           {/* Example prompts */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
               className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-16 sm:mb-32 px-4"
