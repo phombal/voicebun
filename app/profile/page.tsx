@@ -74,7 +74,7 @@ export default function ProfilePage() {
               width={120}
               height={40}
               className="h-10 w-auto cursor-pointer"
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/')}
             />
           </div>
           <div className="flex items-center space-x-4">

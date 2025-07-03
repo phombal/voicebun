@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDatabase } from '@/hooks/useDatabase'
 import { UserPlan } from '@/lib/database/types'
@@ -108,17 +107,7 @@ export default function UserProfile() {
         className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 rounded-lg px-3 py-2 transition-colors"
       >
         <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-          {user.user_metadata?.avatar_url ? (
-            <Image 
-              src={user.user_metadata.avatar_url} 
-              alt={displayName}
-              width={32}
-              height={32}
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          ) : (
-            initials
-          )}
+          {initials}
         </div>
         <span className="text-white text-sm font-medium hidden sm:block">
           {displayName}

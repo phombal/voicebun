@@ -85,54 +85,6 @@ export const auth = {
     return { data, error }
   },
 
-  async signInWithGoogle() {
-    if (typeof window === 'undefined') {
-      return { data: null, error: new Error('OAuth can only be initiated in browser') }
-    }
-
-    console.log('🔗 Initiating Google OAuth...')
-    
-    let redirectUrl: string
-    
-    // Set redirect URL based on environment
-    if (process.env.NODE_ENV === 'development') {
-      redirectUrl = `${window.location.origin}/auth/callback`
-    } else if (process.env.NEXT_PUBLIC_SITE_URL) {
-      redirectUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-    } else {
-      redirectUrl = `${window.location.origin}/auth/callback`
-    }
-
-    console.log('🔗 OAuth redirect URL:', redirectUrl)
-
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          scopes: 'openid email profile'
-        }
-      })
-
-      if (error) {
-        console.error('Google OAuth initiation error:', error)
-        return {
-          data: null,
-          error: new Error(`Authentication failed: ${error.message}`)
-        }
-      }
-
-      console.log('✅ Google OAuth initiated successfully')
-      return { data, error: null }
-    } catch (error) {
-      console.error('Google OAuth exception:', error)
-      return {
-        data: null,
-        error: error instanceof Error ? error : new Error('Unknown OAuth error')
-      }
-    }
-  },
-
   async signOut() {
     const { error } = await supabase.auth.signOut()
     return { error }
@@ -151,5 +103,16 @@ export const auth = {
   // Listen to auth changes
   onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
     return supabase.auth.onAuthStateChange(callback)
+  },
+
+  // Google OAuth authentication
+  async signInWithGoogle() {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`
+      }
+    })
+    return { data, error }
   }
 } 

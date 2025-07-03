@@ -171,7 +171,7 @@ if __name__ == "__main__":
   }, [getUserProjects, user, projectId, router, setCurrentProject]);
 
   const handleBackToHome = () => {
-    router.push('/dashboard');
+    router.push('/');
   };
 
   const handleStartConversation = () => {

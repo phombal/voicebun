@@ -80,39 +80,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Handle OAuth completion with URL cleanup
-  const handleOAuthCompletion = useCallback(async () => {
-    if (typeof window === 'undefined') return false
-    
-    const urlParams = new URLSearchParams(window.location.search)
-    const code = urlParams.get('code')
-    const error = urlParams.get('error')
-    
-    if (error) {
-      console.error('❌ OAuth error in URL:', error)
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-      return false
-    }
-    
-    if (code) {
-      console.log('🔗 OAuth code detected, getting session...')
-      try {
-        // Clean up URL immediately to prevent re-processing
-        window.history.replaceState({}, document.title, window.location.pathname)
-        
-        // Let Supabase handle the OAuth completion automatically
-        // It should detect the code and exchange it for a session
-        return true
-      } catch (error) {
-        console.error('❌ OAuth completion error:', error)
-        return false
-      }
-    }
-    
-    return false
-  }, [])
-
   const signOut = async () => {
     console.log('🚪 Signing out user')
     
@@ -216,14 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Setup auth listener first
         setupAuthListener()
         
-        // Check for OAuth completion first
-        const oauthHandled = await handleOAuthCompletion()
-        if (oauthHandled) {
-          console.log('✅ OAuth completion detected, waiting for auth state change...')
-          // Don't return here - let the auth state change handler update the state
-        }
-        
-        // Get the current session
+        // Always get the current session - Supabase will handle OAuth detection automatically
         console.log('🔄 Getting current session...')
         const { session, error } = await auth.getSession()
         
@@ -267,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authListenerRef.current = null
       }
     }
-  }, [updateAuthState, handleOAuthCompletion]) // Remove loading dependency to prevent loops
+  }, [updateAuthState]) // Remove loading dependency to prevent loops
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>

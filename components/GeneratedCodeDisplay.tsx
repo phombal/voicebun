@@ -1362,7 +1362,7 @@ For now, you can still manually configure your voice agent using the tabs above.
                 width={32}
                 height={32}
                 className="h-8 cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => window.location.href = '/dashboard'}
+                onClick={() => window.location.href = '/'}
               />
             </div>
                 

@@ -201,7 +201,7 @@ export default function ConversationPage() {
   };
 
   const handleBackToHome = () => {
-    router.push('/dashboard');
+    router.push('/');
   };
 
   // Room event handling
