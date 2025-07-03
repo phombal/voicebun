@@ -590,7 +590,7 @@ if __name__ == "__main__":
                 </button>
               </div>
             </div>
-          </div>
+      </div>
         )}
       </header>
     )
@@ -610,46 +610,46 @@ if __name__ == "__main__":
       {renderNavigation()}
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-32 sm:pt-40 pb-16 sm:pb-20">
-        <div className="text-center">
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-white mb-4 sm:mb-6 leading-tight"
-            style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
-          >
-            Give your idea a voice
-          </motion.h1>
-          
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-lg sm:text-xl text-white/80 mb-8 sm:mb-12 max-w-3xl mx-auto px-4"
-          >
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-32 sm:pt-40 pb-16 sm:pb-20">
+          <div className="text-center">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-white mb-4 sm:mb-6 leading-tight"
+              style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
+            >
+              Give your idea a voice
+            </motion.h1>
+            
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-lg sm:text-xl text-white/80 mb-8 sm:mb-12 max-w-3xl mx-auto px-4"
+            >
             {user ? 'Create and share voice agents by chatting with AI' : 'Create production-ready voice agents in seconds'}
-          </motion.p>
+            </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="relative max-w-4xl mx-auto mb-6 sm:mb-8"
-          >
-            <div className="relative bg-gray-800 rounded-2xl sm:rounded-3xl p-3 sm:p-4 mx-4 sm:mx-0">
-              <div className="flex items-center gap-2 sm:gap-4">
-                <div className="flex-1 relative">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Describe the voice agent you want to create..."
-                    className="w-full h-12 sm:h-16 p-3 sm:p-4 bg-transparent text-white placeholder-gray-400 focus:outline-none resize-none text-base sm:text-lg text-left"
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="relative max-w-4xl mx-auto mb-6 sm:mb-8"
+            >
+              <div className="relative bg-gray-800 rounded-2xl sm:rounded-3xl p-3 sm:p-4 mx-4 sm:mx-0">
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <div className="flex-1 relative">
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Describe the voice agent you want to create..."
+                      className="w-full h-12 sm:h-16 p-3 sm:p-4 bg-transparent text-white placeholder-gray-400 focus:outline-none resize-none text-base sm:text-lg text-left"
                     disabled={isGenerating}
-                  />
-                </div>
-                
+                    />
+                  </div>
+                  
                 {user && (
                   <button
                     onClick={() => setIsPublic(!isPublic)}
@@ -676,10 +676,10 @@ if __name__ == "__main__":
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                     </svg>
                   )}
-                </button>
+                  </button>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
 
           {/* Error Display */}
           {error && (
@@ -695,21 +695,21 @@ if __name__ == "__main__":
           {/* Example prompts */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-16 sm:mb-32 px-4"
-          >
-            {examplePrompts.map((example, index) => (
-              <button
-                key={index}
-                onClick={() => setPrompt(example)}
-                className="bg-transparent border border-white/30 rounded-lg px-3 py-2 sm:px-4 sm:py-2 hover:bg-white/10 hover:border-white/50 transition-all duration-200 cursor-pointer text-white/70 hover:text-white text-xs sm:text-sm backdrop-blur-sm"
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-16 sm:mb-32 px-4"
+            >
+              {examplePrompts.map((example, index) => (
+                <button
+                  key={index}
+                  onClick={() => setPrompt(example)}
+                  className="bg-transparent border border-white/30 rounded-lg px-3 py-2 sm:px-4 sm:py-2 hover:bg-white/10 hover:border-white/50 transition-all duration-200 cursor-pointer text-white/70 hover:text-white text-xs sm:text-sm backdrop-blur-sm"
                 disabled={isGenerating}
-              >
-                {example}
-              </button>
-            ))}
-          </motion.div>
+                >
+                  {example}
+                </button>
+              ))}
+            </motion.div>
 
           {/* Community Projects Section */}
           <CommunityProjectsSection 

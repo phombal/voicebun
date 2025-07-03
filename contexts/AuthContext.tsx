@@ -44,9 +44,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     
+    // Validate session if it exists
+    if (newSession) {
+      const now = Math.floor(Date.now() / 1000)
+      const expiresAt = newSession.expires_at || 0
+      
+      if (expiresAt <= now) {
+        console.log(`❌ Session from ${source} is expired, signing out`)
+        console.log(`🕐 Session expired at: ${new Date(expiresAt * 1000).toISOString()}`)
+        console.log(`🕐 Current time: ${new Date(now * 1000).toISOString()}`)
+        
+        // Clear the expired session
+        auth.signOut().catch(err => console.warn('Failed to sign out expired session:', err))
+        newSession = null
+      }
+    }
+    
     console.log(`🔄 Auth update from ${source}:`, {
       hasSession: !!newSession,
       userId: newSession?.user?.id,
+      expiresAt: newSession?.expires_at ? new Date(newSession.expires_at * 1000).toISOString() : 'N/A',
       currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
       attempt: initializationAttemptRef.current
     })
@@ -209,6 +226,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🏁 Auth initialization process completed')
     }
 
+    // Set up periodic session validation (every minute)
+    const sessionValidationInterval = setInterval(() => {
+      if (!isMountedRef.current || !hasInitializedRef.current) {
+        return
+      }
+      
+      auth.getSession().then(({ session, error }) => {
+        if (error) {
+          console.warn('⚠️ Error during periodic session check:', error)
+          return
+        }
+        
+        if (session) {
+          const now = Math.floor(Date.now() / 1000)
+          const expiresAt = session.expires_at || 0
+          
+          if (expiresAt <= now) {
+            console.log('🕐 Periodic check: Session expired, signing out')
+            updateAuthState(null, 'periodic-validation-expired')
+          }
+        }
+      }).catch(err => {
+        console.warn('⚠️ Periodic session validation error:', err)
+      })
+    }, 60000) // Check every minute
+
     initAuth()
 
     // Cleanup function
@@ -225,6 +268,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (authListenerRef.current) {
         authListenerRef.current.unsubscribe()
         authListenerRef.current = null
+      }
+      
+      if (sessionValidationInterval) {
+        clearInterval(sessionValidationInterval)
       }
     }
   }, [updateAuthState]) // Remove loading dependency to prevent loops
