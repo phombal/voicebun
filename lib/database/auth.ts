@@ -109,12 +109,24 @@ export const auth = {
   async signInWithGoogle() {
     try {
       console.log('🔄 Initiating Google OAuth sign-in...')
-      console.log('🔗 Redirect URL will be:', `${window.location.origin}/auth/callback`)
+      
+      // Ensure we're on the client side
+      if (typeof window === 'undefined') {
+        console.error('❌ Google OAuth can only be initiated on client side')
+        return { data: null, error: new Error('Client-side only') }
+      }
+      
+      const redirectUrl = `${window.location.origin}/auth/callback`
+      console.log('🔗 Redirect URL will be:', redirectUrl)
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       })
       
@@ -122,6 +134,7 @@ export const auth = {
         console.error('❌ Google OAuth error:', error)
       } else {
         console.log('✅ Google OAuth initiated successfully')
+        console.log('🔍 OAuth data:', data)
       }
       
       return { data, error }
