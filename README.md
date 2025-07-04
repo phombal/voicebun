@@ -115,14 +115,14 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## 🚨 Security
 
-If you discover a security vulnerability, please email founders@voicebun.com.
+If you discover a security vulnerability, please email pratham@voicebun.com.
 
 ## 💬 Support
 
 Need help?
 
 - **GitHub Issues**: [Create an issue](https://github.com/phombal/voicebun/issues)
-- **Email**: support@voicebun.com
+- **Email**: pratham@voicebun.com
 
 ---
 
