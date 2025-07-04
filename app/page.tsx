@@ -697,7 +697,7 @@ if __name__ == "__main__":
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-16 sm:mb-32 px-4"
+              className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-8 sm:mb-12 px-4"
             >
               {examplePrompts.map((example, index) => (
                 <button
@@ -710,6 +710,18 @@ if __name__ == "__main__":
                 </button>
               ))}
             </motion.div>
+
+          {/* Product Hunt Badge */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="flex justify-center mb-16 sm:mb-32"
+          >
+            <a href="https://www.producthunt.com/products/voicebun?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-voicebun" target="_blank">
+              <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=987948&theme=light&t=1751600908296" alt="Voicebun - Build&#0032;voice&#0032;agents&#0032;in&#0032;seconds | Product Hunt" style={{width: '250px', height: '54px'}} width="250" height="54" />
+            </a>
+          </motion.div>
 
           {/* Community Projects Section */}
           <CommunityProjectsSection 
