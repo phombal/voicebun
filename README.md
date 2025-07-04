@@ -1,6 +1,6 @@
 # 🎙️ VoiceBun
 
-![VoiceBun Logo](https://raw.githubusercontent.com/phombal/voicebun/main/public/VoiceBun-Bun-Only.png)
+![VoiceBun Logo](public/VoiceBun-BunOnly.png)
 
 **Give your idea a voice** - Create AI-powered voice agents with simple descriptions.
 
