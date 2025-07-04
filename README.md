@@ -1,8 +1,14 @@
-# 🎙️ VoiceBun
+<div align="center">
 
-![VoiceBun Logo](public/VoiceBun-BunOnly.png)
+# 🎙️ Voicebun - Create Voice Agents in Seconds
+
+<img src="public/VoiceBun-BunOnly.png" alt="VoiceBun Logo" width="100" height="100">
 
 **Give your idea a voice** - Create AI-powered voice agents with simple descriptions.
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-7289da?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/rydQMmuw)
+
+</div>
 
 VoiceBun is an open-source platform that lets you build and deploy AI-powered voice agents with natural language descriptions.
 
