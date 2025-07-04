@@ -446,7 +446,7 @@ if __name__ == "__main__":
   const examplePrompts = [
     "A customer service representative for an e-commerce company",
     "A language tutor that helps practice conversational Spanish", 
-    "A meeting assistant that takes notes and schedules follow-ups",
+    "A personal fitness coach that provides workout guidance and motivation",
     "A healthcare helper that provides wellness tips and reminders"
   ]
 
