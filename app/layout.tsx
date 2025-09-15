@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PostHogProvider } from "@/components/PostHogProvider";
+import DebugAuthPanel from "@/components/DebugAuthPanel";
 
 const publicSans400 = Public_Sans({
   weight: "400",
@@ -60,6 +61,7 @@ export default function RootLayout({
           <ErrorBoundary>
             <AuthProvider>
               <ErrorBoundary>{children}</ErrorBoundary>
+              <DebugAuthPanel />
             </AuthProvider>
           </ErrorBoundary>
         </PostHogProvider>

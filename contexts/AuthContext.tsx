@@ -36,6 +36,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const initializingRef = useRef(false)
   const initializationAttemptRef = useRef(0) // Track initialization attempts
   const maxInitializationAttempts = 3 // Prevent infinite retry loops
+  
+  // Token refresh handling
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Simple, reliable auth state update
   const updateAuthState = useCallback((newSession: Session | null, source: string) => {
@@ -95,6 +98,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('Failed to ensure user plan:', err)
       )
     }
+    
+    // Set up proactive token refresh (JWT best practice)
+    if (newSession?.expires_at) {
+      const now = Math.floor(Date.now() / 1000)
+      const expiresAt = newSession.expires_at
+      const refreshBuffer = 300 // 5 minutes before expiry
+      const timeUntilRefresh = (expiresAt - now - refreshBuffer) * 1000
+      
+      if (timeUntilRefresh > 0) {
+        // Clear any existing refresh timeout
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current)
+        }
+        
+        console.log(`⏰ Setting token refresh in ${Math.floor(timeUntilRefresh / 1000 / 60)} minutes`)
+        refreshTimeoutRef.current = setTimeout(async () => {
+          console.log('🔄 Proactively refreshing token...')
+          try {
+            const { data, error } = await auth.getSession()
+            if (error) {
+              console.warn('⚠️ Proactive refresh failed:', error)
+            } else {
+              console.log('✅ Token refreshed proactively')
+              updateAuthState(data.session, 'proactive-refresh')
+            }
+          } catch (err) {
+            console.warn('⚠️ Proactive refresh error:', err)
+          }
+        }, timeUntilRefresh)
+      }
+    }
   }, [])
 
   const signOut = async () => {
@@ -104,6 +138,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
+    }
+    
+    // Clear refresh timeout
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current)
+      refreshTimeoutRef.current = null
     }
     
     // Reset flags
@@ -263,6 +303,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
         timeoutRef.current = null
+      }
+      
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+        refreshTimeoutRef.current = null
       }
       
       if (authListenerRef.current) {

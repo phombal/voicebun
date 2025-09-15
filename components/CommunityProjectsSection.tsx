@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
+// import { motion } from 'framer-motion'; // Removed animations
 import { Users, Play, ArrowRight, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useDatabase } from '@/hooks/useDatabase';
@@ -32,7 +32,6 @@ interface PublicProject {
 }
 
 interface CommunityProjectsSectionProps {
-  delay?: number;
   variant?: 'card' | 'full-page';
   theme?: 'light' | 'dark';
   title?: string;
@@ -44,7 +43,6 @@ interface CommunityProjectsSectionProps {
 }
 
 export default function CommunityProjectsSection({ 
-  delay = 0.6,
   variant = 'card',
   theme = 'light', // eslint-disable-line @typescript-eslint/no-unused-vars
   title = 'Community Projects',
@@ -432,10 +430,7 @@ export default function CommunityProjectsSection({
   const containerClasses = "bg-gray-800 rounded-3xl p-8 shadow-2xl shadow-white/10 w-full max-w-none mx-auto";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
+    <div
       className={containerClasses}
     >
       {/* Title inside the gray card */}
@@ -471,9 +466,7 @@ export default function CommunityProjectsSection({
         
         {/* Error Display */}
         {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="mb-4 p-4 bg-red-900/50 border border-red-700 rounded-lg"
           >
             <div className="flex items-center justify-between">
@@ -492,16 +485,13 @@ export default function CommunityProjectsSection({
                 </svg>
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
       
       {/* Search and Filters */}
       {(showSearch || showFilters) && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: delay + 0.1 }}
+        <div 
           className="mb-8"
         >
           <div className="flex flex-col gap-4">
@@ -556,17 +546,14 @@ export default function CommunityProjectsSection({
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
       )}
       
       {projectsLoading ? (
         <div className={getGridClasses()}>
           {[...Array(variant === 'full-page' ? 8 : (limit || 8))].map((_, i) => (
-            <motion.div
+            <div
               key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: delay + 0.1 + i * 0.1 }}
               className="bg-gray-200 rounded-xl overflow-hidden animate-pulse"
             >
               <div className="aspect-video bg-gray-200"></div>
@@ -585,14 +572,11 @@ export default function CommunityProjectsSection({
                   <div className="h-4 bg-gray-200 rounded w-3/4"></div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       ) : filteredProjects.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: delay + 0.1 }}
+        <div
           className="text-center py-12"
         >
           <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
@@ -612,7 +596,7 @@ export default function CommunityProjectsSection({
             <span>Get Started</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
-        </motion.div>
+        </div>
       ) : (
         <div className={getGridClasses()}>
           {filteredProjects.map((project) => (
@@ -620,6 +604,6 @@ export default function CommunityProjectsSection({
           ))}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 } 
