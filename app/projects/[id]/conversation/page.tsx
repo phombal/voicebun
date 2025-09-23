@@ -3,7 +3,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { Project as DatabaseProject } from '@/lib/database/types';
 import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
@@ -16,7 +15,6 @@ import { VoiceAssistantControlBar } from '@livekit/components-react';
 import { DisconnectButton } from '@livekit/components-react';
 import { NoAgentNotification } from '@/components/NoAgentNotification';
 import DatabaseTranscriptionView from '@/components/DatabaseTranscriptionView';
-import { AnimatePresence } from 'framer-motion';
 import { CloseIcon } from '@/components/CloseIcon';
 
 interface Project {
@@ -254,11 +252,7 @@ export default function ConversationPage() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
+    <div
       className="flex flex-col min-h-screen bg-gray-900"
     >
       <SimpleVoiceAssistant 
@@ -268,7 +262,7 @@ export default function ConversationPage() {
         room={room}
       />
       <RoomAudioRenderer />
-    </motion.div>
+    </div>
   );
 }
 
@@ -347,38 +341,28 @@ function ConversationControlBar(props: { onReconfigure: () => void; onBackToHome
   return (
     <div className="relative h-[80px] bg-gray-900 border-t border-gray-800">
       <div className="max-w-4xl mx-auto px-6 py-4">
-        <AnimatePresence>
           {agentState !== "disconnected" && agentState !== "connecting" && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.4, ease: [0.09, 1.04, 0.245, 1.055] }}
+            <div
               className="flex h-full justify-center items-center space-x-4"
             >
               <VoiceAssistantControlBar controls={{ leave: false }} />
               <DisconnectButton>
                 <CloseIcon />
               </DisconnectButton>
-              <motion.button
+              <button
                 onClick={props.onReconfigure}
                 className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded-md transition-colors"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
               >
                 Back to Project
-              </motion.button>
-              <motion.button
+              </button>
+              <button
                 onClick={props.onBackToHome}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
               >
                 Dashboard
-              </motion.button>
-            </motion.div>
+              </button>
+            </div>
           )}
-        </AnimatePresence>
       </div>
     </div>
   );

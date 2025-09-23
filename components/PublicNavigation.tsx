@@ -4,7 +4,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 export default function PublicNavigation() {
   const [scrolled, setScrolled] = useState(false);
@@ -114,24 +113,16 @@ export default function PublicNavigation() {
       </header>
 
       {/* Mobile Sidebar Menu */}
-      <AnimatePresence>
         {isMobileMenuOpen && (
           <>
             {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               onClick={closeMobileMenu}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
             />
             
             {/* Sidebar */}
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'tween', duration: 0.3 }}
+            <div
               className="fixed top-0 right-0 h-full w-80 bg-gray-900/95 backdrop-blur-md z-50 md:hidden shadow-2xl"
             >
               <div className="flex flex-col h-full">
@@ -203,10 +194,9 @@ export default function PublicNavigation() {
                 <div className="p-6 border-t border-white/10">
                 </div>
               </div>
-            </motion.div>
+            </div>
           </>
         )}
-      </AnimatePresence>
     </>
   );
 } 

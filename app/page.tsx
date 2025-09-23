@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { motion } from 'framer-motion'
 import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types'
 import { Project as DatabaseProject } from '@/lib/database/types'
 import { useDatabase } from '@/hooks/useDatabase'
@@ -623,10 +622,7 @@ if __name__ == "__main__":
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+    <div
       className="min-h-screen"
       style={{ 
         background: 'radial-gradient(circle, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 61%, rgba(33, 33, 33, 1) 100%)',
@@ -638,29 +634,20 @@ if __name__ == "__main__":
       {/* Hero Section */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-32 sm:pt-40 pb-16 sm:pb-20">
           <div className="text-center">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+            <h1
               className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-white mb-4 sm:mb-6 leading-tight"
               style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}
             >
               Give your idea a voice
-            </motion.h1>
+            </h1>
             
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+            <p
               className="text-lg sm:text-xl text-white/80 mb-8 sm:mb-12 max-w-3xl mx-auto px-4"
             >
             {user ? 'Create and share voice agents by chatting with AI' : 'Create production-ready voice agents in seconds'}
-            </motion.p>
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
+            <div
               className="relative max-w-4xl mx-auto mb-6 sm:mb-8"
             >
               <div className="relative bg-gray-800 rounded-2xl sm:rounded-3xl p-3 sm:p-4 mx-4 sm:mx-0">
@@ -705,24 +692,19 @@ if __name__ == "__main__":
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
           {/* Error Display */}
           {error && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               className="max-w-3xl mx-auto mb-8 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-center"
             >
               {error}
-            </motion.div>
+            </div>
           )}
 
             {/* Example prompts */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
+            <div
               className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-8 sm:mb-12 px-4"
             >
               {examplePrompts.map((example, index) => (
@@ -735,19 +717,16 @@ if __name__ == "__main__":
                   {example}
                 </button>
               ))}
-            </motion.div>
+            </div>
 
           {/* Product Hunt Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+          <div
             className="flex justify-center mb-16 sm:mb-32"
           >
             <a href="https://www.producthunt.com/products/voicebun?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-voicebun" target="_blank">
               <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=987948&theme=light&t=1751600908296" alt="Voicebun - Build&#0032;voice&#0032;agents&#0032;in&#0032;seconds | Product Hunt" style={{width: '250px', height: '54px'}} width="250" height="54" />
             </a>
-          </motion.div>
+          </div>
 
           {/* Community Projects Section */}
           <CommunityProjectsSection 
@@ -782,7 +761,7 @@ if __name__ == "__main__":
           </div>
         </section>
       )}
-    </motion.div>
+    </div>
   );
 }
 

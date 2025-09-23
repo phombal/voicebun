@@ -3,7 +3,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useDatabase } from '@/hooks/useDatabase';
 import UserProfile from '@/components/auth/UserProfile';
 import UserPlanCard from '@/components/UserPlanCard';
@@ -97,20 +96,15 @@ export default function ProfilePage() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-6 py-8 pt-24">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="mb-8"
         >
           <h1 className="text-3xl font-bold text-white mb-2">Profile Settings</h1>
           <p className="text-white/70">Manage your account, phone numbers, and billing settings</p>
-        </motion.div>
+        </div>
 
         {/* Tab Navigation */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="flex space-x-1 bg-white/10 rounded-lg p-1 mb-8"
         >
           <button
@@ -146,14 +140,11 @@ export default function ProfilePage() {
             <CreditCard className="w-4 h-4 mr-2" />
             Billing & Plan
           </button>
-        </motion.div>
+        </div>
 
         {/* Tab Content */}
-        <motion.div
+        <div
           key={activeTab}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
         >
           {activeTab === 'account' && (
             <div className="space-y-6">
@@ -275,7 +266,7 @@ export default function ProfilePage() {
               <UserPlanCard />
             </div>
           )}
-        </motion.div>
+        </div>
       </main>
     </div>
   );

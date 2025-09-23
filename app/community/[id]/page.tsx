@@ -4,7 +4,6 @@ import { useEffect, useCallback, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Room, RoomEvent, VideoPresets } from 'livekit-client';
 import { ArrowLeft } from 'lucide-react';
 import {
@@ -450,45 +449,28 @@ export default function CommunityProjectPage() {
 
     return (
       <>
-        <AnimatePresence mode="wait">
           {agentState === "disconnected" ? (
-            <motion.div
-              key="disconnected"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.3, ease: [0.09, 1.04, 0.245, 1.055] }}
+            <div
               className="grid items-center justify-center h-full"
             >
               {isConnecting || isDisconnecting ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
+                <div
                   className="flex items-center justify-center text-white text-lg"
                 >
                   <LoadingSpinner size="lg" color="white" className="mr-2" />
                   {isDisconnecting ? 'Disconnecting...' : 'Creating Agent Session...'}
-                </motion.div>
+                </div>
               ) : (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
+                <button
                   className="px-8 py-4 bg-black hover:bg-gray-900 text-white font-medium rounded-lg transition-colors text-lg border border-white/20"
                   onClick={handleTryProject}
                 >
                   Try This Agent
-                </motion.button>
+                </button>
               )}
-            </motion.div>
+            </div>
           ) : (
-            <motion.div
-              key="connected"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3, ease: [0.09, 1.04, 0.245, 1.055] }}
+            <div
               className="relative min-h-screen bg-black"
               style={{ '--lk-bg': '#000000' } as React.CSSProperties}
             >
@@ -509,33 +491,25 @@ export default function CommunityProjectPage() {
               
               {/* Bottom controls */}
               <div className="fixed right-0 bottom-0 left-0 z-50 px-3 pt-2 pb-3 md:px-12 md:pb-12 bg-gradient-to-t from-black to-transparent">
-                <motion.div
-                  initial={{ opacity: 0, translateY: '100%' }}
-                  animate={{ opacity: 1, translateY: '0%' }}
-                  transition={{ duration: 0.3, delay: 0.5, ease: 'easeOut' }}
-                >
+                <div>
                   <div className="relative z-10 mx-auto w-full max-w-2xl">
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.8, duration: 0.5 }}
+                    <div
                       className="absolute inset-x-0 -top-12 text-center pointer-events-none"
                     >
                       <p className="inline-block text-sm font-semibold text-white/70">
                         Agent is listening, start speaking
                       </p>
-                    </motion.div>
+                    </div>
                     
                     <ConversationControlBar />
-                  </div>
-                </motion.div>
+              </div>
+            </div>
               </div>
               
               <RoomAudioRenderer />
               <NoAgentNotification state={agentState} />
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
       </>
     );
   }

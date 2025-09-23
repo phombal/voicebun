@@ -3,7 +3,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { Project, VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
 import { GeneratedCodeDisplay } from '@/components/GeneratedCodeDisplay';
@@ -194,13 +193,7 @@ if __name__ == "__main__":
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
-      className="flex flex-col min-h-screen"
-    >
+    <div className="flex flex-col min-h-screen">
       <GeneratedCodeDisplay
         code={code}
         config={config}
@@ -209,6 +202,6 @@ if __name__ == "__main__":
         onBackToHome={handleBackToHome}
         onProjectUpdate={handleProjectUpdate}
       />
-    </motion.div>
+    </div>
   );
 } 

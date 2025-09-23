@@ -15,9 +15,7 @@ export function LoadingBun({
   className = "min-h-screen bg-black flex items-center justify-center" 
 }: LoadingBunProps) {
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+    <div 
       className={`${className} transition-opacity duration-300`} 
       style={{ 
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -70,7 +68,7 @@ export function LoadingBun({
           {message}
         </p>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

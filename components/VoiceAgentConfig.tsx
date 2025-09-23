@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { LoadingSpinner } from './LoadingBun';
 
 export interface VoiceAgentConfig {
@@ -148,10 +147,7 @@ Generate the complete agent code with proper structure following the latest Live
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+    <div
       className="max-w-2xl mx-auto p-6 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20"
     >
       <div className="space-y-6">
@@ -242,7 +238,7 @@ Generate the complete agent code with proper structure following the latest Live
         </div>
 
         {/* Submit Button */}
-        <motion.button
+        <button
           onClick={generateCode}
           className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors duration-200"
         >
@@ -254,8 +250,8 @@ Generate the complete agent code with proper structure following the latest Live
           ) : (
             "Generate Voice Agent"
           )}
-        </motion.button>
+        </button>
       </div>
-    </motion.div>
+    </div>
   );
 } 

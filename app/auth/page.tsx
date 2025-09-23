@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import AuthForm from '@/components/auth/AuthForm'
 import { useAuth } from '@/contexts/AuthContext'
-import { motion } from 'framer-motion'
 import { auth } from '@/lib/database/auth'
 
 function AuthPageContent() {
@@ -274,10 +273,7 @@ function AuthPageContent() {
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           {/* Brand Header */}
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <div 
             className="text-center mb-8"
           >
             <h1 className="text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Sniglet, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }}>
@@ -286,26 +282,20 @@ function AuthPageContent() {
             <p className="text-white/80 text-lg">
               Give your idea a voice
             </p>
-          </motion.div>
+          </div>
 
           {/* OAuth Error Message - only show for unauthenticated users */}
           {oauthError && !user && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+            <div 
               className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg"
             >
               <p className="text-red-400 text-sm text-center">
                 {oauthError}
               </p>
-            </motion.div>
+            </div>
           )}
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+          <div 
             className="w-full"
           >
             <AuthForm 
@@ -316,7 +306,7 @@ function AuthPageContent() {
               isGoogleLoading={isGoogleLoading}
               error={oauthError}
             />
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

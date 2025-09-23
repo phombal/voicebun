@@ -1,7 +1,6 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import PublicNavigation from '@/components/PublicNavigation';
 import UserProfile from '@/components/auth/UserProfile';
@@ -56,13 +55,9 @@ export default function CommunityPage() {
       {/* Hero Section */}
       <section className={`max-w-7xl mx-auto px-4 sm:px-6 pb-12 ${user ? 'pt-24 sm:pt-28 md:pt-32' : 'pt-24 sm:pt-28 md:pt-32'}`}>
         <div className="mb-12">
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4"
-          >
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             Community Voice Agents
-          </motion.h1>
+          </h1>
         </div>
 
         {/* Community Projects */}

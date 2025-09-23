@@ -3,7 +3,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { Project as DatabaseProject } from '@/lib/database/types';
 import { VoiceAgentConfig as VoiceAgentConfigType } from '@/lib/database/types';
 import { useDatabase } from '@/hooks/useDatabase';
@@ -503,11 +502,7 @@ export default function ProjectsPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 pt-24">
         {projects.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-16"
-          >
+          <div className="text-center py-16">
             <div className="text-6xl mb-4">🤖</div>
             <h2 className="text-2xl font-bold text-white mb-4">No projects yet</h2>
             <p className="text-white/70 mb-8 max-w-md mx-auto">
@@ -527,21 +522,17 @@ export default function ProjectsPage() {
                 'Create Your First Agent'
               )}
             </button>
-          </motion.div>
+          </div>
         ) : (
           <div>
             {/* Title outside the white box */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-16"
-            >
+            <div className="mb-16">
               <h1 
                 className="text-4xl md:text-5xl font-bold text-white mb-4"
               >
                 Your Voice Agents
               </h1>
-            </motion.div>
+            </div>
 
             <CommunityProjectsSection 
               projectType="user"
